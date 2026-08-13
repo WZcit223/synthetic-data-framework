@@ -1,0 +1,18 @@
+# Core shell: NO dependencies (Python 3.9+ standard library only).
+#
+# Optional extras, by phase (see docs/ROADMAP.md). Uncomment as adopted.
+
+# --- Optional: HTTP API + dashboard (Phase 1) ---
+# fastapi
+# uvicorn
+
+# --- Optional: real synthesis + validation (Phase 2) ---
+# sdv
+# sdmetrics
+# faker
+# pandas
+# numpy
+
+# --- Optional: application algorithms (Phase 3) ---
+# scikit-learn
+# lightgbm

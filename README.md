@@ -1,0 +1,58 @@
+# Synthetic Data Framework — Industrial AI Shell
+# 合成数据工业 AI 框架（工程壳）
+
+A three-layer industrial-AI framework prototype that uses **synthetic data** to
+build and demonstrate applications before real data is available. The first
+validation scenario is **AI Warehouse Management**.
+
+> **Shell-first philosophy.** This repo is the *engineering shell*: it proves the
+> end-to-end flow and the user-facing effect with zero heavy dependencies and
+> rule-based stand-ins. It intentionally does **no** data/algorithm validation.
+> What a full implementation additionally requires (algorithms + data) is
+> catalogued in [`docs/ALGORITHM_AND_DATA_CHECKLIST.md`](docs/ALGORITHM_AND_DATA_CHECKLIST.md).
+
+## Quickstart
+
+No install required (pure Python 3.9+ stdlib):
+
+```bash
+python demo/run_demo.py            # end-to-end demo, prints report
+PYTHONPATH=src python -m sdf.cli export out/   # write synthetic CSVs
+python tests/test_generators.py    # run shell tests
+```
+
+Optional HTTP API (for a dashboard front-end):
+
+```bash
+pip install fastapi uvicorn
+PYTHONPATH=src uvicorn sdf.api.app:app --reload
+```
+
+## Layers
+
+```
+Foundation  (src/sdf/foundation)  canonical entities + multi-source registry
+Synthesis   (src/sdf/synthesis)   GenerationSpec → generators → quality report
+Application (src/sdf/application)  AI warehouse demo: KPIs, replenishment, insight
+```
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design and
+[`docs/ROADMAP.md`](docs/ROADMAP.md) for the phased plan.
+
+## What is a shell vs. what is an algorithm?
+
+| In this repo (shell) | Deferred to algorithm phase |
+|----------------------|-----------------------------|
+| Seeded rule-based generators | Fitted generative models (SDV/CTGAN/TimeGAN) |
+| Structural quality checks | Statistical fidelity / privacy / ML-utility validation |
+| Rule-based forecast & replenishment | DeepAR / TFT forecasting + (s,S) optimisation |
+| Templated insights | LLM + knowledge-graph reasoning |
+
+Every deferred item is marked `# ALGORITHM-HOOK` / `# DATA-HOOK` in code and
+listed in the checklist.
+
+## Documentation
+- [Architecture / 架构](docs/ARCHITECTURE.md)
+- [Algorithm & Data Checklist / 算法与数据清单](docs/ALGORITHM_AND_DATA_CHECKLIST.md)
+- [Reference & Open Datasets / 数据集](docs/DATASETS.md)
+- [Roadmap / 路线图](docs/ROADMAP.md)

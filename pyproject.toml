@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synthetic-data-framework"
+version = "0.1.0"
+description = "Three-layer industrial-AI framework shell with synthetic-data-driven AI warehouse demo"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Proprietary" }
+dependencies = []  # core shell is dependency-free by design
+
+[project.optional-dependencies]
+api = ["fastapi", "uvicorn"]
+synthesis = ["sdv", "sdmetrics", "faker", "pandas", "numpy"]
+app = ["scikit-learn", "lightgbm"]
+
+[project.scripts]
+sdf = "sdf.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
