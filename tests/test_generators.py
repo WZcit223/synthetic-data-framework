@@ -40,6 +40,18 @@ def test_application_layer_runs():
     assert len(intel.insights()) >= 3
 
 
+def test_vision_stocktake():
+    _, reg = build_registry(GenerationSpec(n_skus=120, horizon_days=45))
+    intel = WarehouseIntelligence(reg)
+    grid = intel.shelf_occupancy_grid()
+    assert grid and all("zone" in z and "aisles" in z for z in grid)
+    stock = intel.stocktake_discrepancies()
+    # Most locations should match; some flagged. Sanity, not a fidelity claim.
+    assert stock["locations_scanned"] > 0
+    assert stock["matched"] + stock["flagged"] == stock["locations_scanned"]
+    assert 0.0 <= stock["match_rate"] <= 1.0
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -80,6 +80,10 @@ _CATEGORIES = [
 ]
 
 
+def _clamp(x: float, lo: float = 0.02, hi: float = 1.0) -> float:
+    return max(lo, min(hi, x))
+
+
 class WarehouseGenerator:
     """Seeded, deterministic generator for a complete warehouse dataset."""
 
@@ -95,7 +99,7 @@ class WarehouseGenerator:
         inventory = self._gen_inventory(skus, locations)
         inbound = self._gen_inbound(skus)
         outbound = self._gen_outbound(skus)
-        sensors = self._gen_sensors(locations)
+        sensors = self._gen_sensors(locations, inventory)
         return SyntheticWarehouse(
             skus=skus,
             locations=locations,
@@ -218,24 +222,45 @@ class WarehouseGenerator:
                     oid += 1
         return orders
 
-    def _gen_sensors(self, locations: List[Location]) -> List[SensorReading]:
+    def _gen_sensors(
+        self, locations: List[Location], inventory: List[InventorySnapshot]
+    ) -> List[SensorReading]:
+        # Book-of-record units per location (what the system *thinks* is there).
+        book: Dict[str, int] = {}
+        for snap in inventory:
+            book[snap.location_id] = book.get(snap.location_id, 0) + snap.on_hand
+
         readings: List[SensorReading] = []
-        sample = self._rng.sample(locations, k=min(30, len(locations)))
+        sample = self._rng.sample(locations, k=min(40, len(locations)))
         for loc in sample:
-            for day in range(0, self.spec.horizon_days, 3):
+            cap = max(1, loc.capacity_units)
+            b = book.get(loc.location_id, 0)
+            # DATA-HOOK: est_units would come from the CV counting pipeline (reuse
+            # of the fabric-defect / multimodal work). Here it is a synthetic
+            # estimate that closely tracks the book value, with a few injected
+            # mismatches so the stocktake view has realistic discrepancies.
+            if self._rng.random() < 0.18:
+                factor = self._rng.choice([
+                    self._rng.uniform(0.35, 0.7),   # shortage (shrinkage/miscount)
+                    self._rng.uniform(1.3, 1.7),    # surplus (misplacement)
+                ])
+                est_units = int(round(b * factor))
+            else:
+                est_units = int(round(b * self._rng.uniform(0.96, 1.04)))
+            # Occupancy is only for the heatmap colour; est drives the stocktake.
+            occ = _clamp(est_units / max(cap, b, 1))
+            meta = {"source": "synthetic-cv-stub", "capacity": cap,
+                    "book_units": b, "est_units": est_units}
+            for day in range(0, self.spec.horizon_days, 7):
                 ts = self.spec.start + timedelta(days=day)
-                if loc.temperature_controlled:
-                    readings.append(SensorReading(
-                        ts=ts, location_id=loc.location_id,
-                        modality="temperature",
-                        value=round(self._rng.uniform(1.0, 7.0), 2), unit="C"))
-                # DATA-HOOK: vision_occupancy would come from the CV pipeline
-                # (reuse of the fabric-defect / multimodal work).
                 readings.append(SensorReading(
                     ts=ts, location_id=loc.location_id,
                     modality="vision_occupancy",
-                    value=round(self._rng.uniform(0.1, 1.0), 3), unit="ratio",
-                    meta={"source": "synthetic-cv-stub"}))
+                    value=round(occ, 3), unit="ratio", meta=dict(meta)))
+                if loc.temperature_controlled:
+                    readings.append(SensorReading(
+                        ts=ts, location_id=loc.location_id, modality="temperature",
+                        value=round(self._rng.uniform(1.0, 7.0), 2), unit="C"))
         return readings
 
     # -- helpers -----------------------------------------------------------

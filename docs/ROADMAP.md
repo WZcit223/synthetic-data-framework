@@ -16,8 +16,10 @@ clean shell-first, algorithm-second delivery.
 - Two views: framework capability overview (management) + replenishment
   closed-loop deep dive (demand → forecast → reorder point → order → service level).
 - Scenario controls: live sliders for `GenerationSpec` (SKU count, demand, stockout, seed).
+- Vision stocktake view: synthetic shelf-occupancy heatmap + vision-vs-book
+  discrepancy detection (DATA-HOOK for real images).
+- CSV export of every synthetic entity.
 - **Deliverable:** the "像样的壳" — a polished, demoable product shell.
-- **Next in this phase:** CSV/Parquet export button, vision shelf-occupancy view.
 
 ## Phase 2 — Introduce real/open data + real synthesis
 - Ingest one open dataset (see `DATASETS.md`) through the registry.

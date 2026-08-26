@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import os
 
+import csv
+import io
+import json
+
 try:
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Response
     from fastapi.responses import HTMLResponse
 except ImportError as exc:  # pragma: no cover
     raise SystemExit(
@@ -121,3 +125,38 @@ def application_top_movers(n: int = 8):
 @app.get("/application/demand_series")
 def application_demand_series(sku_id: str):
     return _state.intel.demand_series(sku_id)
+
+
+@app.get("/application/shelf_occupancy")
+def application_shelf_occupancy():
+    return _state.intel.shelf_occupancy_grid()
+
+
+@app.get("/application/stocktake")
+def application_stocktake():
+    return _state.intel.stocktake_discrepancies()
+
+
+@app.get("/export")
+def export(entity: str = "outbound"):
+    """Download the current synthetic dataset for one entity as CSV."""
+    tables = {
+        "skus": _state.wh.skus, "locations": _state.wh.locations,
+        "inventory": _state.wh.inventory, "inbound": _state.wh.inbound,
+        "outbound": _state.wh.outbound, "sensors": _state.wh.sensors,
+    }
+    rows = tables.get(entity)
+    if not rows:
+        return Response(content="unknown or empty entity\n",
+                        media_type="text/plain", status_code=404)
+    keys = list(rows[0].to_dict().keys())
+    buf = io.StringIO()
+    w = csv.DictWriter(buf, fieldnames=keys)
+    w.writeheader()
+    for r in rows:
+        d = r.to_dict()
+        w.writerow({k: (json.dumps(v) if isinstance(v, (dict, list)) else v)
+                    for k, v in d.items()})
+    return Response(
+        content=buf.getvalue(), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{entity}.csv"'})
