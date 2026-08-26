@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Synthetic Data Framework — Warehouse Shell</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2430; --line:#2a3441;
+    --ink:#e6edf3; --muted:#8b98a9; --accent:#4c9aff; --accent2:#3fb950;
+    --warn:#e3b341; --bad:#f85149; --a:#4c9aff; --b:#a371f7; --c:#8b98a9;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  header{padding:20px 28px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;font-weight:650}
+  .layers{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+  .badge{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--line);
+    color:var(--muted);background:var(--panel2)}
+  main{padding:22px 28px;max-width:1240px;margin:0 auto}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
+    margin:30px 0 12px;font-weight:600}
+  .grid{display:grid;gap:14px}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .caps{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+  .two{grid-template-columns:1fr 1fr}
+  @media(max-width:860px){.two{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .kpi .v{font-size:26px;font-weight:680;letter-spacing:-.02em}
+  .kpi .k{font-size:12px;color:var(--muted);margin-top:2px}
+  .cap h3{margin:0 0 4px;font-size:14px}
+  .cap p{margin:0;color:var(--muted);font-size:12.5px}
+  .cap .tag{font-size:10.5px;color:var(--accent);margin-top:8px;display:inline-block}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pill{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--panel2);border:1px solid var(--line)}
+  .controls{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end}
+  .ctrl{display:flex;flex-direction:column;gap:5px;min-width:150px}
+  .ctrl label{font-size:11.5px;color:var(--muted)}
+  .ctrl output{font-size:12px;color:var(--accent);font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  select,button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+  button:active{transform:translateY(1px)}
+  .insights li{margin:6px 0;color:var(--ink)}
+  .muted{color:var(--muted)}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .step{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:12px}
+  .arrow{color:var(--muted)}
+  .big{font-size:30px;font-weight:700}
+  .good{color:var(--accent2)} .badv{color:var(--bad)}
+  svg text{fill:var(--muted);font-size:10px}
+  .note{font-size:11.5px;color:var(--muted);margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧩 Synthetic Data Framework <span class="muted">— AI Warehouse Shell</span></h1>
+  <div class="layers">
+    <span class="badge">Foundation Layer</span>
+    <span class="badge">Synthesis Layer</span>
+    <span class="badge">Application Layer</span>
+    <span class="badge" style="border-color:var(--warn);color:var(--warn)">shell mode · no data validation</span>
+  </div>
+</header>
+
+<main>
+  <!-- generation controls -->
+  <div class="card">
+    <div class="controls">
+      <div class="ctrl">
+        <label>SKUs <output id="o_skus">200</output></label>
+        <input id="skus" type="range" min="20" max="1000" step="20" value="200">
+      </div>
+      <div class="ctrl">
+        <label>Demand intensity (class-A) <output id="o_dem">6.0</output></label>
+        <input id="dem" type="range" min="1" max="16" step="0.5" value="6">
+      </div>
+      <div class="ctrl">
+        <label>Stockout pressure <output id="o_stk">0.08</output></label>
+        <input id="stk" type="range" min="0" max="0.4" step="0.01" value="0.08">
+      </div>
+      <div class="ctrl">
+        <label>Seed <output id="o_seed">42</output></label>
+        <input id="seed" type="range" min="1" max="99" step="1" value="42">
+      </div>
+      <button class="primary" onclick="regen()">↻ Regenerate synthetic world</button>
+      <span id="status" class="muted"></span>
+    </div>
+    <div class="note">Sliders re-drive the <code>GenerationSpec</code> (reference-dataset + generation
+      requirements). In shell mode data is a seeded stdlib sample — no statistical validation.</div>
+  </div>
+
+  <!-- MANAGEMENT VIEW: framework capability overview -->
+  <h2>Framework capability overview <span class="muted">— for management</span></h2>
+  <div class="grid kpis" id="kpis"></div>
+
+  <div class="grid caps" style="margin-top:14px" id="caps"></div>
+
+  <div class="grid two" style="margin-top:14px">
+    <div class="card">
+      <h3 style="margin:0 0 10px;font-size:14px">ABC distribution</h3>
+      <div id="abc"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 10px;font-size:14px">Auto-generated insights <span class="pill">knowledge stub</span></h3>
+      <ul class="insights" id="insights" style="padding-left:18px;margin:0"></ul>
+    </div>
+  </div>
+
+  <!-- DEEP DIVE: replenishment closed loop -->
+  <h2>Deep dive — replenishment closed loop <span class="muted">— one capability, end to end</span></h2>
+  <div class="flow">
+    <span class="step">Demand history</span><span class="arrow">→</span>
+    <span class="step">Forecast <span class="muted">(trailing avg · ALGO-HOOK)</span></span><span class="arrow">→</span>
+    <span class="step">Reorder point</span><span class="arrow">→</span>
+    <span class="step">Suggested order</span><span class="arrow">→</span>
+    <span class="step">Projected service level</span>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <h3 style="margin:0;font-size:14px">Demand & forecast</h3>
+        <select id="mover" onchange="loadSeries()"></select>
+      </div>
+      <div id="series"></div>
+      <div id="seriesMeta" class="note"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 10px;font-size:14px">Replenishment simulation</h3>
+      <div id="sim"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin:0 0 10px;font-size:14px">Top replenishment suggestions
+      <span class="pill">rule-based · (s,S) is the ALGO-HOOK</span></h3>
+    <table><thead><tr>
+      <th>SKU</th><th>Name</th><th class="num">Available</th>
+      <th class="num">Avg daily demand</th><th class="num">Reorder point</th>
+      <th class="num">Suggested qty</th><th class="num">Urgency</th>
+    </tr></thead><tbody id="repl"></tbody></table>
+  </div>
+
+  <p class="note" style="margin:26px 0 40px">
+    Every rule-based stand-in above maps to a <code>#&nbsp;ALGORITHM-HOOK</code> in the source and a row in
+    <code>docs/ALGORITHM_AND_DATA_CHECKLIST.md</code>. Swapping generators for SDV/CTGAN and the forecast for
+    DeepAR/TFT upgrades this shell to a validated system without changing the layers or this dashboard.
+  </p>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = n => (typeof n==="number" ? n.toLocaleString(undefined,{maximumFractionDigits:2}) : n);
+
+const CAPS = [
+  {h:"Data management", p:"Multi-source overlay via the DataSourceRegistry; canonical entities keep synthetic & real interchangeable.", t:"Foundation Layer"},
+  {h:"Decision support", p:"Forecast-driven reorder points and replenishment quantities per SKU.", t:"Application · ALGO-HOOK: (s,S)"},
+  {h:"Insight / anomaly", p:"Stockout & dead-stock detection and portfolio KPIs surfaced automatically.", t:"Application · ALGO-HOOK: anomaly model"},
+  {h:"Knowledge organisation", p:"Templated narrative insights today; LLM + knowledge-graph is the upgrade path.", t:"Application · ALGO-HOOK: LLM+KG"},
+];
+
+for(const id of ["skus","dem","stk","seed"]){
+  const map={skus:"o_skus",dem:"o_dem",stk:"o_stk",seed:"o_seed"};
+  $("#"+id).addEventListener("input",e=>$("#"+map[id]).textContent=e.target.value);
+}
+
+function bars(data, opts={}){
+  // data: [{label, value, color}] -> horizontal bar SVG
+  const w=opts.w||360, rowH=26, pad=90, max=Math.max(1,...data.map(d=>d.value));
+  const h=data.length*rowH+8;
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}">`;
+  data.forEach((d,i)=>{
+    const y=i*rowH+6, bw=(w-pad-40)*(d.value/max);
+    s+=`<text x="0" y="${y+13}">${d.label}</text>`;
+    s+=`<rect x="${pad}" y="${y+3}" width="${Math.max(2,bw)}" height="15" rx="3" fill="${d.color||'var(--accent)'}"/>`;
+    s+=`<text x="${pad+bw+6}" y="${y+15}" style="fill:var(--ink)">${fmt(d.value)}</text>`;
+  });
+  return s+"</svg>";
+}
+
+function lineChart(hist, forecastAvg){
+  const w=440,h=180,pad=28;
+  if(!hist.length) return `<div class="muted">No demand for this SKU.</div>`;
+  const xs=hist.map((d,i)=>i), ys=hist.map(d=>d.qty);
+  const maxY=Math.max(1,...ys), n=hist.length;
+  const X=i=>pad+(w-pad-8)*(i/Math.max(1,n-1));
+  const Y=v=>h-pad-(h-pad-10)*(v/maxY);
+  let path=ys.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}">`;
+  s+=`<line x1="${pad}" y1="${h-pad}" x2="${w-8}" y2="${h-pad}" stroke="var(--line)"/>`;
+  s+=`<line x1="${pad}" y1="10" x2="${pad}" y2="${h-pad}" stroke="var(--line)"/>`;
+  const fy=Y(forecastAvg);
+  s+=`<line x1="${pad}" y1="${fy}" x2="${w-8}" y2="${fy}" stroke="var(--warn)" stroke-dasharray="4 3"/>`;
+  s+=`<text x="${w-8}" y="14" text-anchor="end" style="fill:var(--warn)">— forecast avg</text>`;
+  s+=`<path d="${path}" fill="none" stroke="var(--accent)" stroke-width="2"/>`;
+  s+=`<text x="${pad}" y="${h-8}">day 1</text><text x="${w-8}" y="${h-8}" text-anchor="end">day ${n}</text>`;
+  s+=`<text x="4" y="16">${maxY}</text>`;
+  return s+"</svg>";
+}
+
+async function loadOverview(){
+  const o = await (await fetch("/application/overview")).json();
+  const k=o.kpis;
+  $("#kpis").innerHTML = [
+    ["Total SKUs",k.total_skus],["Units on hand",k.total_on_hand],
+    ["Inventory value","≈ "+fmt(Math.round(k.inventory_value))],
+    ["Outbound lines",k.outbound_lines],
+    ["Cancel rate",(k.cancel_rate*100).toFixed(1)+"%"],
+    ["Express share",(k.express_rate*100).toFixed(1)+"%"],
+  ].map(([kk,v])=>`<div class="card kpi"><div class="v">${fmt(v)}</div><div class="k">${kk}</div></div>`).join("");
+
+  $("#caps").innerHTML = CAPS.map(c=>`<div class="card cap"><h3>${c.h}</h3><p>${c.p}</p><span class="tag">${c.t}</span></div>`).join("");
+
+  const abc=Object.entries(o.abc).map(([l,v])=>({label:"Class "+l,value:v,
+    color:l==="A"?"var(--a)":l==="B"?"var(--b)":"var(--c)"}));
+  $("#abc").innerHTML=bars(abc);
+  $("#insights").innerHTML=o.insights.map(x=>`<li>${x}</li>`).join("");
+}
+
+async function loadRepl(){
+  const rows = await (await fetch("/application/replenishment?top_n=12")).json();
+  $("#repl").innerHTML = rows.length? rows.map(r=>`<tr>
+    <td>${r.sku_id}</td><td class="muted">${r.name}</td>
+    <td class="num">${r.available}</td><td class="num">${fmt(r.avg_daily_demand)}</td>
+    <td class="num">${fmt(r.reorder_point)}</td><td class="num"><b>${r.suggested_order_qty}</b></td>
+    <td class="num">${fmt(r.urgency)}</td></tr>`).join("")
+    : `<tr><td colspan="7" class="muted">No SKU below reorder point at these settings.</td></tr>`;
+}
+
+async function loadSim(){
+  const s = await (await fetch("/application/replenishment/simulate")).json();
+  const before=(s.service_level_before*100), after=(s.service_level_after*100);
+  $("#sim").innerHTML = `
+    <div style="display:flex;gap:24px;align-items:flex-end;margin-bottom:10px">
+      <div><div class="k muted">Service level — now</div><div class="big badv">${before.toFixed(1)}%</div></div>
+      <div style="font-size:22px;color:var(--muted)">→</div>
+      <div><div class="k muted">After replenishment</div><div class="big good">${after.toFixed(1)}%</div></div>
+    </div>
+    ${bars([
+      {label:"Flagged now",value:s.skus_flagged,color:"var(--warn)"},
+      {label:"Stockouts now",value:s.stockouts_before,color:"var(--bad)"},
+      {label:"Stockouts after",value:s.stockouts_after,color:"var(--accent2)"},
+    ],{w:360})}
+    <div class="note">One-step top-up model. ALGO-HOOK: roll demand forward over the lead-time
+      distribution for a true projection.</div>`;
+}
+
+async function loadMovers(){
+  const m = await (await fetch("/application/top_movers?n=8")).json();
+  $("#mover").innerHTML = m.map(x=>`<option value="${x.sku_id}">${x.sku_id} · ${x.name} (${x.abc_class})</option>`).join("");
+  if(m.length) loadSeries();
+}
+
+async function loadSeries(){
+  const sku=$("#mover").value; if(!sku) return;
+  const d = await (await fetch("/application/demand_series?sku_id="+encodeURIComponent(sku))).json();
+  $("#series").innerHTML=lineChart(d.history,d.forecast_avg_daily);
+  $("#seriesMeta").innerHTML=`Forecast ≈ <b>${fmt(d.forecast_avg_daily)}</b> units/day →
+    <b>${fmt(d.forecast_total)}</b> over next ${d.forecast_horizon_days} days
+    (${d.history.length} days of history).`;
+}
+
+async function refreshAll(){ await Promise.all([loadOverview(),loadRepl(),loadSim(),loadMovers()]); }
+
+async function regen(){
+  $("#status").textContent="regenerating…";
+  const q=new URLSearchParams({n_skus:$("#skus").value,daily_orders_per_a_sku:$("#dem").value,
+    stockout_pressure:$("#stk").value,seed:$("#seed").value});
+  await fetch("/generate?"+q,{method:"POST"});
+  await refreshAll();
+  $("#status").textContent="✓ updated";
+  setTimeout(()=>$("#status").textContent="",1500);
+}
+
+refreshAll();
+</script>
+</body>
+</html>

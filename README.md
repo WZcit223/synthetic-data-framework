@@ -21,12 +21,18 @@ PYTHONPATH=src python -m sdf.cli export out/   # write synthetic CSVs
 python tests/test_generators.py    # run shell tests
 ```
 
-Optional HTTP API (for a dashboard front-end):
+Web dashboard (FastAPI + a dependency-free HTML page, works offline):
 
 ```bash
 pip install fastapi uvicorn
 PYTHONPATH=src uvicorn sdf.api.app:app --reload
+# open http://127.0.0.1:8000
 ```
+
+The dashboard has two views: a **framework capability overview** (for
+management) and a **replenishment closed-loop deep dive**
+(demand → forecast → reorder point → suggested order → projected service level).
+Sliders re-drive the `GenerationSpec` to regenerate the synthetic world live.
 
 ## Layers
 

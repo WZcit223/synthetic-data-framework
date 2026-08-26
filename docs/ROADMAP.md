@@ -11,11 +11,13 @@ clean shell-first, algorithm-second delivery.
 - Docs: architecture, algorithm/data checklist, datasets, this roadmap.
 - **Deliverable:** runnable demo + client checklist.
 
-## Phase 1 — Presentable shell (client-facing demo)
-- Front-end dashboard (Streamlit or React) over the FastAPI endpoints.
-- Scenario controls: sliders for `GenerationSpec` (SKU count, demand, stockout).
-- Export to CSV/Parquet; "what-if" replenishment view.
+## Phase 1 — Presentable shell (client-facing demo) ✅
+- Web dashboard (FastAPI + dependency-free HTML, inline SVG charts, offline).
+- Two views: framework capability overview (management) + replenishment
+  closed-loop deep dive (demand → forecast → reorder point → order → service level).
+- Scenario controls: live sliders for `GenerationSpec` (SKU count, demand, stockout, seed).
 - **Deliverable:** the "像样的壳" — a polished, demoable product shell.
+- **Next in this phase:** CSV/Parquet export button, vision shelf-occupancy view.
 
 ## Phase 2 — Introduce real/open data + real synthesis
 - Ingest one open dataset (see `DATASETS.md`) through the registry.

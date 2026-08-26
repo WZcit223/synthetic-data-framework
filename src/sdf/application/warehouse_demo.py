@@ -119,6 +119,72 @@ class WarehouseIntelligence:
             dist[s.abc_class] += 1
         return dict(sorted(dist.items()))
 
+    # -- deep dive: replenishment closed loop ------------------------------
+
+    def demand_series(self, sku_id: str, forecast_days: int = 14) -> Dict:
+        """Daily demand history for one SKU + a naive trailing-average forecast.
+
+        ALGORITHM-HOOK: the forecast here is a trailing mean. Replace with a
+        fitted model (DeepAR / TFT / LightGBM) to get real predictive intervals.
+        """
+        out = self.reg.stream(
+            "OutboundOrder",
+            where=lambda o: o.sku_id == sku_id and o.status != "cancelled",
+        )
+        by_day: Dict = defaultdict(int)
+        for o in out:
+            by_day[o.ts.date()] += o.quantity
+        days = sorted(by_day)
+        history = [{"date": d.isoformat(), "qty": by_day[d]} for d in days]
+        recent = [by_day[d] for d in days[-14:]] or [0]
+        forecast_avg = round(sum(recent) / len(recent), 2)
+        return {
+            "sku_id": sku_id,
+            "history": history,
+            "forecast_avg_daily": forecast_avg,
+            "forecast_horizon_days": forecast_days,
+            "forecast_total": round(forecast_avg * forecast_days, 1),
+        }
+
+    def replenishment_simulation(self) -> Dict:
+        """Compare service level before vs. after applying the suggestions.
+
+        This is the 'closed loop' story: forecast -> reorder point -> suggested
+        order -> projected effect. ALGORITHM-HOOK: a real sim would roll demand
+        forward stochastically over lead time; here we apply a one-step top-up.
+        """
+        inv = self.reg.stream("InventorySnapshot")
+        suggestions = {s["sku_id"]: s for s in self.replenishment_suggestions(9999)}
+        total = max(1, len(inv))
+        at_risk_before = sum(1 for s in inv if s.sku_id in suggestions)
+        stockouts_before = sum(1 for s in inv if s.available == 0)
+        # After top-up, flagged SKUs are lifted above their reorder point.
+        stockouts_after = sum(
+            1 for s in inv
+            if s.available == 0 and s.sku_id not in suggestions
+        )
+        return {
+            "skus_total": len(inv),
+            "skus_flagged": at_risk_before,
+            "stockouts_before": stockouts_before,
+            "stockouts_after": stockouts_after,
+            "service_level_before": round(1 - at_risk_before / total, 4),
+            "service_level_after": round(1 - stockouts_after / total, 4),
+        }
+
+    def top_movers(self, n: int = 8) -> List[Dict]:
+        """Highest-demand SKUs — entry points for the deep-dive view."""
+        demand = self._daily_demand()
+        skus = {s.sku_id: s for s in self.reg.stream("SKU")}
+        ranked = sorted(demand.items(), key=lambda kv: kv[1], reverse=True)[:n]
+        return [
+            {"sku_id": sid,
+             "name": skus[sid].name if sid in skus else "?",
+             "abc_class": skus[sid].abc_class if sid in skus else "?",
+             "avg_daily_demand": round(d, 2)}
+            for sid, d in ranked
+        ]
+
     # -- capability 4: knowledge organisation ------------------------------
 
     def insights(self) -> List[str]:
