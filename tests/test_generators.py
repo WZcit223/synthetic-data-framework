@@ -52,6 +52,24 @@ def test_vision_stocktake():
     assert 0.0 <= stock["match_rate"] <= 1.0
 
 
+def test_phase2_adapter_and_backtest():
+    import os
+    from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+    from sdf.synthesis.forecast import daily_demand_series, compare_models
+    path = os.path.join(os.path.dirname(__file__), "..",
+                        "data", "sample_online_retail_ii.csv")
+    skus, orders = load_online_retail_csv(path)
+    assert skus and orders
+    assert all(o.quantity > 0 for o in orders)          # abs() applied
+    series = daily_demand_series(orders)
+    assert len(series) > 30
+    report = compare_models(series, test_len=21)
+    assert report["best_model"] in {"mean", "naive", "ma7", "snaive7"}
+    # every model must produce finite, non-negative error metrics
+    for r in report["results"]:
+        assert r["MAE"] >= 0 and r["RMSE"] >= 0
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

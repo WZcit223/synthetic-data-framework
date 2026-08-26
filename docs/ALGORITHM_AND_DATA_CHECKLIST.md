@@ -12,6 +12,21 @@ Legend — each row maps to a `# ALGORITHM-HOOK` / `# DATA-HOOK` marker in code.
 
 ---
 
+## What the shell already demonstrates (v2)
+
+So the "gap" is unambiguous, here is what the current shell shows working vs.
+what each still needs. Everything in the "shell shows" column is visible in the
+web dashboard (`sdf.api.app`) or the CLI.
+
+| Capability in the demo | Shell shows | Still needs (see rows below) |
+|------------------------|-------------|------------------------------|
+| Synthetic warehouse world | full, seeded, live-regenerated | A1–A3 fitted models; B1–B4 validation |
+| Demand forecast + replenishment | rule baseline **+ real-data backtest** (Phase 2, see `VALIDATION.md`) | C1 model beating `snaive7`; C2 (s,S) |
+| Vision stocktake | synthetic shelf-occupancy heatmap + vision-vs-book discrepancy | C5 counting/detection model; labelled shelf images |
+| Insights / KPIs | templated narrative + portfolio KPIs | C6 LLM+KG; C3 anomaly model |
+
+---
+
 ## A. Synthetic data generation (Synthesis Layer)
 
 | # | Capability | Shell stand-in (now) | Algorithm needed | Data needed |

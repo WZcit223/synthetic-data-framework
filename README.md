@@ -17,7 +17,8 @@ No install required (pure Python 3.9+ stdlib):
 
 ```bash
 python demo/run_demo.py            # end-to-end demo, prints report
-PYTHONPATH=src python -m sdf.cli export out/   # write synthetic CSVs
+PYTHONPATH=src python -m sdf.cli export out/     # write synthetic CSVs
+PYTHONPATH=src python -m sdf.cli backtest        # Phase 2: real-data forecast backtest
 python tests/test_generators.py    # run shell tests
 ```
 
@@ -60,5 +61,7 @@ listed in the checklist.
 ## Documentation
 - [Architecture / 架构](docs/ARCHITECTURE.md)
 - [Algorithm & Data Checklist / 算法与数据清单](docs/ALGORITHM_AND_DATA_CHECKLIST.md)
+- [Validation Results / 验证结果](docs/VALIDATION.md)
+- [Demo Script / 演示讲稿](docs/DEMO_SCRIPT.md)
 - [Reference & Open Datasets / 数据集](docs/DATASETS.md)
 - [Roadmap / 路线图](docs/ROADMAP.md)

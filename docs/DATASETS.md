@@ -14,7 +14,7 @@ The shell needs no real data. These are the datasets to introduce in the
 | [Global Product Inventory 2025 (Kaggle)](https://www.kaggle.com/datasets/keyushnisar/global-product-inventory-dataset-2025) | A1 | product master: stock, price, specs |
 | [Inventory Management Dataset (Kaggle)](https://www.kaggle.com/datasets/hetulparmar/inventory-management-dataset) | A1, C1 | inventory movements |
 | [Shipping/Logistics public datasets (GitHub)](https://github.com/austinlasseter/datasets-shipping-logistics) | A2, C1 | curated index of public logistics data |
-| UCI **Online Retail II** (search UCI ML Repository) | A2, B1–B4, C1 | classic dated transactional demand; ideal for TSTR validation |
+| [UCI **Online Retail II**](https://archive.ics.uci.edu/dataset/502/online+retail+ii) | A2, B1–B4, C1 | classic dated transactional demand; ideal for TSTR validation. **Adapter shipped:** `foundation/adapters/retail_csv.py` + runnable sample in `data/` (see `VALIDATION.md`) |
 | M5 Forecasting (Walmart, Kaggle competition) | A2, C1 | hierarchical retail demand, strong forecasting benchmark |
 
 ## Synthetic-data tooling to adopt (algorithm phase)

@@ -10,6 +10,7 @@ env/
 out/
 *.csv
 !docs/**/*.csv
+!data/*.csv
 .pytest_cache/
 .mypy_cache/
 .DS_Store

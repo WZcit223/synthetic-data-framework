@@ -21,10 +21,13 @@ clean shell-first, algorithm-second delivery.
 - CSV export of every synthetic entity.
 - **Deliverable:** the "像样的壳" — a polished, demoable product shell.
 
-## Phase 2 — Introduce real/open data + real synthesis
-- Ingest one open dataset (see `DATASETS.md`) through the registry.
-- Swap generator internals for **SDV** (CTGAN/TVAE) fitted on the reference set.
-- Add **SDMetrics** report → first real B1 fidelity numbers.
+## Phase 2 — Introduce real/open data + real synthesis  🟡 started (2.0)
+- ✅ Ingest an open dataset (UCI *Online Retail II* schema) via
+  `foundation/adapters/retail_csv.py`; a runnable sample ships in `data/`.
+- ✅ Real-data forecast **backtest** harness (MAE/RMSE/MAPE/bias, walk-forward);
+  first measured numbers in [`VALIDATION.md`](./VALIDATION.md).
+- ⬜ Swap generator internals for **SDV** (CTGAN/TVAE) fitted on the reference set.
+- ⬜ Add **SDMetrics** report → first real B1 fidelity numbers.
 - **Deliverable:** synthetic data that is statistically validated, not just structural.
 
 ## Phase 3 — Real application algorithms

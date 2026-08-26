@@ -2,6 +2,7 @@
 
     python -m sdf.cli demo            # run the end-to-end pipeline, print report
     python -m sdf.cli export outdir/  # generate + write CSVs to a directory
+    python -m sdf.cli backtest [csv]  # Phase 2: forecast backtest on real data
 """
 
 from __future__ import annotations
@@ -91,6 +92,31 @@ def cmd_export(outdir: str) -> int:
     return 0
 
 
+def cmd_backtest(path: str) -> int:
+    """Phase 2: forecast backtest on a real/open dataset (Online Retail II)."""
+    from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+    from sdf.synthesis.forecast import daily_demand_series, compare_models
+
+    skus, orders = load_online_retail_csv(path)
+    series = daily_demand_series(orders)
+    report = compare_models(series, test_len=21)
+
+    print("=" * 60)
+    print("  Forecast backtest — real-data-driven (Phase 2)")
+    print("=" * 60)
+    print(f"  source        : {path}")
+    print(f"  SKUs / orders : {len(skus)} / {len(orders)}")
+    print(f"  daily series  : {report['series_len']} days, "
+          f"mean {report['series_mean']:.1f} units/day")
+    print(f"  {'model':<10}{'MAE':>9}{'RMSE':>9}{'MAPE%':>9}{'bias':>9}")
+    for r in report["results"]:
+        print(f"  {r['model']:<10}{r['MAE']:>9}{r['RMSE']:>9}"
+              f"{r['MAPE_pct']:>9}{r['bias']:>9}")
+    print(f"\n  best (lowest MAE): {report['best_model']}")
+    print("  ALGORITHM-HOOK: beat these baselines with DeepAR/TFT/LightGBM.\n")
+    return 0
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = argv[0] if argv else "demo"
@@ -98,6 +124,9 @@ def main(argv=None) -> int:
         return cmd_demo()
     if cmd == "export":
         return cmd_export(argv[1] if len(argv) > 1 else "out")
+    if cmd == "backtest":
+        default = os.path.join("data", "sample_online_retail_ii.csv")
+        return cmd_backtest(argv[1] if len(argv) > 1 else default)
     print(__doc__)
     return 1
 
