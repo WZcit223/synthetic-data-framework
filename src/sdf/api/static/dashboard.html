@@ -156,6 +156,28 @@
   </div>
 
   <div class="card" style="margin-top:14px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+      <h3 style="margin:0;font-size:14px">(s, S) inventory optimisation
+        <span class="pill">safety stock from demand variability</span></h3>
+      <label class="muted" style="font-size:12px;margin-left:auto">service level</label>
+      <select id="sl" onchange="loadSS()">
+        <option value="0.90">90%</option>
+        <option value="0.95" selected>95%</option>
+        <option value="0.975">97.5%</option>
+        <option value="0.99">99%</option>
+      </select>
+    </div>
+    <div id="ssMeta" class="note" style="margin:0 0 10px"></div>
+    <table><thead><tr>
+      <th>SKU</th><th class="num">μ/day</th><th class="num">σ</th>
+      <th class="num">safety</th><th class="num">s (reorder)</th>
+      <th class="num">S (up-to)</th><th class="num">order</th>
+    </tr></thead><tbody id="ssRows"></tbody></table>
+    <div class="note">s = μ·(L+R) + z·σ·√(L+R). Higher service level → more safety stock.
+      ALGORITHM-HOOK: cost-based newsvendor + fitted lead-time demand distribution.</div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
     <h3 style="margin:0 0 4px;font-size:14px">Forecast backtest — measured
       <span class="pill">walk-forward · real number</span></h3>
     <div id="btMeta" class="note" style="margin:0 0 10px"></div>
@@ -371,7 +393,20 @@ async function loadBacktest(){
     <td class="num">${fmt(m.MAPE_pct)}</td><td class="num">${fmt(m.bias)}</td></tr>`).join("");
 }
 
-async function refreshAll(){ await Promise.all([loadOverview(),loadRepl(),loadSim(),loadMovers(),loadVision(),loadBacktest()]); }
+async function loadSS(){
+  const sl = $("#sl").value;
+  const r = await (await fetch("/application/replenishment/ss?service_level="+sl)).json();
+  $("#ssMeta").innerHTML = `z=${fmt(r.z)} · lead ${r.lead_time_days}d + review ${r.review_days}d ·
+    <b>${r.skus_needing_order}</b> SKUs need an order · total safety stock
+    <b>${fmt(r.total_safety_stock_units)}</b> units`;
+  $("#ssRows").innerHTML = r.rows.map(x=>`<tr>
+    <td>${x.sku_id}</td><td class="num">${fmt(x.avg_daily_demand)}</td>
+    <td class="num">${fmt(x.demand_std)}</td><td class="num">${fmt(x.safety_stock)}</td>
+    <td class="num">${fmt(x.reorder_point_s)}</td><td class="num">${fmt(x.order_up_to_S)}</td>
+    <td class="num"><b>${x.order_qty}</b></td></tr>`).join("");
+}
+
+async function refreshAll(){ await Promise.all([loadOverview(),loadRepl(),loadSim(),loadMovers(),loadVision(),loadBacktest(),loadSS()]); }
 
 async function regen(){
   $("#status").textContent="regenerating…";

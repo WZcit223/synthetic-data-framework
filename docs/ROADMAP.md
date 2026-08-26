@@ -27,9 +27,10 @@ clean shell-first, algorithm-second delivery.
 - ✅ Real-data forecast **backtest** harness (MAE/RMSE/MAPE/bias, walk-forward);
   first measured numbers in [`VALIDATION.md`](./VALIDATION.md).
 - ✅ Fitted synthesizer on real data (`synthesis/fit.py`) + dependency-free
-  **fidelity** metrics (`synthesis/fidelity.py`): KS 0.14, profile-corr 0.90,
-  score 78/100 on the real extract (see `VALIDATION.md`, B1).
-- ⬜ Swap generator internals for **SDV** (CTGAN/TVAE) + **SDMetrics** full report.
+  **fidelity** metrics: KS 0.14, profile-corr 0.90, score 78/100 (B1).
+- ✅ **Gaussian copula** (SDV engine) + real **SDMetrics** (`synthesis/sdv_synth.py`):
+  overall quality **0.916** on the real extract (see `VALIDATION.md`, B1 full).
+- ⬜ CTGAN/TVAE (adds torch) for complex joints; privacy (DCR) + detection AUC (B3–B4).
 - **Deliverable:** synthetic data that is statistically validated, not just structural.
 
 ## Phase 3 — Real application algorithms  🟡 started
@@ -37,7 +38,9 @@ clean shell-first, algorithm-second delivery.
   verified to beat baselines on trend/noise data; in the backtest harness + dashboard.
 - ✅ **TSTR** validation (B2): synthetic-trained ≈ real-trained, ratio 0.90–1.00
   (`synthesis/tstr.py`, `VALIDATION.md`).
-- ⬜ (s,S) replenishment optimisation (C2); anomaly model (C3); DeepAR/TFT for C1.
+- ✅ (s,S) replenishment optimisation (C2): safety stock from demand variability +
+  service level; live service-level selector in the dashboard (see `VALIDATION.md`).
+- ⬜ Anomaly model (C3); DeepAR/TFT for C1.
 - ⬜ Reuse vision pipeline for C5 (real images).
 - **Deliverable:** core technical-capability validation results + report.
 

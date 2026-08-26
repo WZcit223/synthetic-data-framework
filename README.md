@@ -21,6 +21,7 @@ PYTHONPATH=src python -m sdf.cli export out/     # write synthetic CSVs
 PYTHONPATH=src python -m sdf.cli backtest        # Phase 2: real-data forecast backtest
 PYTHONPATH=src python -m sdf.cli synth           # Phase 2.1: fitted synthesis + fidelity
 PYTHONPATH=src python -m sdf.cli tstr            # Phase 3: train-on-synthetic, test-on-real
+PYTHONPATH=src python -m sdf.cli sdv <csv>       # Phase 2.1 full: Gaussian-copula + SDMetrics
 python tests/test_generators.py    # run shell tests
 ```
 

@@ -87,9 +87,35 @@ and the demand distribution reasonably (KS 0.16), under-dispersing a little — 
 credible first B1 number with clear headroom. That headroom is exactly what a
 learned model closes.
 
-> ALGORITHM-HOOK: replace the residual-bootstrap generator with **SDV CTGAN/TVAE**
-> and score with **SDMetrics** for the full column-shape / pair-trend report, then
-> add privacy (DCR) and detection-AUC (B3–B4).
+### Phase 2.1 (full) — Gaussian copula + real SDMetrics
+
+Upgraded from the dependency-free baseline to a real **Gaussian-copula** synthesizer
+(the engine behind SDV's `GaussianCopulaSynthesizer`) scored by real **SDMetrics**,
+on the transaction-line table `[Quantity, Price, hour, weekday]`.
+
+```bash
+pip install copulas sdmetrics pandas numpy
+python -m sdf.cli sdv data/online_retail_ii_2010_10k.csv
+```
+
+| SDMetrics dimension | score (1.0 = identical) |
+|---------------------|-------------------------|
+| column shapes (KSComplement, mean) | 0.851 |
+| pair trends (CorrelationSimilarity, mean) | 0.981 |
+| **overall quality** | **0.916** |
+
+Per-column KSComplement: Quantity 0.78, Price 0.90, hour 0.90, weekday 0.83.
+Pair-trend: Quantity~Price 0.95, Quantity~hour 1.00, Price~weekday 0.99.
+
+**Reading it:** the copula reproduces the real **joint** distribution well —
+**0.92 overall**, up from the 78/100 baseline — capturing cross-column correlations
+(price/quantity/time) the marginal bootstrap could not. This is a production-grade
+B1 number. (Note: 0.92 and 0.78 score different representations — the tabular
+line-item joint vs the hourly demand series — so they are complementary, not a
+strict apples-to-apples delta.)
+
+> ALGORITHM-HOOK: swap GaussianCopula for **CTGAN/TVAE** (adds torch) for complex
+> distributions; add privacy (DCR) and detection-AUC (B3–B4). Same SDMetrics harness.
 
 ## Phase 3 — real forecasting model + TSTR utility (checklist B2, C1)
 
@@ -112,6 +138,23 @@ pure-Python normal equations. It plugs into the same backtest harness.
 > outcomes are expected and both point to the same conclusion: showcasing a
 > learned model needs the **full ~2-year real dataset**, which has the trend and
 > holiday structure the model exploits. The model and harness are ready for it.
+
+### C2 — (s, S) inventory optimisation
+
+`application/warehouse_demo.py` adds a classic (s, S) policy: safety stock sized
+from each SKU's demand variability and a target service level
+(`s = μ·(L+R) + z·σ·√(L+R)`). Live in the dashboard with a service-level selector.
+
+| service level | z | SKUs needing an order | total safety stock (units) |
+|---------------|---|-----------------------|----------------------------|
+| 90 % | 1.28 | 33 | 2 626 |
+| 95 % | 1.64 | 38 | 3 369 |
+| 99 % | 2.33 | 43 | 4 764 |
+
+**Reading it:** the classic service/inventory tradeoff, quantified — raising the
+service level from 90→99 % lifts required safety stock ~81 %. ALGORITHM-HOOK: a
+cost-based newsvendor with a fitted lead-time-demand distribution replaces the
+normal approximation.
 
 ### B2 — TSTR: train on synthetic, test on real
 

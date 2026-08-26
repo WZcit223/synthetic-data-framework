@@ -30,7 +30,7 @@ from sdf.synthesis.warehouse import GenerationSpec
 from sdf.synthesis.quality import structural_quality_check
 from sdf.application.warehouse_demo import WarehouseIntelligence
 
-app = FastAPI(title="Synthetic Data Framework — Warehouse Shell", version="0.1.0")
+app = FastAPI(title="Synthetic Data Framework — Warehouse Shell", version="0.2.0")
 
 _STATIC = os.path.join(os.path.dirname(__file__), "static", "dashboard.html")
 
@@ -115,6 +115,13 @@ def application_replenishment(top_n: int = 10):
 @app.get("/application/replenishment/simulate")
 def application_replenishment_sim():
     return _state.intel.replenishment_simulation()
+
+
+@app.get("/application/replenishment/ss")
+def application_replenishment_ss(service_level: float = 0.95,
+                                 lead_time_days: int = 7):
+    return _state.intel.replenishment_ss_policy(
+        service_level=service_level, lead_time_days=lead_time_days)
 
 
 @app.get("/application/top_movers")

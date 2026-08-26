@@ -6,12 +6,14 @@
 # fastapi
 # uvicorn
 
-# --- Optional: real synthesis + validation (Phase 2) ---
-# sdv
+# --- Optional: real synthesis + validation (Phase 2.1) ---
+# Enables `sdf.cli sdv`: Gaussian-copula synthesis + real SDMetrics scoring.
+# copulas
 # sdmetrics
-# faker
 # pandas
 # numpy
+# sdv        # adds CTGAN/TVAE (pulls torch) — heavier, for complex joints
+# faker
 
 # --- Optional: application algorithms (Phase 3) ---
 # scikit-learn

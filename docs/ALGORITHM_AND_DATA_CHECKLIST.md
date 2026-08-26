@@ -23,9 +23,9 @@ web dashboard (`sdf.api.app`) or the CLI.
 | Synthetic warehouse world | full, seeded, live-regenerated | A1–A3 fitted models; B1–B4 validation |
 | Real-data ingestion | UCI Online Retail II via adapter, end-to-end | full 2-year dataset for daily/weekly models |
 | Demand forecast | baseline **+ real-data backtest** + **AR/seasonal model** (C1) | DeepAR/TFT; full dataset to beat `snaive` |
-| Synthesis fidelity (B1) | **measured**: KS 0.14, profile-corr 0.90, 78/100 | SDV CTGAN/TVAE + SDMetrics full report |
+| Synthesis fidelity (B1) | **measured**: baseline 78/100 **+ Gaussian-copula/SDMetrics 0.92** | CTGAN/TVAE for complex joints; DCR + detection (B3–B4) |
 | Synthetic utility (B2) | **measured** TSTR ratio 0.90–1.00 (as useful as real) | rerun on full dataset + learned models |
-| Replenishment | rule-based reorder point + service-level sim | C2 (s,S)/newsvendor optimisation |
+| Replenishment (C2) | **(s,S) policy** + service-level selector + rule-based sim | cost-based newsvendor + fitted lead-time demand |
 | Vision stocktake | synthetic shelf-occupancy heatmap + vision-vs-book discrepancy | C5 counting/detection model; labelled shelf images |
 | Insights / KPIs | templated narrative + portfolio KPIs | C6 LLM+KG; C3 anomaly model |
 

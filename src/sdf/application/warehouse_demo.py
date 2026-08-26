@@ -185,6 +185,85 @@ class WarehouseIntelligence:
             for sid, d in ranked
         ]
 
+    # -- capability 2b: (s,S) inventory optimisation -----------------------
+
+    _Z = {0.80: 0.842, 0.85: 1.036, 0.90: 1.282, 0.95: 1.645,
+          0.975: 1.960, 0.99: 2.326}
+
+    def _z_for(self, service_level: float) -> float:
+        key = min(self._Z, key=lambda k: abs(k - service_level))
+        return self._Z[key]
+
+    def _sku_daily_stats(self) -> Dict:
+        """Per-SKU mean and std of daily demand (for safety-stock sizing)."""
+        out = self.reg.stream("OutboundOrder",
+                              where=lambda o: o.status != "cancelled")
+        per_sku_day: Dict = defaultdict(lambda: defaultdict(float))
+        days = set()
+        for o in out:
+            per_sku_day[o.sku_id][o.ts.date()] += o.quantity
+            days.add(o.ts.date())
+        horizon = max(1, len(days))
+        stats: Dict = {}
+        for sku, byday in per_sku_day.items():
+            series = [byday.get(d, 0.0) for d in sorted(days)]
+            mu = sum(series) / horizon
+            var = sum((x - mu) ** 2 for x in series) / horizon
+            stats[sku] = (mu, var ** 0.5)
+        return stats
+
+    def replenishment_ss_policy(self, lead_time_days: int = 7,
+                                review_days: int = 7,
+                                service_level: float = 0.95,
+                                top_n: int = 12) -> Dict:
+        """Classic (s, S) policy sized from demand variability + a service level.
+
+        s (reorder point) = μ·(L+R) + z·σ·√(L+R);  S (order-up-to) = s.
+        ALGORITHM-HOOK: this uses a normal-demand approximation; a real system
+        fits the lead-time demand distribution (incl. intermittent-demand models)
+        and solves a cost-based newsvendor objective.
+        """
+        z = self._z_for(service_level)
+        stats = self._sku_daily_stats()
+        skus = {s.sku_id: s for s in self.reg.stream("SKU")}
+        avail = {}
+        for snap in self.reg.stream("InventorySnapshot"):
+            avail[snap.sku_id] = avail.get(snap.sku_id, 0) + snap.available
+
+        protect = lead_time_days + review_days
+        rows: List[Dict] = []
+        total_ss_units = 0.0
+        for sku, (mu, sigma) in stats.items():
+            if mu <= 0:
+                continue
+            ss = z * sigma * (protect ** 0.5)
+            s = mu * protect + ss
+            S = s  # order-up-to == reorder point for a single review cycle
+            on_hand = avail.get(sku, 0)
+            order = max(0, round(S - on_hand)) if on_hand <= s else 0
+            total_ss_units += ss
+            rows.append({
+                "sku_id": sku,
+                "name": skus[sku].name if sku in skus else "?",
+                "avg_daily_demand": round(mu, 2),
+                "demand_std": round(sigma, 2),
+                "safety_stock": round(ss, 1),
+                "reorder_point_s": round(s, 1),
+                "order_up_to_S": round(S, 1),
+                "available": on_hand,
+                "order_qty": order,
+            })
+        rows.sort(key=lambda r: r["order_qty"], reverse=True)
+        return {
+            "service_level": service_level,
+            "z": z,
+            "lead_time_days": lead_time_days,
+            "review_days": review_days,
+            "skus_needing_order": sum(1 for r in rows if r["order_qty"] > 0),
+            "total_safety_stock_units": round(total_ss_units, 0),
+            "rows": rows[:top_n],
+        }
+
     # -- capability 5: vision stocktake (multimodal) -----------------------
 
     def _latest_vision(self) -> Dict:

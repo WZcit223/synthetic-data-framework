@@ -5,6 +5,7 @@
     python -m sdf.cli backtest [csv]  # Phase 2: forecast backtest on real data
     python -m sdf.cli synth [csv]     # Phase 2.1: fit synthesizer + fidelity score
     python -m sdf.cli tstr [csv]      # Phase 3: train-on-synthetic, test-on-real
+    python -m sdf.cli sdv [csv]       # Phase 2.1 full: Gaussian-copula + SDMetrics
 """
 
 from __future__ import annotations
@@ -169,6 +170,27 @@ def cmd_tstr(path: str) -> int:
     return 0
 
 
+def cmd_sdv(path: str) -> int:
+    """Phase 2.1 (full): Gaussian-copula synthesis scored by SDMetrics."""
+    try:
+        from sdf.synthesis.sdv_synth import gaussian_copula_fidelity
+        rep = gaussian_copula_fidelity(path)
+    except ImportError:
+        print("This command needs: pip install copulas sdmetrics pandas numpy")
+        return 1
+    print("=" * 60)
+    print("  Gaussian-copula synthesis + SDMetrics (Phase 2.1 full, B1)")
+    print("=" * 60)
+    print(f"  source          : {path}")
+    print(f"  rows used        : {rep['rows_used']}")
+    print(f"  column-shape KS  : {rep['column_shape_ks']}")
+    print(f"  pair-trend corr  : {rep['pair_trend_corr']}")
+    print(f"  column-shape score : {rep['column_shape_score']}")
+    print(f"  pair-trend score   : {rep['pair_trend_score']}")
+    print(f"  SDMetrics overall  : {rep['sdmetrics_overall']}  (1.0 = identical)\n")
+    return 0
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = argv[0] if argv else "demo"
@@ -183,6 +205,8 @@ def main(argv=None) -> int:
         return cmd_synth(argv[1] if len(argv) > 1 else default_csv)
     if cmd == "tstr":
         return cmd_tstr(argv[1] if len(argv) > 1 else default_csv)
+    if cmd == "sdv":
+        return cmd_sdv(argv[1] if len(argv) > 1 else default_csv)
     print(__doc__)
     return 1
 

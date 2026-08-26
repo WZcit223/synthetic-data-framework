@@ -88,6 +88,33 @@ def test_phase2_fitted_synthesis_fidelity():
     assert 0.0 <= rep["fidelity_score"] <= 100.0
 
 
+def test_phase3_ss_policy():
+    _, reg = build_registry(GenerationSpec(n_skus=80, horizon_days=45))
+    intel = WarehouseIntelligence(reg)
+    lo = intel.replenishment_ss_policy(service_level=0.90)
+    hi = intel.replenishment_ss_policy(service_level=0.99)
+    # Higher service level => more safety stock (monotone in z).
+    assert hi["total_safety_stock_units"] >= lo["total_safety_stock_units"]
+    assert hi["z"] > lo["z"]
+    for r in lo["rows"]:
+        assert r["reorder_point_s"] >= r["safety_stock"] >= 0
+
+
+def test_phase21_sdv_optional():
+    """Gaussian-copula + SDMetrics; skipped when optional libs are absent."""
+    import os
+    try:
+        from sdf.synthesis.sdv_synth import gaussian_copula_fidelity
+        path = os.path.join(os.path.dirname(__file__), "..",
+                            "data", "online_retail_ii_2010_10k.csv")
+        rep = gaussian_copula_fidelity(path, max_rows=400)
+    except ImportError:
+        print("SKIP test_phase21_sdv_optional (copulas/sdmetrics not installed)")
+        return
+    assert 0.0 <= rep["sdmetrics_overall"] <= 1.0
+    assert set(rep["column_shape_ks"]) == {"Quantity", "Price", "hour", "weekday"}
+
+
 def test_phase3_model_and_tstr():
     import os
     from sdf.synthesis.models import seasonal_linear

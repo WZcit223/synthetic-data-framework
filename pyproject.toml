@@ -13,7 +13,8 @@ dependencies = []  # core shell is dependency-free by design
 
 [project.optional-dependencies]
 api = ["fastapi", "uvicorn"]
-synthesis = ["sdv", "sdmetrics", "faker", "pandas", "numpy"]
+synthesis = ["copulas", "sdmetrics", "pandas", "numpy"]
+synthesis-deep = ["sdv", "faker"]  # CTGAN/TVAE (pulls torch)
 app = ["scikit-learn", "lightgbm"]
 
 [project.scripts]
