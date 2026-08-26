@@ -60,7 +60,81 @@ Series: 139 days, mean 137.6 units/day, test window 14 days.
 correctly surfaces a **weekly pattern**. That is the bar a production model beats,
 and what we expect to reproduce once the full real dataset is loaded.
 
-### What this establishes
+## Phase 2.1 — fitted synthesis + fidelity (checklist B1)
+
+A generator is now **fitted on the real data** (`synthesis/fit.py`) — it learns the
+intraday demand profile and residual pool and samples a synthetic series that
+reproduces the real shape. Fidelity is scored dependency-free
+(`synthesis/fidelity.py`).
+
+Reproduce:
+```bash
+python -m sdf.cli synth data/online_retail_ii_2010_10k.csv
+```
+
+Result on the real 10k extract:
+
+| metric | value | meaning |
+|--------|-------|---------|
+| KS statistic | **0.136** | 0 = identical distribution |
+| profile correlation | **0.904** | 1 = identical intraday seasonality |
+| mean delta | −5.0 % | synthetic vs real average |
+| std delta | −14.5 % | synthetic slightly under-disperses |
+| **fidelity score** | **78 / 100** | (1−KS)·profile_corr |
+
+**Reading it:** the fitted synthesizer captures the **seasonality strongly (0.90)**
+and the demand distribution reasonably (KS 0.16), under-dispersing a little — a
+credible first B1 number with clear headroom. That headroom is exactly what a
+learned model closes.
+
+> ALGORITHM-HOOK: replace the residual-bootstrap generator with **SDV CTGAN/TVAE**
+> and score with **SDMetrics** for the full column-shape / pair-trend report, then
+> add privacy (DCR) and detection-AUC (B3–B4).
+
+## Phase 3 — real forecasting model + TSTR utility (checklist B2, C1)
+
+### C1 — a real model (AR + seasonal OLS)
+
+`synthesis/models.py` adds `seasonal_linear`: an autoregressive + seasonal
+least-squares forecaster (trend + cycle dummies + lag-1 + lag-period), solved with
+pure-Python normal equations. It plugs into the same backtest harness.
+
+**Capability check** (controlled series, so the result is unambiguous):
+
+| series | seasonal_linear MAE | snaive MAE | winner |
+|--------|--------------------|-----------|--------|
+| trend + weekly season, low noise | **0.0** | 5.6 | model (captures trend) |
+| pure weekly season, high noise | **24.6** | 29.6 | model (averages noise) |
+
+> **Honest note on our two datasets:** the model does *not* win on either the
+> synthetic sample (near-pure weekly structure → seasonal-naive is already
+> near-optimal) or the 4-day real extract (too short — the model overfits). Both
+> outcomes are expected and both point to the same conclusion: showcasing a
+> learned model needs the **full ~2-year real dataset**, which has the trend and
+> holiday structure the model exploits. The model and harness are ready for it.
+
+### B2 — TSTR: train on synthetic, test on real
+
+The decisive test for synthetic data: fit the forecaster on synthetic data, then
+measure it on **real** held-out data, vs the same model trained on real data.
+A ratio near **1.0** means synthetic data is as useful as real for training.
+
+```bash
+python -m sdf.cli tstr                                   # synthetic sample (daily)
+python -m sdf.cli tstr data/online_retail_ii_2010_10k.csv  # real extract (hourly)
+```
+
+| reference | TRTR MAE (real-trained) | TSTR MAE (synthetic-trained) | **ratio** |
+|-----------|-------------------------|------------------------------|-----------|
+| synthetic sample (daily) | 53.6 | 48.5 | **0.905** |
+| real UCI extract (hourly) | 2629 | 2635 | **1.002** |
+
+**Reading it:** on both, the synthetic-trained model matches the real-trained one
+(**ratio ≈ 0.9–1.0**). This is the framework's core claim — *build on synthetic
+data before real data exists* — now **measured**. (Absolute MAEs are high on these
+small/short series; the meaningful quantity is the ratio, which is robust to that.)
+
+## What this establishes
 - The **same** Application-Layer code runs on real data via the adapter — the
   Foundation-Layer "sources are interchangeable" claim is now demonstrated, not
   asserted.

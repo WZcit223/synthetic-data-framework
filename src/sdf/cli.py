@@ -3,6 +3,8 @@
     python -m sdf.cli demo            # run the end-to-end pipeline, print report
     python -m sdf.cli export outdir/  # generate + write CSVs to a directory
     python -m sdf.cli backtest [csv]  # Phase 2: forecast backtest on real data
+    python -m sdf.cli synth [csv]     # Phase 2.1: fit synthesizer + fidelity score
+    python -m sdf.cli tstr [csv]      # Phase 3: train-on-synthetic, test-on-real
 """
 
 from __future__ import annotations
@@ -119,16 +121,68 @@ def cmd_backtest(path: str) -> int:
     return 0
 
 
+def cmd_synth(path: str) -> int:
+    """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
+    from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+    from sdf.synthesis.fit import FittedHourlyDemand
+    from sdf.synthesis.fidelity import fidelity_report
+
+    _skus, orders = load_online_retail_csv(path)
+    model = FittedHourlyDemand().fit(orders)
+    synth = model.generate()
+    rep = fidelity_report(model.real_series, synth, model.ppd)
+
+    print("=" * 60)
+    print("  Fitted synthesis + fidelity — real-data-conditioned (Phase 2.1)")
+    print("=" * 60)
+    print(f"  source          : {path}")
+    print(f"  real / synth pts : {len(model.real_series)} / {len(synth)}")
+    print(f"  KS statistic     : {rep['ks_statistic']}   (0 = identical dist.)")
+    print(f"  profile corr     : {rep['profile_corr']}   (1 = identical seasonality)")
+    print(f"  mean delta       : {rep['mean_delta_pct']} %")
+    print(f"  std delta        : {rep['std_delta_pct']} %")
+    print(f"  fidelity score   : {rep['fidelity_score']} / 100")
+    print("  ALGORITHM-HOOK: swap in SDV CTGAN/TVAE + SDMetrics for full B1.\n")
+    return 0
+
+
+def cmd_tstr(path: str) -> int:
+    """Phase 3: TSTR — train on synthetic, test on real (checklist B2)."""
+    from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+    from sdf.synthesis.tstr import tstr_report
+
+    _skus, orders = load_online_retail_csv(path)
+    r = tstr_report(orders)
+    print("=" * 60)
+    print("  TSTR — train on synthetic, test on real (Phase 3, B2)")
+    print("=" * 60)
+    print(f"  source        : {path}")
+    if "error" in r:
+        print(f"  {r['error']} (series_len={r['series_len']})\n")
+        return 0
+    print(f"  granularity   : {r['granularity']} (period {r['seasonal_period']})")
+    print(f"  train / test  : {r['train_len']} / {r['test_len']}")
+    print(f"  TRTR MAE (real-trained)      : {r['TRTR_mae']}")
+    print(f"  TSTR MAE (synthetic-trained) : {r['TSTR_mae']}")
+    print(f"  ratio TSTR/TRTR              : {r['ratio_tstr_over_trtr']}  "
+          f"(→1.0 = synthetic as useful as real)\n")
+    return 0
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = argv[0] if argv else "demo"
+    default_csv = os.path.join("data", "sample_online_retail_ii.csv")
     if cmd == "demo":
         return cmd_demo()
     if cmd == "export":
         return cmd_export(argv[1] if len(argv) > 1 else "out")
     if cmd == "backtest":
-        default = os.path.join("data", "sample_online_retail_ii.csv")
-        return cmd_backtest(argv[1] if len(argv) > 1 else default)
+        return cmd_backtest(argv[1] if len(argv) > 1 else default_csv)
+    if cmd == "synth":
+        return cmd_synth(argv[1] if len(argv) > 1 else default_csv)
+    if cmd == "tstr":
+        return cmd_tstr(argv[1] if len(argv) > 1 else default_csv)
     print(__doc__)
     return 1
 

@@ -19,6 +19,8 @@ No install required (pure Python 3.9+ stdlib):
 python demo/run_demo.py            # end-to-end demo, prints report
 PYTHONPATH=src python -m sdf.cli export out/     # write synthetic CSVs
 PYTHONPATH=src python -m sdf.cli backtest        # Phase 2: real-data forecast backtest
+PYTHONPATH=src python -m sdf.cli synth           # Phase 2.1: fitted synthesis + fidelity
+PYTHONPATH=src python -m sdf.cli tstr            # Phase 3: train-on-synthetic, test-on-real
 python tests/test_generators.py    # run shell tests
 ```
 

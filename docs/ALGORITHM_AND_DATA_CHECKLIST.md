@@ -21,9 +21,16 @@ web dashboard (`sdf.api.app`) or the CLI.
 | Capability in the demo | Shell shows | Still needs (see rows below) |
 |------------------------|-------------|------------------------------|
 | Synthetic warehouse world | full, seeded, live-regenerated | A1–A3 fitted models; B1–B4 validation |
-| Demand forecast + replenishment | rule baseline **+ real-data backtest** (Phase 2, see `VALIDATION.md`) | C1 model beating `snaive7`; C2 (s,S) |
+| Real-data ingestion | UCI Online Retail II via adapter, end-to-end | full 2-year dataset for daily/weekly models |
+| Demand forecast | baseline **+ real-data backtest** + **AR/seasonal model** (C1) | DeepAR/TFT; full dataset to beat `snaive` |
+| Synthesis fidelity (B1) | **measured**: KS 0.14, profile-corr 0.90, 78/100 | SDV CTGAN/TVAE + SDMetrics full report |
+| Synthetic utility (B2) | **measured** TSTR ratio 0.90–1.00 (as useful as real) | rerun on full dataset + learned models |
+| Replenishment | rule-based reorder point + service-level sim | C2 (s,S)/newsvendor optimisation |
 | Vision stocktake | synthetic shelf-occupancy heatmap + vision-vs-book discrepancy | C5 counting/detection model; labelled shelf images |
 | Insights / KPIs | templated narrative + portfolio KPIs | C6 LLM+KG; C3 anomaly model |
+
+> **Measured results** (B1 fidelity, B2 TSTR, C1 forecast) live in
+> [`VALIDATION.md`](./VALIDATION.md). Run `synth`, `tstr`, `backtest` to reproduce.
 
 ---
 

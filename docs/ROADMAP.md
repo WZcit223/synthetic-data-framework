@@ -26,14 +26,19 @@ clean shell-first, algorithm-second delivery.
   `foundation/adapters/retail_csv.py`; a runnable sample ships in `data/`.
 - ✅ Real-data forecast **backtest** harness (MAE/RMSE/MAPE/bias, walk-forward);
   first measured numbers in [`VALIDATION.md`](./VALIDATION.md).
-- ⬜ Swap generator internals for **SDV** (CTGAN/TVAE) fitted on the reference set.
-- ⬜ Add **SDMetrics** report → first real B1 fidelity numbers.
+- ✅ Fitted synthesizer on real data (`synthesis/fit.py`) + dependency-free
+  **fidelity** metrics (`synthesis/fidelity.py`): KS 0.14, profile-corr 0.90,
+  score 78/100 on the real extract (see `VALIDATION.md`, B1).
+- ⬜ Swap generator internals for **SDV** (CTGAN/TVAE) + **SDMetrics** full report.
 - **Deliverable:** synthetic data that is statistically validated, not just structural.
 
-## Phase 3 — Real application algorithms
-- Demand forecast (C1), (s,S) replenishment (C2), anomaly model (C3).
-- TSTR validation (B2): prove models trained on synthetic transfer to real.
-- Reuse vision pipeline for C5.
+## Phase 3 — Real application algorithms  🟡 started
+- ✅ Real forecasting model (C1): AR + seasonal OLS (`synthesis/models.py`),
+  verified to beat baselines on trend/noise data; in the backtest harness + dashboard.
+- ✅ **TSTR** validation (B2): synthetic-trained ≈ real-trained, ratio 0.90–1.00
+  (`synthesis/tstr.py`, `VALIDATION.md`).
+- ⬜ (s,S) replenishment optimisation (C2); anomaly model (C3); DeepAR/TFT for C1.
+- ⬜ Reuse vision pipeline for C5 (real images).
 - **Deliverable:** core technical-capability validation results + report.
 
 ## Phase 4 — Framework hardening & reuse

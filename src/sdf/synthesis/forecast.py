@@ -71,14 +71,18 @@ def build_series(orders, prefer_daily_min_days: int = 14):
     return values, "hourly", max(1, ppd)
 
 
-def models_for(period: int) -> Dict:
-    """Baseline model set with the seasonal period matched to the granularity."""
-    return {
+def models_for(period: int, include_model: bool = True) -> Dict:
+    """Baselines matched to the granularity, plus the Phase 3 seasonal model."""
+    models = {
         "mean": m_mean,
         "naive": m_naive,
         f"ma{period}": moving_average(period),
         f"snaive{period}": seasonal_naive(period),
     }
+    if include_model:
+        from sdf.synthesis.models import seasonal_linear  # Phase 3
+        models[f"seas_linear{period}"] = seasonal_linear(period)
+    return models
 
 
 # -- one-step forecast models: history -> next-value prediction -------------

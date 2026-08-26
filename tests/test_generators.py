@@ -70,6 +70,43 @@ def test_phase2_adapter_and_backtest():
         assert r["MAE"] >= 0 and r["RMSE"] >= 0
 
 
+def test_phase2_fitted_synthesis_fidelity():
+    import os
+    from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+    from sdf.synthesis.fit import FittedHourlyDemand
+    from sdf.synthesis.fidelity import fidelity_report, ks_2samp, pearson
+    assert ks_2samp([1, 2, 3], [1, 2, 3]) == 0.0
+    assert pearson([1, 2, 3], [2, 4, 6]) == 1.0
+    path = os.path.join(os.path.dirname(__file__), "..",
+                        "data", "sample_online_retail_ii.csv")
+    _skus, orders = load_online_retail_csv(path)
+    model = FittedHourlyDemand().fit(orders)
+    synth = model.generate()
+    rep = fidelity_report(model.real_series, synth, model.ppd)
+    assert 0.0 <= rep["ks_statistic"] <= 1.0
+    assert -1.0 <= rep["profile_corr"] <= 1.0
+    assert 0.0 <= rep["fidelity_score"] <= 100.0
+
+
+def test_phase3_model_and_tstr():
+    import os
+    from sdf.synthesis.models import seasonal_linear
+    from sdf.synthesis.forecast import backtest, seasonal_naive
+    from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+    from sdf.synthesis.tstr import tstr_report
+    # Model beats seasonal-naive on a clean trend+season series.
+    vals = [10 + 0.8 * i + [10, 12, 9, 11, 13, 8, 3][i % 7] for i in range(120)]
+    assert backtest(vals, seasonal_linear(7), 21)["MAE"] < \
+        backtest(vals, seasonal_naive(7), 21)["MAE"]
+    # TSTR ratio is finite and reasonable on the sample.
+    path = os.path.join(os.path.dirname(__file__), "..",
+                        "data", "sample_online_retail_ii.csv")
+    _skus, orders = load_online_retail_csv(path)
+    r = tstr_report(orders)
+    assert r["ratio_tstr_over_trtr"] is not None
+    assert 0.3 <= r["ratio_tstr_over_trtr"] <= 3.0
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
