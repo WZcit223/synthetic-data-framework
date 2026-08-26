@@ -1,11 +1,11 @@
 # Architecture / 架构设计
 
-## 1. Design principle: shell ⟂ algorithm
+## 1. Design principle: framework ⟂ algorithm
 
 The single most important decision in this project is the **clean separation of
-the engineering shell from the algorithm research**.
+the engineering framework from the algorithm research**.
 
-- **Shell (this repo, phase 1):** proves the *end-to-end flow* and the *user-facing
+- **Framework (this repo, phase 1):** proves the *end-to-end flow* and the *user-facing
   effect*. It runs with zero heavy dependencies, uses deterministic rule-based
   stand-ins, and does **not** validate data quality or model accuracy.
 - **Algorithm (phase 2+):** replaces each stand-in with a real model trained on
@@ -15,7 +15,7 @@ Every place an algorithm eventually plugs in is marked in code with
 `# ALGORITHM-HOOK`; every place real data plugs in is marked `# DATA-HOOK`.
 The full list is in [`ALGORITHM_AND_DATA_CHECKLIST.md`](./ALGORITHM_AND_DATA_CHECKLIST.md).
 
-This lets a coding agent build the shell fast and credibly now, while the
+This lets a coding agent build the framework fast and credibly now, while the
 algorithm team works independently against a stable interface.
 
 ## 2. Three-layer platform
@@ -50,7 +50,7 @@ change the interface the upper layers use.
 
 ### Synthesis / Prediction Layer
 Turns a declarative `GenerationSpec` (the *reference dataset + generation
-requirements*) into a full dataset. In the shell this is a seeded stdlib sampler.
+requirements*) into a full dataset. In the framework this is a seeded stdlib sampler.
 In the real system the same spec drives a fitted generative model (SDV / CTGAN /
 TimeGAN) or an LLM code-generation step, plus a real quality/validation stage.
 

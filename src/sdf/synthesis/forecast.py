@@ -1,6 +1,6 @@
 """Demand forecasting + walk-forward backtest (Phase 2).
 
-This is the first place the shell produces a *real number*: given a daily demand
+This is the first place the framework produces a *real number*: given a daily demand
 series (from real or synthetic orders), it backtests several baseline models with
 a walk-forward split and reports error metrics (MAE / RMSE / MAPE / bias).
 

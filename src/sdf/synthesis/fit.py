@@ -1,6 +1,6 @@
 """Fit a demand synthesizer on real data (Phase 2.1).
 
-The shell's default generator invents plausible numbers. This module instead
+The framework's default generator invents plausible numbers. This module instead
 *learns* from a real series: it estimates the seasonal **profile** (mean per
 position-in-cycle) and the pool of multiplicative **residuals**, then samples new
 points that reproduce the real shape. Transparent, dependency-free.

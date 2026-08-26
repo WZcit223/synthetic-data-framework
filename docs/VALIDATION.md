@@ -1,8 +1,27 @@
 # Validation Results / 验证结果
 
-Tracks the point where the framework stops being a pure shell and starts
-producing **measured numbers**. Structural checks (shell) live in code; this file
+Tracks the point where the framework stops being a pure framework and starts
+producing **measured numbers**. Structural checks (framework) live in code; this file
 records the first *quantitative* results as the algorithm phase begins.
+
+## Headline — full 13-month real dataset (2009-12 → 2010-12)
+
+The complete UCI *Online Retail II* 2009–2010 data (**525,460 orders, 4,631 SKUs,
+374 daily points**) was run through every stage. This is the production-scale
+result; the small-extract sections below are kept as honest history.
+
+| stage | metric | result |
+|-------|--------|--------|
+| Forecast backtest (C1) | best model MAE / MAPE | **seas_linear7 3924 / 13.5 %** — beats seasonal-naive (5305 / 21.3 %) by **26 %** |
+| Fidelity, baseline (B1) | KS / profile-corr / score | 0.10 / 0.98 / **87.9 / 100** |
+| Fidelity, Gaussian copula (B1) | SDMetrics overall | **0.9235** |
+| Utility, TSTR (B2) | TSTR/TRTR ratio | **1.035** (synthetic ≈ real for training) |
+
+**On adequate real data the Phase 3 model wins** (26 % better than the best
+baseline — the trend+holiday structure it exploits is present at full scale),
+**fidelity rises** with more data (87.9 vs 78 on the 4-day extract; copula 0.92),
+and **TSTR ≈ 1.0** confirms synthetic data is as useful as real for training.
+Reproduce with any of the CLI commands below pointed at the full CSV.
 
 ## Phase 2.0 — first real-data-driven forecast backtest
 
@@ -176,6 +195,21 @@ python -m sdf.cli tstr data/online_retail_ii_2010_10k.csv  # real extract (hourl
 (**ratio ≈ 0.9–1.0**). This is the framework's core claim — *build on synthetic
 data before real data exists* — now **measured**. (Absolute MAEs are high on these
 small/short series; the meaningful quantity is the ratio, which is robust to that.)
+
+## Phase 3/4 — anomaly detection (C3) + knowledge Q&A (C6)
+
+**C3 — demand anomaly detection** (`synthesis/anomaly.py`): seasonal-residual +
+robust-z (MAD-scaled) flags demand spikes/drops resistant to the outliers it
+hunts. On the demo world it recovers the injected shock days (e.g. a spike of
+~2400 vs an expected ~740, robust-z ≫ 3.5). Live in the dashboard.
+ALGORITHM-HOOK: Isolation Forest / autoencoder over multivariate state.
+
+**C6 — grounded knowledge Q&A** (`application/knowledge.py`): a natural-language
+interface that routes questions to computed facts and answers with real numbers —
+stockouts, (s,S) safety stock, forecast accuracy, anomalies, vision stocktake,
+ABC, inventory value. Every answer is backed by data, nothing invented. Live in
+the dashboard ("Ask the warehouse"). ALGORITHM-HOOK: LLM over a knowledge graph,
+same "answers grounded in computed facts" contract.
 
 ## What this establishes
 - The **same** Application-Layer code runs on real data via the adapter — the

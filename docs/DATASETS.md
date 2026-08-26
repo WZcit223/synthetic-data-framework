@@ -1,6 +1,6 @@
 # Reference & Open Datasets / 参考数据集
 
-The shell needs no real data. These are the datasets to introduce in the
+The framework needs no real data. These are the datasets to introduce in the
 **algorithm-validation phase** to fit the generators (A1–A2) and run validation
 (B1–B4). They double as the "reference dataset" named in a `GenerationSpec`.
 
@@ -25,7 +25,7 @@ The shell needs no real data. These are the datasets to introduce in the
 | **SDMetrics** | fidelity + quality reports (B1) | https://github.com/sdv-dev/SDMetrics |
 | **SynthCity** | alternative synthesizers + privacy metrics (B3) | https://github.com/vanderschaarlab/synthcity |
 | **DoppelGANger** | time-series / IoT sequence generation (A2, A4) | https://github.com/fjxmlzn/DoppelGANger |
-| **Faker** | field-level fake values (already emulated in shell) | https://github.com/joke2k/faker |
+| **Faker** | field-level fake values (already emulated in framework) | https://github.com/joke2k/faker |
 
 ## Multimodal / vision (reuse of prior work)
 

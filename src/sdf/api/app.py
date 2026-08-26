@@ -1,4 +1,4 @@
-"""FastAPI surface + web dashboard for the shell.
+"""FastAPI surface + web dashboard for the framework.
 
     pip install fastapi uvicorn
     PYTHONPATH=src uvicorn sdf.api.app:app --reload
@@ -30,7 +30,7 @@ from sdf.synthesis.warehouse import GenerationSpec
 from sdf.synthesis.quality import structural_quality_check
 from sdf.application.warehouse_demo import WarehouseIntelligence
 
-app = FastAPI(title="Synthetic Data Framework — Warehouse Shell", version="0.2.0")
+app = FastAPI(title="Synthetic Data Framework — AI Warehouse", version="0.2.0")
 
 _STATIC = os.path.join(os.path.dirname(__file__), "static", "dashboard.html")
 
@@ -132,6 +132,17 @@ def application_top_movers(n: int = 8):
 @app.get("/application/demand_series")
 def application_demand_series(sku_id: str):
     return _state.intel.demand_series(sku_id)
+
+
+@app.get("/application/demand_anomalies")
+def application_demand_anomalies():
+    return _state.intel.demand_anomalies()
+
+
+@app.get("/application/ask")
+def application_ask(q: str = ""):
+    from sdf.application.knowledge import KnowledgeQA
+    return KnowledgeQA(_state.intel).ask(q)
 
 
 @app.get("/application/shelf_occupancy")

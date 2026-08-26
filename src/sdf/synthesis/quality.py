@@ -1,8 +1,8 @@
 """Quality reporting (Synthesis Layer).
 
-IMPORTANT — this is the deliberate shell/algorithm boundary.
+IMPORTANT — this is the deliberate framework/algorithm boundary.
 
-Per the agreed scope: *"the shell demo needs no data validation; real datasets
+Per the agreed scope: *"the framework demo needs no data validation; real datasets
 are introduced in the algorithm-validation phase."* So this module only does
 **structural** checks (referential integrity, non-negativity, coverage). It does
 NOT assess statistical fidelity, privacy, or downstream ML utility — those are
@@ -38,7 +38,7 @@ class QualityReport:
 
 
 def structural_quality_check(warehouse) -> QualityReport:
-    """Referential-integrity + sanity checks only (shell mode)."""
+    """Referential-integrity + sanity checks only (framework mode)."""
 
     sku_ids = {s.sku_id for s in warehouse.skus}
     loc_ids = {l.location_id for l in warehouse.locations}
@@ -52,7 +52,7 @@ def structural_quality_check(warehouse) -> QualityReport:
     outbound_refs_ok = all(o.sku_id in sku_ids for o in warehouse.outbound)
     coverage = len({s.sku_id for s in warehouse.inventory}) / max(1, len(sku_ids))
 
-    report = QualityReport(mode="structural-only (shell)")
+    report = QualityReport(mode="structural-only (framework)")
     report.checks = {
         "inventory_referential_integrity": inv_refs_ok,
         "inventory_non_negative": non_negative_ok,
@@ -66,7 +66,7 @@ def structural_quality_check(warehouse) -> QualityReport:
         "sku_coverage": round(coverage, 4),
     }
     report.notes = [
-        "Shell mode: structural checks only.",
+        "Framework mode: structural checks only.",
         # ALGORITHM-HOOK: statistical fidelity (KS / correlation / detection AUC),
         # ALGORITHM-HOOK: privacy (DCR, membership-inference),
         # ALGORITHM-HOOK: ML-utility (train-on-synthetic / test-on-real) — TODO.

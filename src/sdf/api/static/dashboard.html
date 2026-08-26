@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Synthetic Data Framework — Warehouse Shell</title>
+<title>Synthetic Data Framework — AI Warehouse</title>
 <style>
   :root{
     --bg:#0d1117; --panel:#161b22; --panel2:#1c2430; --line:#2a3441;
@@ -60,12 +60,12 @@
 </head>
 <body>
 <header>
-  <h1>🧩 Synthetic Data Framework <span class="muted">— AI Warehouse Shell</span></h1>
+  <h1>🧩 Synthetic Data Framework <span class="muted">— AI Warehouse</span></h1>
   <div class="layers">
     <span class="badge">Foundation Layer</span>
     <span class="badge">Synthesis Layer</span>
     <span class="badge">Application Layer</span>
-    <span class="badge" style="border-color:var(--warn);color:var(--warn)">shell mode · no data validation</span>
+    <span class="badge" style="border-color:var(--warn);color:var(--warn)">synthetic demo data</span>
   </div>
 </header>
 
@@ -93,7 +93,8 @@
       <span id="status" class="muted"></span>
     </div>
     <div class="note">Sliders re-drive the <code>GenerationSpec</code> (reference-dataset + generation
-      requirements). In shell mode data is a seeded stdlib sample — no statistical validation.</div>
+      requirements). This dashboard runs on seeded synthetic data; measured results on real data
+      are in <code>docs/VALIDATION.md</code>.</div>
     <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <span class="muted" style="font-size:12px">Export synthetic CSV:</span>
       <a href="/export?entity=skus" download><button>skus</button></a>
@@ -216,10 +217,39 @@
     </div>
   </div>
 
+  <!-- KNOWLEDGE Q&A (C6) + DEMAND ANOMALIES (C3) -->
+  <h2>Knowledge &amp; anomalies <span class="muted">— C6 grounded Q&amp;A · C3 anomaly detection</span></h2>
+  <div class="grid two">
+    <div class="card">
+      <h3 style="margin:0 0 8px;font-size:14px">Ask the warehouse
+        <span class="pill">grounded · LLM+KG is the ALGO-HOOK</span></h3>
+      <div style="display:flex;gap:8px">
+        <input id="q" placeholder="e.g. safety stock at 95%?  which SKUs are stockout?"
+          style="flex:1;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+          border-radius:8px;padding:9px 12px;font-size:13px"
+          onkeydown="if(event.key==='Enter')ask()">
+        <button class="primary" onclick="ask()">Ask</button>
+      </div>
+      <div id="answer" style="margin-top:12px;font-size:14px;min-height:40px"></div>
+      <div id="qchips" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"></div>
+      <div class="note">Every answer is routed to computed facts — nothing invented.</div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 4px;font-size:14px">Demand anomalies
+        <span class="pill">seasonal residual · robust-z</span></h3>
+      <div id="anoMeta" class="note" style="margin:0 0 8px"></div>
+      <table><thead><tr>
+        <th>#</th><th>type</th><th class="num">actual</th>
+        <th class="num">expected</th><th class="num">robust-z</th>
+      </tr></thead><tbody id="anoRows"></tbody></table>
+      <div class="note">ALGORITHM-HOOK: Isolation Forest / autoencoder over multivariate state.</div>
+    </div>
+  </div>
+
   <p class="note" style="margin:26px 0 40px">
     Every rule-based stand-in above maps to a <code>#&nbsp;ALGORITHM-HOOK</code> in the source and a row in
     <code>docs/ALGORITHM_AND_DATA_CHECKLIST.md</code>. Swapping generators for SDV/CTGAN and the forecast for
-    DeepAR/TFT upgrades this shell to a validated system without changing the layers or this dashboard.
+    DeepAR/TFT upgrades this framework to a validated system without changing the layers or this dashboard.
   </p>
 </main>
 
@@ -406,7 +436,40 @@ async function loadSS(){
     <td class="num"><b>${x.order_qty}</b></td></tr>`).join("");
 }
 
-async function refreshAll(){ await Promise.all([loadOverview(),loadRepl(),loadSim(),loadMovers(),loadVision(),loadBacktest(),loadSS()]); }
+const SAMPLE_Q = ["which SKUs are stockout?","safety stock at 95%?",
+  "how good is the forecast?","any demand anomalies?","inventory value?","ABC mix?"];
+
+async function ask(q){
+  q = (typeof q === "string") ? q : $("#q").value;
+  if(!q) return;
+  $("#q").value = q;
+  $("#answer").innerHTML = `<span class="muted">…</span>`;
+  const r = await (await fetch("/application/ask?q="+encodeURIComponent(q))).json();
+  $("#answer").innerHTML = `<span class="pill" style="margin-right:8px">${r.intent}</span>${r.answer}`;
+}
+
+function renderChips(){
+  $("#qchips").innerHTML = SAMPLE_Q.map(q =>
+    `<span class="pill" style="cursor:pointer" onclick="ask(${JSON.stringify(q).replace(/"/g,'&quot;')})">${q}</span>`).join("");
+}
+
+async function loadAnomalies(){
+  const a = await (await fetch("/application/demand_anomalies")).json();
+  $("#anoMeta").innerHTML = `<b>${a.count}</b> anomalies on a ${a.series_len}-point
+    ${a.granularity} series (period ${a.seasonal_period}).`;
+  $("#anoRows").innerHTML = a.anomalies.length ? a.anomalies.map(x=>`<tr>
+    <td>${x.index}</td>
+    <td><span class="pill" style="border-color:${x.direction==='spike'?'var(--warn)':'var(--bad)'}">${x.direction}</span></td>
+    <td class="num">${fmt(x.value)}</td><td class="num">${fmt(x.expected)}</td>
+    <td class="num"><b>${fmt(x.robust_z)}</b></td></tr>`).join("")
+    : `<tr><td colspan="5" class="muted">No anomalies at current settings.</td></tr>`;
+}
+
+async function refreshAll(){
+  renderChips();
+  await Promise.all([loadOverview(),loadRepl(),loadSim(),loadMovers(),
+    loadVision(),loadBacktest(),loadSS(),loadAnomalies()]);
+}
 
 async function regen(){
   $("#status").textContent="regenerating…";

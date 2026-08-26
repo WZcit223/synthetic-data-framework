@@ -1,7 +1,7 @@
 # Demo Script — 5 minutes / 演示讲稿
 
 Audience: management + prospective client. Goal: show the framework's effect and
-make the shell-vs-full-system boundary explicit and credible.
+make the framework-vs-full-system boundary explicit and credible.
 
 **Setup (before the room):**
 ```bash
@@ -25,13 +25,13 @@ Point at the three badges in the header.
 > "Everything runs on three layers: a **Foundation** layer where any data source —
 > synthetic or real — becomes interchangeable; a **Synthesis** layer that generates
 > data from a declarative spec; and an **Application** layer, here the warehouse
-> demo. The orange badge is deliberate: this is **shell mode — no data validation
+> demo. The orange badge is deliberate: this is **framework mode — no data validation
 > yet**. That honesty is the point."
 
 ### 1:15 — Live synthetic data (45s)
 Drag the **SKUs** and **Stockout pressure** sliders, click **Regenerate**.
 > "This entire world — 200 SKUs, 28,000 order lines, inventory, sensors — is
-> synthetic and regenerates live. In shell mode it's a seeded sampler; the exact
+> synthetic and regenerates live. In framework mode it's a seeded sampler; the exact
 > same spec later drives a fitted generative model. No real data was needed to
 > build any of what you're about to see."
 
@@ -64,7 +64,7 @@ Scroll to the heatmap.
 
 ### 4:30 — The honest boundary + the ask (30s)
 Hold up / screen-share `ALGORITHM_AND_DATA_CHECKLIST.md`.
-> "Everything you saw is a working shell. This checklist is the deliverable that
+> "Everything you saw is a working framework. This checklist is the deliverable that
 > comes with it: **exactly which algorithms and which data** turn each demo into
 > production — line by line, each tied to a marker in the code. Give us one real
 > order history and a handful of labelled shelf images, and we validate the two
@@ -74,7 +74,7 @@ Hold up / screen-share `ALGORITHM_AND_DATA_CHECKLIST.md`.
 
 ## The one-sentence takeaways
 - **Effect:** a full AI-warehouse application, running today, on data we generated.
-- **Rigor:** the shell/algorithm boundary is explicit — `# ALGORITHM-HOOK` in code,
+- **Rigor:** the framework/algorithm boundary is explicit — `# ALGORITHM-HOOK` in code,
   a checklist for the client, and a first real backtest number already on the board.
 - **Reusability:** the three layers are domain-agnostic; warehouse is scenario #1.
 

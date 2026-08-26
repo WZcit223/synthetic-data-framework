@@ -1,6 +1,6 @@
 """AI Warehouse-Management demo logic (Application Layer).
 
-This is the *application shell*: it consumes whatever the DataSourceRegistry
+This is the *application framework*: it consumes whatever the DataSourceRegistry
 overlays (synthetic today, real later) and produces the four capability
 families the framework claims to cover — data management, knowledge
 organisation, decision support, and insight. Each "AI" function here is a
@@ -342,6 +342,23 @@ class WarehouseIntelligence:
             "match_rate": round(matched / max(1, total), 4),
             "net_unit_variance": sum(f["diff"] for f in flagged),
             "discrepancies": flagged[:20],
+        }
+
+    # -- capability 3: statistical demand anomalies ------------------------
+
+    def demand_anomalies(self, k: float = 3.5) -> Dict:
+        """Seasonal-residual + robust-z anomalies on the demand series (C3)."""
+        from sdf.synthesis.forecast import build_series
+        from sdf.synthesis.anomaly import seasonal_residual_anomalies
+        orders = self.reg.stream("OutboundOrder")
+        series, freq, period = build_series(orders)
+        found = seasonal_residual_anomalies(series, period, k=k)
+        return {
+            "granularity": freq,
+            "seasonal_period": period,
+            "series_len": len(series),
+            "count": len(found),
+            "anomalies": found[:20],
         }
 
     # -- capability 4: knowledge organisation ------------------------------

@@ -25,7 +25,7 @@ _PAIRS = [("Quantity", "Price"), ("Quantity", "hour"), ("Price", "weekday")]
 def _load_line_table(path: str, max_rows: int = 2000, seed: int = 1):
     import pandas as pd
 
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, on_bad_lines="skip", engine="python")
     df.columns = [c.strip() for c in df.columns]
     df = df[(df["Quantity"] > 0) & (df["Price"] > 0)].copy()
     dt = pd.to_datetime(df["InvoiceDate"], format="%m/%d/%y %H:%M", errors="coerce")

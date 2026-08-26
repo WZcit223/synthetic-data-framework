@@ -94,7 +94,7 @@ class OutboundOrder(Entity):
 class SensorReading(Entity):
     """A multimodal placeholder: IoT / vision-derived signal for a location.
 
-    In the shell these are synthetic scalars. The real system replaces this with
+    In the framework these are synthetic scalars. The real system replaces this with
     edge-device telemetry and CV model outputs (e.g. shelf-occupancy from
     camera frames, defect scores from the fabric-inspection pipeline).
     """

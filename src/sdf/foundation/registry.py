@@ -5,7 +5,7 @@ the seam that makes that possible: every dataset — synthetic or real — is
 registered as a :class:`DataSource`. Downstream layers ask the registry for a
 *stream* by entity type and get back rows regardless of origin.
 
-Shell behaviour: sources are in-memory lists. The real system swaps the
+Framework behaviour: sources are in-memory lists. The real system swaps the
 ``_rows`` backing store for connectors (SQL, object storage, Kafka, a feature
 store) without changing the interface the Application Layer depends on.
 """

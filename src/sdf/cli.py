@@ -1,4 +1,4 @@
-"""Command-line entry point for the shell demo.
+"""Command-line entry point for the framework demo.
 
     python -m sdf.cli demo            # run the end-to-end pipeline, print report
     python -m sdf.cli export outdir/  # generate + write CSVs to a directory
@@ -41,12 +41,12 @@ def cmd_demo() -> int:
     report = structural_quality_check(wh)
 
     print("=" * 68)
-    print("  Synthetic Data Framework — AI Warehouse Management (shell demo)")
+    print("  Synthetic Data Framework — AI Warehouse Management (framework demo)")
     print("=" * 68)
     print("\n[Foundation] registry summary:")
     print("  " + json.dumps(reg.summary(), indent=2).replace("\n", "\n  "))
 
-    print("\n[Synthesis] structural quality (shell mode, no stat validation):")
+    print("\n[Synthesis] structural quality (framework mode, no stat validation):")
     print(f"  passed={report.passed}  metrics={report.metrics}")
 
     print("\n[Application] KPIs:")

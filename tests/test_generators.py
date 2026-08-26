@@ -1,4 +1,4 @@
-"""Shell-mode tests: determinism + structural integrity (no stat validation)."""
+"""Framework-mode tests: determinism + structural integrity (no stat validation)."""
 
 import os
 import sys
@@ -98,6 +98,31 @@ def test_phase3_ss_policy():
     assert hi["z"] > lo["z"]
     for r in lo["rows"]:
         assert r["reorder_point_s"] >= r["safety_stock"] >= 0
+
+
+def test_phase3_anomaly_c3():
+    from sdf.synthesis.anomaly import seasonal_residual_anomalies
+    series = [100 + [10, 12, 9, 11, 13, 8, 3][i % 7] for i in range(84)]
+    series[40] = 900  # injected spike
+    found = seasonal_residual_anomalies(series, 7, k=3.5)
+    assert any(a["index"] == 40 and a["direction"] == "spike" for a in found)
+    # Application wiring finds the injected generator shocks.
+    _, reg = build_registry(GenerationSpec(n_skus=60, horizon_days=90))
+    intel = WarehouseIntelligence(reg)
+    a = intel.demand_anomalies()
+    assert a["count"] >= 1
+
+
+def test_phase4_knowledge_qa_c6():
+    from sdf.application.knowledge import KnowledgeQA
+    _, reg = build_registry(GenerationSpec(n_skus=60, horizon_days=45))
+    qa = KnowledgeQA(WarehouseIntelligence(reg))
+    assert qa.ask("which SKUs are stockout?")["intent"] == "stockouts"
+    assert qa.ask("safety stock at 95%?")["intent"] == "safety_stock"
+    assert qa.ask("any demand anomalies?")["intent"] == "anomaly"
+    assert qa.ask("how good is the forecast?")["intent"] == "forecast"
+    # Unknown question falls back to help, still grounded (no crash).
+    assert "answer" in qa.ask("tell me a joke")
 
 
 def test_phase21_sdv_optional():

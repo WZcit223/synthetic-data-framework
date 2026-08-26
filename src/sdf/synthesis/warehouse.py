@@ -5,7 +5,7 @@ Design intent
 The brief calls for: *"clear reference dataset + generation requirements, so an
 AI can produce high-quality scripts and data."* We model that as a
 :class:`GenerationSpec` — a declarative description of the reference dataset and
-the generation requirements. In the shell, the generator is a deterministic,
+the generation requirements. In the framework, the generator is a deterministic,
 seeded, rule-based sampler (pure stdlib). In the real system the same spec is
 handed to an AI/statistical model (SDV / CTGAN / an LLM code-gen step) that
 learns from a real reference dataset and emits a fitted generator.
@@ -35,7 +35,7 @@ from sdf.foundation.schema import (
 class GenerationSpec:
     """Declarative reference-dataset + generation-requirements description.
 
-    This is the artefact that separates the *shell* from the *algorithm*: it is
+    This is the artefact that separates the *framework* from the *algorithm*: it is
     identical whether data is produced by the stdlib sampler here or by a fitted
     generative model later. ``reference_dataset`` names the open/real dataset the
     distributions should eventually be learned from (see docs/DATASETS.md).
@@ -54,10 +54,10 @@ class GenerationSpec:
     stockout_pressure: float = 0.08              # fraction of SKUs kept tight
 
     # Provenance / requirements (documentation carried with the data).
-    reference_dataset: str = "synthetic-only (shell mode)"
+    reference_dataset: str = "synthetic-only (framework mode)"
     requirements: Dict[str, str] = field(default_factory=lambda: {
         "realism": "structurally valid; distributions are plausible, not fitted",
-        "validation": "shell mode = no statistical validation (see roadmap)",
+        "validation": "framework mode = no statistical validation (see roadmap)",
     })
 
 
@@ -197,10 +197,19 @@ class WarehouseGenerator:
         # model (Croston, DeepAR, TimeGAN) learned from order history.
         orders: List[OutboundOrder] = []
         rate = {"A": self.spec.daily_orders_per_a_sku, "B": 1.5, "C": 0.3}
+        # Inject a few demand shocks (promo spikes / supply drops) so the C3
+        # anomaly detector has real events to surface. # ALGORITHM-HOOK: real
+        # anomalies come from the data, not injection.
+        shock = {d: 3.2 for d in self._rng.sample(
+            range(self.spec.horizon_days), k=max(1, self.spec.horizon_days // 40))}
+        for d in self._rng.sample(range(self.spec.horizon_days),
+                                  k=max(1, self.spec.horizon_days // 60)):
+            shock[d] = 0.15  # drop day
         oid = 0
         for day in range(self.spec.horizon_days):
             ts_day = self.spec.start + timedelta(days=day)
             weekday_factor = 0.6 if ts_day.weekday() >= 5 else 1.0
+            weekday_factor *= shock.get(day, 1.0)
             for sku in skus:
                 lam = rate[sku.abc_class] * weekday_factor
                 k = self._poisson(lam)

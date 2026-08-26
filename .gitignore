@@ -16,3 +16,6 @@ out/
 .DS_Store
 .idea/
 .vscode/
+
+# Full raw dataset (too large to commit; download from UCI)
+data/_full/

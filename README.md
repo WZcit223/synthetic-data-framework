@@ -1,11 +1,11 @@
-# Synthetic Data Framework — Industrial AI Shell
-# 合成数据工业 AI 框架（工程壳）
+# Synthetic Data Framework — Industrial AI
+# 合成数据工业 AI 框架（工程可复用框架）
 
 A three-layer industrial-AI framework prototype that uses **synthetic data** to
 build and demonstrate applications before real data is available. The first
 validation scenario is **AI Warehouse Management**.
 
-> **Shell-first philosophy.** This repo is the *engineering shell*: it proves the
+> **Framework-first philosophy.** This repo is the *engineering framework*: it proves the
 > end-to-end flow and the user-facing effect with zero heavy dependencies and
 > rule-based stand-ins. It intentionally does **no** data/algorithm validation.
 > What a full implementation additionally requires (algorithms + data) is
@@ -22,7 +22,7 @@ PYTHONPATH=src python -m sdf.cli backtest        # Phase 2: real-data forecast b
 PYTHONPATH=src python -m sdf.cli synth           # Phase 2.1: fitted synthesis + fidelity
 PYTHONPATH=src python -m sdf.cli tstr            # Phase 3: train-on-synthetic, test-on-real
 PYTHONPATH=src python -m sdf.cli sdv <csv>       # Phase 2.1 full: Gaussian-copula + SDMetrics
-python tests/test_generators.py    # run shell tests
+python tests/test_generators.py    # run framework tests
 ```
 
 Web dashboard (FastAPI + a dependency-free HTML page, works offline):
@@ -49,9 +49,9 @@ Application (src/sdf/application)  AI warehouse demo: KPIs, replenishment, insig
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design and
 [`docs/ROADMAP.md`](docs/ROADMAP.md) for the phased plan.
 
-## What is a shell vs. what is an algorithm?
+## What is a framework vs. what is an algorithm?
 
-| In this repo (shell) | Deferred to algorithm phase |
+| In this repo (framework) | Deferred to algorithm phase |
 |----------------------|-----------------------------|
 | Seeded rule-based generators | Fitted generative models (SDV/CTGAN/TimeGAN) |
 | Structural quality checks | Statistical fidelity / privacy / ML-utility validation |

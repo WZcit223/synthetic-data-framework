@@ -6,7 +6,7 @@ A three-layer industrial-AI framework prototype:
     Synthesis Layer   -> synthetic / predictive data generation
     Application Layer  -> operation / application logic (AI warehouse demo)
 
-This package is the *engineering shell*: it demonstrates the end-to-end flow
+This package is the *engineering framework*: it demonstrates the end-to-end flow
 with zero heavy dependencies so it runs anywhere. The places where a real
 algorithm or real dataset must eventually plug in are marked with
 ``# ALGORITHM-HOOK`` / ``# DATA-HOOK`` and catalogued in
