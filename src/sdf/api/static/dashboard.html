@@ -155,6 +155,19 @@
     </tr></thead><tbody id="repl"></tbody></table>
   </div>
 
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin:0 0 4px;font-size:14px">Forecast backtest — measured
+      <span class="pill">walk-forward · real number</span></h3>
+    <div id="btMeta" class="note" style="margin:0 0 10px"></div>
+    <table><thead><tr>
+      <th>model</th><th class="num">MAE</th><th class="num">RMSE</th>
+      <th class="num">MAPE %</th><th class="num">bias</th>
+    </tr></thead><tbody id="btRows"></tbody></table>
+    <div class="note">Backtested on the current synthetic world's demand. Same harness
+      runs on real data via <code>python -m sdf.cli backtest &lt;csv&gt;</code>.
+      ALGORITHM-HOOK: beat the winning baseline with DeepAR/TFT/LightGBM.</div>
+  </div>
+
   <!-- VISION STOCKTAKE (multimodal, synthetic) -->
   <h2>Vision stocktake <span class="muted">— multimodal capability · synthetic CV signal</span></h2>
   <div class="grid two">
@@ -348,7 +361,17 @@ async function loadVision(){
     : `<tr><td colspan="5" class="muted">Vision matches the books at these settings.</td></tr>`;
 }
 
-async function refreshAll(){ await Promise.all([loadOverview(),loadRepl(),loadSim(),loadMovers(),loadVision()]); }
+async function loadBacktest(){
+  const r = await (await fetch("/validation/backtest")).json();
+  $("#btMeta").innerHTML = `${r.granularity} granularity · ${r.series_len} points ·
+    mean ${fmt(r.series_mean)}/bucket · winner <b style="color:var(--accent2)">${r.best_model}</b>`;
+  $("#btRows").innerHTML = r.results.map((m,i)=>`<tr>
+    <td>${i===0?'🏆 ':''}${m.model}</td>
+    <td class="num"><b>${fmt(m.MAE)}</b></td><td class="num">${fmt(m.RMSE)}</td>
+    <td class="num">${fmt(m.MAPE_pct)}</td><td class="num">${fmt(m.bias)}</td></tr>`).join("");
+}
+
+async function refreshAll(){ await Promise.all([loadOverview(),loadRepl(),loadSim(),loadMovers(),loadVision(),loadBacktest()]); }
 
 async function regen(){
   $("#status").textContent="regenerating…";

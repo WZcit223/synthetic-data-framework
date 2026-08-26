@@ -137,6 +137,19 @@ def application_stocktake():
     return _state.intel.stocktake_discrepancies()
 
 
+@app.get("/validation/backtest")
+def validation_backtest():
+    """Measured forecast backtest on the current world's demand (real number)."""
+    from sdf.synthesis.forecast import build_series, models_for, compare_models
+    orders = _state.reg.stream("OutboundOrder")
+    series, freq, period = build_series(orders)
+    report = compare_models(series, test_len=2 * period,
+                            models=models_for(period))
+    report["granularity"] = freq
+    report["seasonal_period"] = period
+    return report
+
+
 @app.get("/export")
 def export(entity: str = "outbound"):
     """Download the current synthetic dataset for one entity as CSV."""

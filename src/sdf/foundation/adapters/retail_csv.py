@@ -25,8 +25,10 @@ from sdf.foundation.registry import DataSourceRegistry
 
 
 def _parse_dt(s: str) -> datetime:
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%m/%d/%Y %H:%M",
-                "%d/%m/%Y %H:%M", "%Y-%m-%d"):
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M",
+                "%m/%d/%Y %H:%M", "%d/%m/%Y %H:%M",
+                "%m/%d/%y %H:%M", "%d/%m/%y %H:%M",   # 2-digit year (UCI export)
+                "%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
         try:
             return datetime.strptime(s.strip(), fmt)
         except ValueError:

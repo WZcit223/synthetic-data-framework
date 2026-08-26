@@ -95,19 +95,21 @@ def cmd_export(outdir: str) -> int:
 def cmd_backtest(path: str) -> int:
     """Phase 2: forecast backtest on a real/open dataset (Online Retail II)."""
     from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-    from sdf.synthesis.forecast import daily_demand_series, compare_models
+    from sdf.synthesis.forecast import build_series, models_for, compare_models
 
     skus, orders = load_online_retail_csv(path)
-    series = daily_demand_series(orders)
-    report = compare_models(series, test_len=21)
+    series, freq, period = build_series(orders)
+    report = compare_models(series, test_len=2 * period,
+                            models=models_for(period))
 
     print("=" * 60)
     print("  Forecast backtest — real-data-driven (Phase 2)")
     print("=" * 60)
     print(f"  source        : {path}")
     print(f"  SKUs / orders : {len(skus)} / {len(orders)}")
-    print(f"  daily series  : {report['series_len']} days, "
-          f"mean {report['series_mean']:.1f} units/day")
+    print(f"  granularity   : {freq} (seasonal period {period})")
+    print(f"  series        : {report['series_len']} points, "
+          f"mean {report['series_mean']:.1f} units/bucket")
     print(f"  {'model':<10}{'MAE':>9}{'RMSE':>9}{'MAPE%':>9}{'bias':>9}")
     for r in report["results"]:
         print(f"  {r['model']:<10}{r['MAE']:>9}{r['RMSE']:>9}"

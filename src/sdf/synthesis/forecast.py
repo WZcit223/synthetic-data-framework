@@ -39,6 +39,48 @@ def daily_demand_series(orders, sku_id: Optional[str] = None) -> List[float]:
     return out
 
 
+def hourly_business_series(orders, lo: int = 8, hi: int = 19):
+    """Dense per-business-hour demand series. Returns (values, periods_per_day).
+
+    Used when the data spans too few days for a daily model (e.g. a short
+    extract). Captures intraday seasonality — the dominant signal at this scale.
+    """
+    from datetime import datetime
+    by: Dict = defaultdict(float)
+    for o in orders:
+        if o.status == "cancelled":
+            continue
+        by[o.ts.replace(minute=0, second=0, microsecond=0)] += o.quantity
+    if not by:
+        return [], 0
+    days = sorted({k.date() for k in by})
+    values = [float(by.get(datetime(d.year, d.month, d.day, h), 0.0))
+              for d in days for h in range(lo, hi)]
+    return values, (hi - lo)
+
+
+def build_series(orders, prefer_daily_min_days: int = 14):
+    """Pick the finest granularity the data can support.
+
+    Returns (values, granularity_label, seasonal_period).
+    """
+    days = sorted({o.ts.date() for o in orders if o.status != "cancelled"})
+    if len(days) >= prefer_daily_min_days:
+        return daily_demand_series(orders), "daily", 7
+    values, ppd = hourly_business_series(orders)
+    return values, "hourly", max(1, ppd)
+
+
+def models_for(period: int) -> Dict:
+    """Baseline model set with the seasonal period matched to the granularity."""
+    return {
+        "mean": m_mean,
+        "naive": m_naive,
+        f"ma{period}": moving_average(period),
+        f"snaive{period}": seasonal_naive(period),
+    }
+
+
 # -- one-step forecast models: history -> next-value prediction -------------
 
 def m_mean(h: List[float]) -> float:

@@ -11,33 +11,54 @@ retail feed (UCI *Online Retail II* schema) is ingested through
 `foundation/adapters/retail_csv.py` and forecast baselines are backtested with a
 one-step **walk-forward** split (`synthesis/forecast.py`).
 
+The harness auto-selects the finest granularity the data can support (daily when
+≥14 days, otherwise hourly), and matches the seasonal period to it.
+
 Reproduce:
 
 ```bash
-python -m sdf.cli backtest                       # bundled sample
-python -m sdf.cli backtest /path/to/online_retail_II.csv   # real UCI data
+python -m sdf.cli backtest                                   # bundled synthetic sample (daily)
+python -m sdf.cli backtest data/online_retail_ii_2010_10k.csv  # real UCI extract (hourly)
 ```
 
-### Result on the bundled sample (`data/sample_online_retail_ii.csv`)
+### A. Real UCI data — `data/online_retail_ii_2010_10k.csv` (10k rows)
 
-> ⚠️ These numbers are on the **schema-compatible SAMPLE**, not the real UCI
-> dataset. They demonstrate the *harness works and discriminates between models*,
-> not a production accuracy claim. Run the command above on the real file for
-> real numbers.
+Real *Online Retail II* extract. **Coverage caveat:** these 10k rows span only
+**4 days** (2010-12-01 → 05), so a daily/weekly model is not yet possible — the
+harness falls back to **hourly** granularity (intraday seasonality).
 
 | model | MAE | RMSE | MAPE % | bias |
 |-------|-----|------|--------|------|
-| **snaive7** (seasonal-naive, 7d) | **46.0** | 62.6 | **29.7** | −0.48 |
-| mean | 80.3 | 99.0 | 31.8 | −19.7 |
-| ma7 (moving average) | 84.6 | 100.2 | 36.6 | −2.69 |
-| naive (last value) | 122.1 | 139.7 | 67.2 | +0.76 |
+| **naive** (last hour) | **951** | 1328 | 99.0 | +51 |
+| ma11 (11h moving avg) | 1381 | 1497 | 64.3 | +267 |
+| snaive11 (same hour, prev day) | 1489 | 1873 | 79.7 | +674 |
+| mean | 1535 | 1661 | 79.8 | +912 |
 
-Series: 139 days, mean 137.6 units/day, test window 21 days.
+Series: 44 business-hour buckets, mean 2049 units/hour, 2015 SKUs, 10k orders.
 
-**Reading it:** seasonal-naive wins decisively — the harness correctly surfaces
-that demand is driven by a **weekly pattern** (weekday/weekend, Sundays closed).
-That is exactly the signal a production model must capture, and it gives the
-algorithm team a concrete bar to beat.
+**Reading it:** on a 4-day slice, **persistence (naive) wins** and no baseline is
+strong (MAPE ~99%) — hourly retail demand is volatile and 4 days is too little to
+learn seasonality. This is the honest signal that we need the **full ~2-year
+dataset** to fit a real daily/weekly model. The pipeline, however, ingests real
+data end-to-end and produces measured numbers — that part is proven.
+
+### B. Synthetic sample — `data/sample_online_retail_ii.csv` (daily)
+
+> Schema-compatible SAMPLE (not real UCI). It has the 120-day span the real
+> extract lacks, so it exercises the **daily/weekly** path.
+
+| model | MAE | RMSE | MAPE % | bias |
+|-------|-----|------|--------|------|
+| **snaive7** (seasonal-naive, 7d) | **32.8** | 44.9 | **20.6** | −0.93 |
+| mean | 81.2 | 101.2 | 33.0 | −18.5 |
+| ma7 (moving average) | 84.4 | 99.6 | 38.2 | +2.71 |
+| naive (last value) | 130.3 | 148.2 | 69.0 | +3.29 |
+
+Series: 139 days, mean 137.6 units/day, test window 14 days.
+
+**Reading it:** with enough history, seasonal-naive wins decisively — the harness
+correctly surfaces a **weekly pattern**. That is the bar a production model beats,
+and what we expect to reproduce once the full real dataset is loaded.
 
 ### What this establishes
 - The **same** Application-Layer code runs on real data via the adapter — the
