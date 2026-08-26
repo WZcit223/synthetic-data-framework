@@ -1,4 +1,4 @@
-# Synthetic Data Framework — Industrial AI
+# Synthetic Data System — Industrial AI Application Framework
 # 合成数据工业 AI 框架（工程可复用框架）
 
 A three-layer industrial-AI framework prototype that uses **synthetic data** to
