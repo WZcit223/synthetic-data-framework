@@ -56,15 +56,10 @@ clean framework-first, algorithm-second delivery.
 
 ---
 
-## Mapping to the committed deliverables (管理层交付物)
+## Deliverables 
 | Committed deliverable | Delivered in |
 |-----------------------|--------------|
 | 合成数据工业AI应用框架原型 | Phase 0 → hardened Phase 4 |
 | AI + 仓库管理 Demo | Phase 1 (framework) → Phase 3 (validated) |
 | 合成数据验证环境 | Phase 2 |
 | 核心技术验证成果 + 技术文档 + 阶段报告 | Phase 3–4 (docs seeded from Phase 0) |
-
-## Personal growth track (个人能力积累)
-- **Framework/engineering:** Phase 0–1 (layered design, interfaces, MLOps seams).
-- **Algorithms:** Phase 2–3 (generative models, forecasting, validation metrics).
-- Keep the two tracks separable so each can be studied and demonstrated on its own.
