@@ -6,6 +6,11 @@
     python -m sdf.cli synth [csv]     # Phase 2.1: fit synthesizer + fidelity score
     python -m sdf.cli tstr [csv]      # Phase 3: train-on-synthetic, test-on-real
     python -m sdf.cli sdv [csv]       # Phase 2.1 full: Gaussian-copula + SDMetrics
+    python -m sdf.cli agent "<q>"     # Phase 4: tool-using agent + audit trace
+    python -m sdf.cli pipeline        # Data Intelligence Workflow (DAG) run record
+    python -m sdf.cli impact          # business-outcome economics (£ counterfactual)
+    python -m sdf.cli scenarios       # what-if scenario simulation
+    python -m sdf.cli privacy [csv]   # synthetic-data privacy (DCR/NNDR/clone risk)
 """
 
 from __future__ import annotations
@@ -191,6 +196,95 @@ def cmd_sdv(path: str) -> int:
     return 0
 
 
+def cmd_agent(query: str) -> int:
+    """Phase 4: tool-using warehouse agent with an audit trace."""
+    from sdf.application.agent import WarehouseAgent
+    _wh, reg = build_registry(GenerationSpec())
+    agent = WarehouseAgent(WarehouseIntelligence(reg))
+    res = agent.handle(query)
+    print("=" * 64)
+    print("  Warehouse Agent — tool calls + audit trace (Phase 4)")
+    print("=" * 64)
+    print(f"  Q: {query}")
+    print(f"  A: {res['answer']}")
+    print(f"  plan: {' → '.join(res['plan'])}")
+    if res["proposed_actions"]:
+        print(f"  proposed actions (need approval): {res['proposed_actions']}")
+    print("  audit trace:")
+    for e in res["trace"]:
+        print(f"    #{e['seq']} {e['name']:<16} {e['status']:<5} {e['duration_ms']}ms"
+              + ("  [approval]" if 'approval' in e.get('note', '') else ""))
+    print(f"  run: {res['run']['run_id']}  steps={res['run']['steps']}\n")
+    return 0
+
+
+def cmd_pipeline() -> int:
+    """Run the Data Intelligence Workflow (DAG) and print its run record."""
+    from sdf.workflow import warehouse_pipeline
+    result = warehouse_pipeline(GenerationSpec()).run()
+    print("=" * 64)
+    print("  Data Intelligence Workflow — DAG run record")
+    print("=" * 64)
+    print(f"  order: {' → '.join(result['order'])}")
+    for e in result["trace"]:
+        print(f"    {e['seq']}. {e['name']:<14} {e['status']:<5} {e['duration_ms']}ms")
+    econ = result["artifacts"].get("report", {}).get("economics_annual_saving")
+    print(f"  run: {result['run']['run_id']}  total={result['run']['total_ms']}ms"
+          f"  annual_saving≈{econ}\n")
+    return 0
+
+
+def cmd_impact() -> int:
+    """Business-outcome economics: counterfactual £ savings."""
+    from sdf.application.economics import financial_impact
+    _wh, reg = build_registry(GenerationSpec())
+    rep = financial_impact(WarehouseIntelligence(reg))
+    print("=" * 64)
+    print("  Business-outcome economics — £ counterfactual")
+    print("=" * 64)
+    print(f"  SKUs considered      : {rep['skus_considered']}  over {rep['horizon_days']} days")
+    print(f"  stockout units       : naive {rep['unmet_units']['naive']:,}  "
+          f"→ ours {rep['unmet_units']['ours']:,}")
+    print(f"  stockout units avoided: {rep['stockout_units_avoided']:,}")
+    print(f"  period net saving    : {rep['period']['net_saving']:,}")
+    print(f"  ANNUALISED net saving : ≈ {rep['annualised_net_saving']:,}")
+    print(f"  (assumptions: {rep['assumptions']['holding_cost_annual_rate']:.0%} holding, "
+          f"z={rep['assumptions']['service_z']})  DATA-HOOK: real unit costs.\n")
+    return 0
+
+
+def cmd_scenarios() -> int:
+    """What-if scenario simulation across a family of specs."""
+    from sdf.synthesis.scenarios import run_scenarios
+    rep = run_scenarios(GenerationSpec())
+    print("=" * 72)
+    print("  What-if scenario simulation")
+    print("=" * 72)
+    print(f"  {'scenario':<20}{'out-lines':>10}{'need-order':>11}{'safety':>9}{'vs base':>9}")
+    for r in rep["scenarios"]:
+        print(f"  {r['scenario']:<20}{r['outbound_lines']:>10}{r['skus_needing_order']:>11}"
+              f"{int(r['safety_stock_units']):>9}{r['safety_stock_vs_baseline_pct']:>8}%")
+    print()
+    return 0
+
+
+def cmd_privacy(path: str) -> int:
+    """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
+    from sdf.synthesis.privacy import (privacy_report, read_retail_feature_table,
+                                       bootstrap_synthesize)
+    real = read_retail_feature_table(path)
+    synth = bootstrap_synthesize(real)
+    rep = privacy_report(real, synth)
+    print("=" * 60)
+    print("  Synthetic-data privacy (B3)")
+    print("=" * 60)
+    for k in ("n_real", "n_synth", "dcr_median", "dcr_p05",
+              "nndr_median", "clone_risk_pct", "verdict"):
+        print(f"  {k:<16}: {rep.get(k)}")
+    print("  ALGORITHM-HOOK: full membership-inference + differential privacy.\n")
+    return 0
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = argv[0] if argv else "demo"
@@ -207,6 +301,16 @@ def main(argv=None) -> int:
         return cmd_tstr(argv[1] if len(argv) > 1 else default_csv)
     if cmd == "sdv":
         return cmd_sdv(argv[1] if len(argv) > 1 else default_csv)
+    if cmd == "agent":
+        return cmd_agent(argv[1] if len(argv) > 1 else "what can you do?")
+    if cmd == "pipeline":
+        return cmd_pipeline()
+    if cmd == "impact":
+        return cmd_impact()
+    if cmd == "scenarios":
+        return cmd_scenarios()
+    if cmd == "privacy":
+        return cmd_privacy(argv[1] if len(argv) > 1 else default_csv)
     print(__doc__)
     return 1
 

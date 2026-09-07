@@ -29,6 +29,11 @@ web dashboard (`sdf.api.app`) or the CLI.
 | Vision stocktake | synthetic shelf-occupancy heatmap + vision-vs-book discrepancy | C5 counting/detection model; labelled shelf images |
 | Anomaly detection (C3) | **seasonal-residual + robust-z** on demand, live | Isolation Forest / autoencoder over multivariate state |
 | Knowledge Q&A (C6) | **grounded NL Q&A** over computed facts, live | LLM + knowledge graph (same grounding contract) |
+| Trusted agent (C7) | **tool-using agent + audit trace + human-in-loop** | LLM tool-use planner (same tools/guardrails/log) |
+| Data Intelligence Workflow | **explicit DAG** (ingest→validate→application→economics→report) + run record | Airflow/Dagster/Prefect runner (same Step contract) |
+| Business economics | **counterfactual £** savings vs naive policy (stated assumptions) | client real unit costs + current policy |
+| Synthetic-data privacy (B3) | **DCR / NNDR / clone-risk** metrics | full membership-inference + differential privacy |
+| Scenario simulation | **what-if family** (promo/disruption/downturn), safety-stock re-sized | discrete-event / digital-twin simulator |
 | Insights / KPIs | templated narrative + portfolio KPIs | richer LLM narratives |
 
 > **Measured results** (B1 fidelity, B2 TSTR, C1 forecast) live in

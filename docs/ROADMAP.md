@@ -48,8 +48,15 @@ clean framework-first, algorithm-second delivery.
 - **Deliverable:** core technical-capability validation results + report.
 
 ## Phase 4 — Framework hardening & reuse
-- ✅ Grounded knowledge Q&A (C6): NL questions → computed facts (dependency-free);
-  live "Ask the warehouse". ⬜ upgrade to LLM + knowledge graph; trusted agent actions (C7).
+- ✅ Grounded knowledge Q&A (C6): NL questions → computed facts (dependency-free); live "Ask the warehouse".
+- ✅ Trusted agent (C7): tool-using warehouse agent (`application/agent.py`) with an
+  audit trace (`observability.py`) and human-in-the-loop approval for state-changing actions.
+- ✅ Data Intelligence Workflow: explicit DAG pipeline (`workflow/pipeline.py`) with a logged run record.
+- ✅ Business-outcome economics (`application/economics.py`): counterfactual £ savings — metric → money.
+- ✅ Synthetic-data privacy (`synthesis/privacy.py`): DCR / NNDR / clone-risk (B3).
+- ✅ What-if scenario simulation (`synthesis/scenarios.py`): generator → simulation engine.
+- ⬜ Upgrade paths (all marked as hooks): LLM tool-use planner; Airflow/Dagster runner;
+  real cost model; differential privacy; discrete-event digital twin.
 - MLOps: feature store, model registry, experiment tracking (D1–D4).
 - Prove portability: instantiate the framework for a second industrial scenario.
 - **Deliverable:** reusable industrial-AI framework prototype + technical docs.

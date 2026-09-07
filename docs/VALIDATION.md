@@ -211,6 +211,37 @@ ABC, inventory value. Every answer is backed by data, nothing invented. Live in
 the dashboard ("Ask the warehouse"). ALGORITHM-HOOK: LLM over a knowledge graph,
 same "answers grounded in computed facts" contract.
 
+## Phase 4 — agent, workflow, economics, privacy, scenarios
+
+**Trusted agent (C7)** — `application/agent.py` wraps capabilities as tools, runs a
+planner, and logs every call. A "reorder & impact" query produces a 3-call audit
+trace (`replenishment → financial_impact → place_order`), where `place_order` is
+returned as `PENDING_APPROVAL` (human-in-the-loop), never executed.
+
+**Data Intelligence Workflow** — `workflow/pipeline.py` runs the DAG
+`ingest → validate → application → economics → report` with a per-step logged run
+record (5 steps, 0 errors).
+
+**Business-outcome economics** — `application/economics.py`, counterfactual on the
+demo world (assumptions: 25% holding, 95% service, stated in the `CostModel`):
+
+| metric | result |
+|--------|--------|
+| stockout units, naive → ours | ~5,269 → ~17 |
+| stockout units avoided | ~5,252 |
+| **annualised net saving (estimate)** | **≈ 1.9M** |
+
+> These are estimates on synthetic demand with assumed unit costs — a *method* for
+> turning metrics into money, not a claim. DATA-HOOK: client's real unit costs +
+> current policy give the true before/after.
+
+**Synthetic-data privacy (B3)** — `synthesis/privacy.py` on the retail feature table:
+sample → DCR median 0.09, p05 0.02, clone-risk 4.4% ("low leakage"); full dataset →
+clone-risk 9.5% ("review"). The metric discriminates and gates shareability.
+
+**Scenario simulation** — `synthesis/scenarios.py`: e.g. a promo spike requires
+**+42%** safety stock vs baseline, a seasonal downturn **−13%** — quantified what-if.
+
 ## What this establishes
 - The **same** Application-Layer code runs on real data via the adapter — the
   Foundation-Layer "sources are interchangeable" claim is now demonstrated, not

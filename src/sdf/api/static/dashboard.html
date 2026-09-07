@@ -246,6 +246,49 @@
     </div>
   </div>
 
+  <!-- AGENT + ECONOMICS + WORKFLOW + SCENARIOS -->
+  <h2>Agent, economics &amp; workflow <span class="muted">— trusted agent · £ impact · DAG · what-if</span></h2>
+  <div class="grid two">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <h3 style="margin:0;font-size:14px">Warehouse agent
+          <span class="pill">tool calls · audit trace · human-in-loop</span></h3>
+      </div>
+      <div style="display:flex;gap:8px">
+        <input id="aq" placeholder="e.g. should I reorder and what's the money impact?"
+          style="flex:1;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+          border-radius:8px;padding:9px 12px;font-size:13px"
+          onkeydown="if(event.key==='Enter')agentAsk()">
+        <button class="primary" onclick="agentAsk()">Run</button>
+      </div>
+      <div id="aAnswer" style="margin-top:12px;font-size:14px;min-height:36px"></div>
+      <div id="aAction"></div>
+      <table style="margin-top:8px"><thead><tr>
+        <th>#</th><th>tool</th><th>status</th><th class="num">ms</th>
+      </tr></thead><tbody id="aTrace"></tbody></table>
+      <div class="note">State-changing actions are proposed, not executed — they need approval.
+        ALGO-HOOK: LLM tool-use planner; same tools, guardrails, audit log.</div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px;font-size:14px">Business impact
+        <span class="pill">counterfactual £ · assumptions stated</span></h3>
+      <div id="impact"></div>
+      <h3 style="margin:14px 0 6px;font-size:14px">Data Intelligence Workflow
+        <span class="pill">DAG run record</span></h3>
+      <div id="wf" class="note"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin:0 0 4px;font-size:14px">What-if scenario simulation
+      <span class="pill">generator → simulation engine</span></h3>
+    <div class="note" style="margin:0 0 8px">Same framework, a family of stress scenarios — safety stock re-sized per scenario.</div>
+    <table><thead><tr>
+      <th>scenario</th><th class="num">outbound lines</th><th class="num">SKUs to order</th>
+      <th class="num">safety stock</th><th class="num">vs baseline</th>
+    </tr></thead><tbody id="scen"></tbody></table>
+  </div>
+
   <p class="note" style="margin:26px 0 40px">
     Every rule-based stand-in above maps to a <code>#&nbsp;ALGORITHM-HOOK</code> in the source and a row in
     <code>docs/ALGORITHM_AND_DATA_CHECKLIST.md</code>. Swapping generators for SDV/CTGAN and the forecast for
@@ -465,10 +508,61 @@ async function loadAnomalies(){
     : `<tr><td colspan="5" class="muted">No anomalies at current settings.</td></tr>`;
 }
 
+async function agentAsk(q){
+  q = (typeof q === "string") ? q : $("#aq").value;
+  if(!q){ q = "should I reorder and what's the money impact?"; $("#aq").value = q; }
+  $("#aAnswer").innerHTML = `<span class="muted">…</span>`;
+  $("#aTrace").innerHTML = ""; $("#aAction").innerHTML = "";
+  const r = await (await fetch("/agent/ask?q="+encodeURIComponent(q))).json();
+  $("#aAnswer").innerHTML = `<span class="pill" style="margin-right:8px">${r.plan.join(" → ")}</span>${r.answer}`;
+  if(r.proposed_actions && r.proposed_actions.length){
+    const a = r.proposed_actions[0];
+    $("#aAction").innerHTML = `<div style="margin-top:8px"><span class="pill"
+      style="border-color:var(--warn)">⏳ proposed: place_order ${a.sku_id} ×${a.quantity} — ${a.status}</span></div>`;
+  }
+  $("#aTrace").innerHTML = r.trace.map(e=>`<tr>
+    <td>${e.seq}</td><td>${e.name}</td>
+    <td><span class="pill" style="border-color:${e.status==='ok'?'var(--accent2)':'var(--bad)'}">${e.status}</span></td>
+    <td class="num">${e.duration_ms}</td></tr>`).join("");
+}
+
+async function loadImpact(){
+  const r = await (await fetch("/economics/impact")).json();
+  const p = r.period || {};
+  $("#impact").innerHTML = `
+    <div style="display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap">
+      <div><div class="k muted">Annualised net saving</div>
+        <div class="big good">≈ ${fmt(r.annualised_net_saving)}</div></div>
+      <div><div class="k muted">Stockout-units avoided</div>
+        <div class="big">${fmt(r.stockout_units_avoided)}</div></div>
+    </div>
+    <div class="note">naive ${fmt(r.unmet_units.naive)} → ours ${fmt(r.unmet_units.ours)} unmet units
+      over ${r.horizon_days} days · assumes ${(r.assumptions.holding_cost_annual_rate*100).toFixed(0)}% holding,
+      95% service. DATA-HOOK: real unit costs.</div>`;
+}
+
+async function loadWorkflow(){
+  const r = await (await fetch("/workflow/run")).json();
+  $("#wf").innerHTML = r.trace.map(e=>
+    `<span class="pill" style="margin:2px;border-color:${e.status==='ok'?'var(--accent2)':'var(--bad)'}">${e.seq}. ${e.name} · ${e.duration_ms}ms</span>`).join(" ")
+    + `<div style="margin-top:6px">run <b>${r.run.run_id}</b> · ${r.run.steps} steps · ${r.run.total_ms}ms · ${r.run.errors} errors</div>`;
+}
+
+async function loadScenarios(){
+  const r = await (await fetch("/scenarios")).json();
+  $("#scen").innerHTML = r.scenarios.map(s=>`<tr>
+    <td>${s.scenario==='baseline'?'<b>'+s.scenario+'</b>':s.scenario}</td>
+    <td class="num">${fmt(s.outbound_lines)}</td><td class="num">${s.skus_needing_order}</td>
+    <td class="num">${fmt(Math.round(s.safety_stock_units))}</td>
+    <td class="num" style="color:${s.safety_stock_vs_baseline_pct>0?'var(--warn)':'var(--muted)'}">
+      ${s.safety_stock_vs_baseline_pct>0?'+':''}${s.safety_stock_vs_baseline_pct}%</td></tr>`).join("");
+}
+
 async function refreshAll(){
   renderChips();
   await Promise.all([loadOverview(),loadRepl(),loadSim(),loadMovers(),
-    loadVision(),loadBacktest(),loadSS(),loadAnomalies()]);
+    loadVision(),loadBacktest(),loadSS(),loadAnomalies(),
+    loadImpact(),loadWorkflow(),loadScenarios()]);
 }
 
 async function regen(){

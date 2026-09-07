@@ -145,6 +145,38 @@ def application_ask(q: str = ""):
     return KnowledgeQA(_state.intel).ask(q)
 
 
+@app.get("/agent/ask")
+def agent_ask(q: str = ""):
+    from sdf.application.agent import WarehouseAgent
+    return WarehouseAgent(_state.intel).handle(q)
+
+
+@app.get("/agent/tools")
+def agent_tools():
+    from sdf.application.agent import WarehouseAgent
+    return {"tools": WarehouseAgent(_state.intel).list_tools()}
+
+
+@app.get("/economics/impact")
+def economics_impact():
+    from sdf.application.economics import financial_impact
+    return financial_impact(_state.intel)
+
+
+@app.get("/workflow/run")
+def workflow_run():
+    from sdf.workflow import warehouse_pipeline
+    res = warehouse_pipeline(_state.spec).run()
+    return {"pipeline": res["pipeline"], "order": res["order"],
+            "run": res["run"], "trace": res["trace"]}
+
+
+@app.get("/scenarios")
+def scenarios():
+    from sdf.synthesis.scenarios import run_scenarios
+    return run_scenarios(_state.spec)
+
+
 @app.get("/application/shelf_occupancy")
 def application_shelf_occupancy():
     return _state.intel.shelf_occupancy_grid()

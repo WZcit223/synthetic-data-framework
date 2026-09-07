@@ -22,6 +22,11 @@ PYTHONPATH=src python -m sdf.cli backtest        # Phase 2: real-data forecast b
 PYTHONPATH=src python -m sdf.cli synth           # Phase 2.1: fitted synthesis + fidelity
 PYTHONPATH=src python -m sdf.cli tstr            # Phase 3: train-on-synthetic, test-on-real
 PYTHONPATH=src python -m sdf.cli sdv <csv>       # Phase 2.1 full: Gaussian-copula + SDMetrics
+PYTHONPATH=src python -m sdf.cli agent "reorder & impact?"  # tool-using agent + audit trace
+PYTHONPATH=src python -m sdf.cli pipeline        # Data Intelligence Workflow (DAG) run record
+PYTHONPATH=src python -m sdf.cli impact          # business-outcome economics (£ counterfactual)
+PYTHONPATH=src python -m sdf.cli scenarios       # what-if scenario simulation
+PYTHONPATH=src python -m sdf.cli privacy <csv>   # synthetic-data privacy (DCR/NNDR/clone risk)
 python tests/test_generators.py    # run framework tests
 ```
 

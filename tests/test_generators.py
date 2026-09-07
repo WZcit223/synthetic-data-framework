@@ -159,6 +159,68 @@ def test_phase3_model_and_tstr():
     assert 0.3 <= r["ratio_tstr_over_trtr"] <= 3.0
 
 
+def test_observability_runlogger():
+    from sdf.observability import RunLogger
+    log = RunLogger("test")
+    with log.step("step", "a", inputs={"x": 1}) as box:
+        box["output"] = {"ok": True}
+    log.record("tool", "b", {"y": 2}, "done")
+    d = log.to_dict()
+    assert d["steps"] == 2 and d["ok"] == 2
+    assert d["trace"][0]["name"] == "a"
+
+
+def test_economics_impact():
+    from sdf.application.economics import financial_impact
+    _, reg = build_registry(GenerationSpec(n_skus=80, horizon_days=60))
+    rep = financial_impact(WarehouseIntelligence(reg))
+    assert rep["unmet_units"]["ours"] <= rep["unmet_units"]["naive"]
+    assert "annualised_net_saving" in rep
+    assert rep["skus_considered"] > 0
+
+
+def test_agent_trace_and_guardrail():
+    from sdf.application.agent import WarehouseAgent
+    _, reg = build_registry(GenerationSpec(n_skus=80, horizon_days=60))
+    agent = WarehouseAgent(WarehouseIntelligence(reg))
+    r = agent.handle("should I reorder and what is the money impact?")
+    assert r["plan"] == ["replenishment", "financial_impact"]
+    assert r["trace"] and all("seq" in e for e in r["trace"])
+    # state-changing action must be gated, never auto-executed
+    if r["proposed_actions"]:
+        assert r["proposed_actions"][0]["status"] == "PENDING_APPROVAL"
+        assert r["requires_approval"] is True
+    # a knowledge query still returns a grounded answer
+    assert agent.handle("which SKUs are stockout?")["answer"]
+
+
+def test_pipeline_dag():
+    from sdf.workflow import warehouse_pipeline
+    res = warehouse_pipeline(GenerationSpec(n_skus=60, horizon_days=45)).run()
+    assert res["order"] == ["ingest", "validate", "application", "economics", "report"]
+    assert res["run"]["errors"] == 0
+    assert "annualised_net_saving" in res["artifacts"]["economics"]
+
+
+def test_privacy_metrics():
+    from sdf.synthesis.privacy import privacy_report, bootstrap_synthesize
+    real = [(float(i % 7), float(i % 5) + 0.5, float(i % 24), float(i % 7))
+            for i in range(300)]
+    synth = bootstrap_synthesize(real, seed=3)
+    rep = privacy_report(real, synth)
+    assert 0.0 <= rep["clone_risk_pct"] <= 100.0
+    assert rep["dcr_median"] >= 0.0 and "verdict" in rep
+
+
+def test_scenarios_whatif():
+    from sdf.synthesis.scenarios import run_scenarios
+    rep = run_scenarios(GenerationSpec(n_skus=50, horizon_days=45),
+                        names=["baseline", "promo_spike"])
+    by = {r["scenario"]: r for r in rep["scenarios"]}
+    # a promo spike should not require less safety stock than baseline
+    assert by["promo_spike"]["safety_stock_units"] >= by["baseline"]["safety_stock_units"]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
