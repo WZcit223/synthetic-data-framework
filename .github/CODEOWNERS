@@ -1,12 +1,5 @@
 # Code owners — auto-requested as reviewers on matching paths.
-# NOTE: replace @WZcit223 / add the CTO's GitHub handle once available,
-# e.g. `*  @WZcit223 @cto-handle`. Architecture-level areas below should
-# carry the CTO as an owner so directional changes are always surfaced.
+# @WZcit223 is the project lead and sole owner/approver for this repository.
+# When another engineer joins, add them here (and on the paths they own).
 
-# Default owner for everything
 *                       @WZcit223
-
-# Architecture-sensitive areas (directional changes → CTO sign-off, see CONTRIBUTING.md)
-/src/sdf/foundation/    @WZcit223
-/src/sdf/synthesis/     @WZcit223
-/docs/ARCHITECTURE.md   @WZcit223

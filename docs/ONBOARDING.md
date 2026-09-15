@@ -77,4 +77,5 @@ These are lazy-imported; tests that need them **skip** cleanly when they are abs
 
 Read [`../CONTRIBUTING.md`](../CONTRIBUTING.md). In short: branch from `main` as
 `feature/<name>`, keep `ruff` and `pytest` green, open a PR. Implementation PRs
-may auto-merge on green CI; architecture-level changes need CTO sign-off first.
+may auto-merge on green CI; architecture-level changes need a short written plan,
+approved by the project lead, first.

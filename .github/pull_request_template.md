@@ -24,10 +24,10 @@ Architecture / directional PRs must be reviewed and merged manually.
 
 ### For architecture / directional PRs
 
-> These must be discussed and explicitly approved before merge. Do **not** enable auto-merge.
+> Document the plan, then the project lead approves and merges manually. Do **not** enable auto-merge.
 
 - [ ] Proposal, impact and alternatives described below
-- [ ] Reviewer / CTO tagged for sign-off
+- [ ] Reviewed & approved by the project lead (@WZcit223)
 
 **Proposal:**
 

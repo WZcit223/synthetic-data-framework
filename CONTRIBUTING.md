@@ -1,8 +1,7 @@
 # Contributing
 
 This repository follows a protected-`main` + feature-branch workflow. The goal is
-a clean, reviewable history that a new engineer — or the CTO — can trust as a
-production baseline.
+a clean, reviewable history that a new engineer can trust as a production baseline.
 
 ## Branching model
 
@@ -35,9 +34,9 @@ branches short-lived and rebase/merge `main` in if they fall behind.
 - **direct pushes and force-pushes are blocked**;
 - the **CI status check must pass** before merge (lint + tests).
 
-Required approvals are currently **0** because the team is a single maintainer;
-CI is the merge gate. When a second engineer or the CTO joins the repo, raise the
-required-approvals count to 1.
+Required approvals are currently **0**: the project lead (**@WZcit223**) owns and
+approves all changes in this account, and CI is the merge gate. If a second
+engineer joins the repo, raise the required-approvals count to 1.
 
 ## Two tracks for Pull Requests
 
@@ -52,19 +51,19 @@ change the overall architecture**:
   and any branch-protection rules are satisfied. No extra human approval step is
   required beyond the protection rules.
 
-### 2. Architecture / directional PRs — human sign-off required
+### 2. Architecture / directional PRs — plan first, merge manually
 
 For PRs that change the overall system architecture, introduce a new core
 component or tech stack, or perform a large refactor of a core module:
 
 - **first** describe the proposal, scope of impact and alternatives in the PR (or
-  a linked issue);
-- **@-tag the CTO / designated owner** and get explicit confirmation before
-  implementing and merging;
+  a linked issue), so the decision is documented;
+- the **project lead (@WZcit223)** reviews the plan and approves it before it is
+  implemented and merged;
 - **do not enable auto-merge** — these are reviewed and merged manually.
 
 When in doubt about which track a change belongs to, treat it as directional and
-ask first.
+write the short plan first.
 
 ## Local checks
 

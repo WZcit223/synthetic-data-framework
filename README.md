@@ -71,7 +71,8 @@ ruff check . && pytest      # CI runs the same on Python 3.9 and 3.11
 
 - **New engineers:** start with [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
 - **Contribution & PR policy:** [`CONTRIBUTING.md`](CONTRIBUTING.md) (implementation
-  PRs may auto-merge on green CI; architecture changes need CTO sign-off first).
+  PRs may auto-merge on green CI; architecture changes need a short written plan,
+  approved by the project lead, first).
 
 ## Documentation
 - [Onboarding / 上手指南](docs/ONBOARDING.md)
