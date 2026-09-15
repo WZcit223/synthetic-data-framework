@@ -16,6 +16,7 @@ api = ["fastapi", "uvicorn"]
 synthesis = ["copulas", "sdmetrics", "pandas", "numpy"]
 synthesis-deep = ["sdv", "faker"]  # CTGAN/TVAE (pulls torch)
 app = ["scikit-learn", "lightgbm"]
+dev = ["pytest>=7", "ruff>=0.4"]
 
 [project.scripts]
 sdf = "sdf.cli:main"
@@ -25,3 +26,25 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "sdf.api" = ["static/*.html"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+# The core framework favours a deliberately compact, one-statement-per-line style
+# for the numerical stand-ins. Line length and a few style checks are relaxed so
+# CI enforces real problems (undefined names, unused imports) without forcing a
+# rewrite of that style.
+line-length = 140
+target-version = "py39"
+extend-exclude = ["src/sdf/api/static", "demo"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E701",  # multiple statements on one line (colon) — intentional compact style
+    "E702",  # multiple statements on one line (semicolon) — intentional compact style
+    "E741",  # ambiguous variable name (e.g. loop var `l`) — local math notation
+    "E501",  # line too long — compact numeric one-liners
+]

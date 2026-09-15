@@ -17,7 +17,7 @@ tool registry, guardrails, and audit log stay identical.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from sdf.observability import RunLogger

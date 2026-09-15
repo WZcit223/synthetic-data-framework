@@ -1,0 +1,5 @@
+# Code owners — auto-requested as reviewers on matching paths.
+# @WZcit223 is the project lead and sole owner/approver for this repository.
+# When another engineer joins, add them here (and on the paths they own).
+
+*                       @WZcit223
