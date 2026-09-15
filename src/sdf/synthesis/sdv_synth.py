@@ -16,7 +16,7 @@ fidelity on complex joint distributions; the SDMetrics scoring is identical.
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict
 
 _COLS = ["Quantity", "Price", "hour", "weekday"]
 _PAIRS = [("Quantity", "Price"), ("Quantity", "hour"), ("Price", "weekday")]

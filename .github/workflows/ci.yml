@@ -1,0 +1,47 @@
+name: CI
+
+# Required status check for the protected `main` branch.
+# Runs on every pull request into main and on direct pushes to main.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff
+        run: pip install "ruff>=0.4"
+      - name: Ruff check
+        run: ruff check .
+
+  test:
+    name: Tests (pytest ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install test deps
+        run: pip install "pytest>=7"
+      - name: Run test suite
+        run: python -m pytest
