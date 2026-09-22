@@ -1,0 +1,294 @@
+# Refactor Preparation / 大规模重构准备
+
+> 状态：基于 `main @ faf08a4` 的全量源码盘点（2026-09-22）。
+> 目的：在动手重构之前，把"现状事实、必须保留的契约、已核实的缺陷、目标结构、
+> 安全的施工顺序"固定下来，让重构可以分成多个**各自可合并、CI 始终绿**的 PR 推进。
+>
+> 本文与 `ARCHITECTURE.md`（设计意图）、`ALGORITHM_AND_DATA_CHECKLIST.md`（算法/数据缺口）、
+> `VALIDATION.md`（度量数字）互补；本文只谈**代码结构与工程质量**。
+
+---
+
+## 0. 一页结论
+
+- **仓库规模**：`src/sdf` 共 24 个 Python 模块、约 3,100 行；1 个 581 行的零依赖前端；1 个测试文件 18 项测试（3.11 下 1.2 s 跑完，`ruff` 干净）。
+- **最大的结构问题不是某个 bug，而是三处"重心放错了地方"**：
+  1. `build_registry()` 是所有入口（API、workflow、scenarios、tests）物化世界的唯一函数，却住在 `cli.py` 里，导致 `synthesis → cli`、`workflow → cli`、`api → cli` 三条反向依赖。
+  2. "按 SKU 按天聚合需求"这件事在 `warehouse_demo._daily_demand`、`warehouse_demo._sku_daily_stats`、`warehouse_demo.demand_series`、`economics.financial_impact`、`forecast.daily_demand_series` 里各写了一遍，口径彼此不同。
+  3. `WarehouseIntelligence` 是一个 396 行的上帝对象，同时承载 KPI、两套互不一致的补货逻辑、异常、视觉盘点、叙事；`economics.py` 直接读它的私有方法。
+- **必须保留的外部契约**只有四类：CLI 子命令名与默认参数、仪表盘消费的 20 个 HTTP 端点及其 JSON 字段、六个规范实体 + `GenerationSpec` 字段、`VALIDATION.md` 中的度量数字（固定种子下可复现）。其余都是内部实现，可以自由改。
+- **施工顺序**：先加"特征化测试"（黄金数字 + 端点契约）作为安全网 → 再修依赖方向 → 再统一需求聚合并顺手修数值 bug → 再拆上帝对象 / 改 API 状态模型 / 加固 Agent 审批门 → 最后 CLI 与 HOOK 标记规范化。每一步都是一个独立 PR。
+
+---
+
+## 1. 现状事实（逐文件核对后的结论）
+
+### 1.1 模块清单与职责
+
+| 模块 | 行数 | 职责 | 备注 |
+|---|---:|---|---|
+| `foundation/schema.py` | 107 | 6 个规范实体 dataclass | 无任何字段校验 |
+| `foundation/registry.py` | 88 | `DataSourceRegistry` 多源叠加 | 内存 list，`stream()` 每次全扫 |
+| `foundation/adapters/retail_csv.py` | 93 | UCI Online Retail II → 实体 | 坏行静默丢弃；日期格式先试 `%m/%d` |
+| `synthesis/warehouse.py` | 292 | `GenerationSpec` + `WarehouseGenerator` | 唯一含字面 `# ALGORITHM-HOOK` 的核心模块 |
+| `synthesis/quality.py` | 74 | 结构性质量检查 | `passed` 对空 checks 返回 True |
+| `synthesis/forecast.py` | 163 | 序列构建 + 基线 + walk-forward 回测 | MAPE 分母口径不一致 |
+| `synthesis/models.py` | 85 | AR+季节 OLS（纯 Python 正规方程） | 近奇异列静默跳过 |
+| `synthesis/fit.py` / `fidelity.py` / `tstr.py` | 77/81/68 | 拟合合成 / KS+剖面相关 / TSTR | `generate()` 每次重建同种子 RNG |
+| `synthesis/anomaly.py` | 47 | 季节残差 + MAD 鲁棒 z | MAD=0 时 `1e-9` 兜底 |
+| `synthesis/privacy.py` / `scenarios.py` / `sdv_synth.py` | 119/71/77 | DCR·NNDR / what-if / 高斯 Copula | `scenarios` 反向依赖 `cli` 与 `application` |
+| `application/warehouse_demo.py` | 396 | `WarehouseIntelligence` 上帝对象 | 见 §3 |
+| `application/knowledge.py` | 136 | 关键词路由问答 | 空世界下 `IndexError` |
+| `application/economics.py` | 127 | (s,S) vs 朴素策略反事实 £ | 触碰 `intel._sku_daily_stats` |
+| `application/agent.py` | 143 | 工具注册 + 关键词规划器 + 审计 | 审批门不短路（见 §3 P11） |
+| `observability.py` | 109 | `RunLogger` | 输出被 `_summarise` 截断为 12 键，审计有损 |
+| `workflow/pipeline.py` | 136 | 拓扑排序 DAG | `ctx` 混放隐藏对象；反向依赖 `cli` |
+| `api/app.py` | 225 | FastAPI，21 个路由 | 模块级可变单例 `_state`；缺 fastapi 时 `SystemExit` |
+| `api/static/dashboard.html` | 581 | 零依赖前端 | 一次刷新并发打 11 个端点 |
+| `cli.py` | 319 | 手写 `if cmd ==` 分发 + `build_registry` | 被 4 处当作库导入 |
+| `tests/test_generators.py` | 229 | 18 项冒烟/结构测试 | `sys.path` hack；可选依赖测试用 `return` 而非 `pytest.skip` |
+
+### 1.2 实际依赖图（`grep "from sdf"` 得出）
+
+```
+foundation.schema ── ← synthesis.warehouse ← cli.build_registry ←──┐
+foundation.registry ← application.warehouse_demo ← api.app        │
+                    ← foundation.adapters.retail_csv ← synthesis.privacy
+synthesis.forecast  ← synthesis.models, fit, tstr
+                    ← application.warehouse_demo (lazy), application.knowledge (lazy)
+synthesis.anomaly   ← application.warehouse_demo (lazy)
+application.*       ← application.agent, workflow.pipeline, api.app, cli
+observability       ← application.agent, workflow.pipeline
+
+反向 / 跨层（需在重构中消除）：
+  synthesis.scenarios  → sdf.cli, sdf.application.warehouse_demo   (合成层依赖入口层与应用层)
+  workflow.pipeline    → sdf.cli                                   (横切层依赖入口层)
+  api.app              → sdf.cli                                   (入口层依赖另一入口层)
+  application.economics → intel._sku_daily_stats / intel.reg      (跨对象读私有)
+  sdf/__init__.py      → 顶层 eager import application.warehouse_demo (导入任一子包都会拉起整棵树)
+```
+
+正向方向（Foundation → Synthesis → Application → 横切/入口）在其余模块里是成立的；
+`application → synthesis` 的引用（forecast、anomaly）是合理的"应用调用算法"，不算违规。
+
+### 1.3 工具链现状
+
+- Python 3.9 floor（CI 矩阵 3.9 / 3.11）；核心零依赖；`ruff` 只选 `E/F/W` 且忽略 `E501/E701/E702/E741`。
+- `pyproject` 的 `[project.scripts] sdf = "sdf.cli:main"` 已定义，但文档全程用 `PYTHONPATH=src python -m sdf.cli`，说明没有人以安装方式使用过；`tests/` 也用 `sys.path.insert` 而非安装包。
+- 远端分支：`main`、`system-v1/synthetic-data-generation`（v1 冻结）、`feature/repo-governance`（PR #1 已合并，**分支未删**，可清理）。
+
+---
+
+## 2. 重构必须保留的契约（改动前先写测试锁住）
+
+### 2.1 CLI 子命令（`cli.main`）
+
+`demo | export [dir] | backtest [csv] | synth [csv] | tstr [csv] | sdv [csv] | agent "<q>" | pipeline | impact | scenarios | privacy [csv]`，
+`[csv]` 默认 `data/sample_online_retail_ii.csv`，`export` 默认 `out`，无参数默认 `demo`，未知命令打印 `__doc__` 返回 1。
+迁 `argparse` 时这些名字与默认值必须不变（文档、README、ONBOARDING 都引用）。
+
+### 2.2 HTTP 端点（仪表盘实际调用的 20 个 + `/health`）
+
+| 端点 | 前端消费的字段 |
+|---|---|
+| `POST /generate?n_skus&daily_orders_per_a_sku&stockout_pressure&seed` | 仅状态；注意前端**不传** `horizon_days` |
+| `GET /application/overview` | `kpis.{total_skus,total_on_hand,inventory_value,outbound_lines,cancel_rate,express_rate}`、`abc`、`insights[]` |
+| `GET /application/replenishment?top_n` | `sku_id,name,available,avg_daily_demand,reorder_point,suggested_order_qty,urgency` |
+| `GET /application/replenishment/simulate` | `skus_flagged,stockouts_before,stockouts_after,service_level_before,service_level_after` |
+| `GET /application/replenishment/ss?service_level` | `z,lead_time_days,review_days,skus_needing_order,total_safety_stock_units,rows[].{sku_id,avg_daily_demand,demand_std,safety_stock,reorder_point_s,order_up_to_S,order_qty}` |
+| `GET /application/top_movers?n` | `sku_id,name,abc_class` |
+| `GET /application/demand_series?sku_id` | `history[].{date,qty},forecast_avg_daily,forecast_total,forecast_horizon_days` |
+| `GET /application/shelf_occupancy` | `[].{zone,aisles[].cells[].{location_id,occupancy,book_units,est_units}}` |
+| `GET /application/stocktake` | `match_rate,flagged,locations_scanned,net_unit_variance,discrepancies[].{location_id,book_units,vision_units,diff,direction}` |
+| `GET /validation/backtest` | `granularity,series_len,series_mean,best_model,results[].{model,MAE,RMSE,MAPE_pct,bias}` |
+| `GET /application/ask?q` | `intent,answer` |
+| `GET /application/demand_anomalies` | `count,series_len,granularity,seasonal_period,anomalies[].{index,direction,value,expected,robust_z}` |
+| `GET /agent/ask?q` | `plan[],answer,proposed_actions[].{sku_id,quantity,status},trace[].{seq,name,status,duration_ms}` |
+| `GET /economics/impact` | `annualised_net_saving,stockout_units_avoided,unmet_units.{naive,ours},horizon_days,assumptions.holding_cost_annual_rate,period` |
+| `GET /workflow/run` | `trace[].{seq,name,status,duration_ms},run.{run_id,steps,total_ms,errors}` |
+| `GET /scenarios` | `scenarios[].{scenario,outbound_lines,skus_needing_order,safety_stock_units,safety_stock_vs_baseline_pct}` |
+| `GET /export?entity`、`/foundation/summary`、`/synthesis/quality`、`/application/kpis`、`/agent/tools`、`/health` | 未被前端调用，但在文档中出现 |
+
+### 2.3 数据契约
+
+- 六个实体 dataclass 的字段名与顺序（`export` CSV 表头依赖 `asdict` 顺序）。
+- `GenerationSpec` 字段：`n_skus, n_locations, horizon_days, start, seed, abc_split, daily_orders_per_a_sku, express_ratio, stockout_pressure, reference_dataset, requirements`。`scenarios.SCENARIOS` 与 `/generate` 都按名字引用。
+- 生成器的**随机数消费顺序**：任何改动 `WarehouseGenerator` 内部抽样顺序的重构都会改变默认世界，从而改变 §2.5 的全部黄金数字。重构期间**不要碰** `_gen_*` 的调用顺序与 RNG 调用次数。
+- `Tool(name, description, fn, read_only, requires_approval)`、`Step(name, run, depends_on)`、`LogEntry` 的 `to_dict` 键。这三者被 docs 标为"换 LLM / Airflow / OTel 时保持不变的契约"。
+
+### 2.4 度量口径
+
+`VALIDATION.md` 中每个数字都对应一条 CLI 命令；重构后这些命令在同一输入上必须给出同样的结果（容差 ±0.5%）。
+
+### 2.5 黄金数字快照（`GenerationSpec()` 默认世界，seed=42；bundled CSV）
+
+在 `main @ faf08a4` 上实测，供特征化测试直接引用：
+
+| 项 | 值 |
+|---|---|
+| registry `by_entity` | SKU 200 · Location 120 · InventorySnapshot 200 · InboundOrder 180 · OutboundOrder 28,897 · SensorReading 624 |
+| KPIs | on_hand 25,719 · inventory_value 4,612,609.6 · cancel_rate 0.0298 · express_rate 0.2525 |
+| ABC | A 39 · B 55 · C 106 |
+| 规则补货 | 7 个 SKU 触发；top1 `SKU-00176` 订 66 |
+| simulate | flagged 7 · stockouts 2→0 · service 0.965→1.0 |
+| (s,S) 90/95/99% | 需订 32/38/47 · 安全库存 2,952/3,788/5,357 |
+| 规则异常 | stockout 2 · dead_stock 0 |
+| 需求异常（C3） | 3 个；最大 index 37，value 2,416，expected 739，z 35.35 |
+| 视觉盘点 | 40 扫描 · 32 匹配 · 8 标记 · 净差 −923 |
+| 回测（默认世界，daily，period 7） | snaive7 MAE 174.071 < seas_linear7 200.903 < mean 226.21 < ma7 277.184 < naive 337.786 |
+| 经济 | naive 未满足 5,269 → ours 17 · 年化 1,887,834 |
+| Agent "reorder & impact" | plan `[replenishment, financial_impact]` · 3 步 · 提议 `SKU-00176 ×66 PENDING_APPROVAL` |
+| 情景 | promo_spike +41.9% · supply_disruption +0.8% · seasonal_downturn −13.5% · high_variability +16.1% |
+| `sample_online_retail_ii.csv` | 12 SKU / 3,428 单 / daily 139 点；snaive7 MAE 32.786；fidelity 95.4；TSTR 0.905；clone-risk 4.38% |
+| `online_retail_ii_2010_10k.csv` | 2,015 SKU / 10,000 单 / hourly 44 点；naive MAE 950.786；fidelity 78.0；TSTR 1.002；clone-risk 7.62% "review" |
+
+**已发现的文档漂移**：`VALIDATION.md` C2 表记录的 (s,S) 结果是 33/38/43 与 2,626/3,369/4,764；当前代码产出 32/38/47 与 2,952/3,788/5,357。原因是 (s,S) 数字在 `4042cad` 记录，之后 `b26c015` 在生成器里加入了需求冲击注入，改变了默认世界的方差。这正是 notes 里 P10 的实例：数字靠手工复跑，没有 CI 锁定。
+
+---
+
+## 3. 已核实的缺陷（按重构时的处理方式分组）
+
+以下每条都在当前代码上复现过；行号以 `main @ faf08a4` 为准。
+
+### 3.1 随重构顺手修（改动落在被重构的模块内）
+
+| # | 位置 | 现象（已复现） | 修法 |
+|---|---|---|---|
+| C1 | `forecast.py:137-145` | MAPE 分子只累加 `actual>0` 的点，分母用全部点；`[0,10,0,10,…]` 上 mean 模型 MAPE 报 27.5% 而非 52.5% | 分母改为正实际值的计数，或改报 WAPE/sMAPE 并在 `VALIDATION.md` 注明口径 |
+| C2 | `forecast.py:127-131` | `backtest([], m)` → `IndexError`（`n//3=0` 后 `test_len=1`，`values[-1]` 越界） | 空/过短序列显式返回 `{"error": …}` 或抛 `ValueError` |
+| C3 | `anomaly.py:33` | MAD=0 时 `or 1e-9`：40 个 0 + 一个 1 的序列标 1 个异常；稀疏序列标 6 个 | MAD=0 时回退到均值绝对偏差或直接返回空并记 `note`；对间歇需求应先做零膨胀处理 |
+| C4 | `quality.py:27-28` | `QualityReport(mode="x").passed is True` | `passed = bool(checks) and all(...)` |
+| C5 | `warehouse_demo.py:206-212` | σ 用总体方差除以 horizon，且 `mu<=0` 的 SKU 被丢弃；间歇需求 SKU 的 σ 偏低 → 安全库存偏低 | 在统一的需求聚合模块里给出 `mean/std/zero_ratio`，(s,S) 决定如何用 |
+| C6 | `fit.py:49` | `generate()` 每次 `random.Random(self.seed)`，两次调用返回相同序列 | RNG 放到实例上，或 `generate(seed=None)` 显式传种子 |
+| C7 | `models.py:27-28` | 近奇异列静默 `continue`，返回的权重对该列为 0 且无告警 | 记录 `rank_deficient` 标志，或直接使用 ridge 并去掉分支 |
+| I1 | `knowledge.py:92` | 空注册表上 `ask("forecast accuracy?")` → `IndexError` | 序列为空时返回"no demand"答案 |
+| I2 | `agent.py:122` | 空注册表上 `handle("what is the cost?")` → `KeyError 'assumptions'`（`financial_impact` 返回 `{"error":"no demand"}`）；`wants_order` 分支因用 `.get` 而幸存 | 工具结果统一为 `ToolResult(ok, data, error)`，规划器按 `ok` 分支 |
+| S3 | `registry.py:45-55` | `register` 同名静默覆盖 | 抛错或要求 `replace=True` |
+| S4 | `scenarios.py:52,66` | 未知情景名静默变基线（`run_scenarios(names=["nope"])` 返回一行 `nope` 且数值=基线） | 未知名抛 `KeyError`；缺 baseline 时显式报错 |
+| S5 | `pipeline.py:121-128` | 真实 CSV 路径下 economics `skipped`，report 的 `economics_annual_saving` 静默为 `None` | report 透传 `skipped` 原因 |
+
+### 3.2 需要独立设计的结构性问题
+
+| # | 位置 | 现象 | 方向 |
+|---|---|---|---|
+| P1 | `api/app.py:50, 44-48` | 模块级可变单例；`regenerate` 逐字段赋值，FastAPI 同步端点在线程池并发执行时可读到 `wh` 新 / `intel` 旧的撕裂状态；`/generate?n_skus=2000&horizon_days=365` 实测 9.2 s，无鉴权即 DoS 向量 | `create_app()` 工厂 + 不可变 `World` 对象整体原子替换（`_state.world = new_world`）+ `/generate` 限流/上限收紧 |
+| P11 | `agent.py:79-85` | `call()` 对 `requires_approval` 工具**仍执行** `tool.fn`，只加一条 note；当前安全仅因 `_propose_order` 无副作用；`Tool.read_only` 字段**从未被读取** | 执行器级短路：`requires_approval and not approved → 返回 proposal，不调用 fn`；`read_only=False` 且未审批也拒绝 |
+| A2/A4 | `scenarios.py:44-46`, `pipeline.py:92`, `api/app.py:28` | 三处反向导入 `sdf.cli.build_registry` | 把 `build_registry` 移到 `foundation`/`synthesis` 边界（建议 `sdf/synthesis/materialise.py` 或 `sdf/foundation/bootstrap.py`），`cli` 只保留薄壳 |
+| A3 | `economics.py:65-72`, `warehouse_demo.py:197-213, 387-396, 124-147`, `forecast.py:22-39` | 五份"按 SKU/按天聚合"实现；`financial_impact` 用 `list(stats.items())[:max_skus]` 取**前 400 个首次出现**的 SKU 而非按重要性 | 单一 `demand.py`：`DemandTable(orders) → per_sku_daily(sku) / totals / stats`，其余模块只消费 |
+| 双补货逻辑 | `warehouse_demo.py:62-94` vs `215-265` | `replenishment_suggestions`（固定 3 天安全库存、lead=7 硬编码）与 `replenishment_ss_policy`（(s,S)）并存；`insights`、`agent`、`knowledge._replenish`、`simulation` 用前者，`scenarios`、`knowledge._safety`、`economics` 用后者。同一问题"多少 SKU 需要补货"在同一世界里给出 7 和 38 两个答案 | 定义 `ReplenishmentPolicy` 接口，两种策略成为两个实现，所有调用方通过同一入口并显式声明策略；仪表盘两张表分别标注策略名 |
+| 上帝对象 | `warehouse_demo.py` 全文 | KPI / 补货 ×2 / 异常 ×2 / 视觉 / 叙事 / 内部聚合混在一个类；`economics` 与 `knowledge` 直接依赖其私有细节 | 拆为 `kpi.py`、`replenishment.py`、`anomaly_rules.py`、`vision.py`、`narrative.py`，`WarehouseIntelligence` 退化为门面（保持现有公共方法签名以保护 API/前端） |
+| 导入副作用 | `sdf/__init__.py:18-20`；`api/app.py:20-24` | 顶层 eager import；缺 `fastapi` 时 `raise SystemExit`（不是 `ImportError`），任何试图 `import sdf.api.app` 的测试/工具都会被杀掉 | `__init__` 只导出版本或用惰性 `__getattr__`；`app.py` 抛 `ImportError` 并让 CLI 决定退出 |
+| 可选依赖测试 | `tests/test_generators.py:128-140` | 缺 `copulas/sdmetrics` 时 `return`，pytest 计为 **passed**，CI 从未真正跑过这条 | `pytest.importorskip` |
+| 审计有损 | `observability.py:28-39` | `_summarise` 把 dict 截到 12 键、list 截到 3 项；"可核查审计轨迹"实际不可完整回放 | 摘要仅用于展示，sink 落盘写完整 JSON |
+
+### 3.3 记录在案、本轮不动
+
+| # | 位置 | 现象 |
+|---|---|---|
+| S1 | `sdv_synth.py:64-65` | `except Exception: pass` 吞掉 CorrelationSimilarity 失败 |
+| S2 | `retail_csv.py:56-63` | 坏行静默 `continue`，无计数 |
+| I3 | `schema.py` | dataclass 零校验；适配器写入 `abc_class="?"`，而生成器 `_gen_inventory` 用 `{"A":..}[abc]` 索引，真实 SKU 若回流到生成器会 `KeyError` |
+| I5 | `retail_csv.py:28-31`, `sdv_synth.py:31` | `%m/%d/%Y` 先于 `%d/%m/%Y`，DD/MM 数据静默错解（对 UCI 导出成立，对其他来源是隐患） |
+| E1/E2/E5 | `registry.stream`、`privacy._two_nearest`、`economics._simulate` | O(n) 全扫 / O(n²) 暴力 / O(T²)。默认世界（28,897 行）下单端点均 <0.1 s，`/scenarios` 0.94 s、`/workflow/run` 0.22 s（各自**重新生成**整个世界）。演示规模无痛，放大前再处理 |
+| R1/R2 | 多处 `seed=7`、`sdv_synth` 未设种子；KS 与 KSComplement 极性相反 | 属度量方法论，随 Stage C 处理 |
+| R3 | 全仓 | 字面 `# ALGORITHM-HOOK`/`# DATA-HOOK` 只在 `warehouse.py`（4 处）与 `quality.py`（3 处）；其余 17 个模块的 HOOK 只在 docstring 或打印串里。`grep -rn "# ALGORITHM-HOOK" src` 得到的清单与 `CHECKLIST.md` 的 A1–D5 无法自动对齐 |
+| 前端 | `dashboard.html` | `regen()` 不传 `horizon_days`；`refreshAll()` 并发 11 请求（含两个重生成世界的端点）；端点路径硬编码 |
+| 大文件 | `data/*.csv` 共 1.07 MB | 在 `.gitignore` 白名单内；迁 LFS 或下载脚本另议 |
+
+---
+
+## 4. 目标结构（提案，供项目负责人在"方向性 PR"里裁定）
+
+```
+src/sdf/
+  __init__.py                 只导出 __version__（无副作用）
+  foundation/
+    schema.py                 实体（+ 可选 __post_init__ 轻校验）
+    registry.py               DataSourceRegistry（register 不再静默覆盖）
+    adapters/retail_csv.py    + 返回 LoadReport(rows_skipped, reasons)
+  synthesis/
+    spec.py                   GenerationSpec（从 warehouse.py 拆出，scenarios 只依赖它）
+    warehouse.py              WarehouseGenerator（RNG 调用顺序不变）
+    materialise.py            build_registry(spec) -> (SyntheticWarehouse, DataSourceRegistry)   ← 从 cli 迁入
+    quality.py forecast.py models.py fit.py fidelity.py tstr.py anomaly.py privacy.py sdv_synth.py
+    scenarios.py              只依赖 spec + materialise + application 的公共入口（不再 import cli）
+  analytics/                  （新）纯函数，不持有状态
+    demand.py                 DemandTable：唯一的按 SKU/按天聚合与统计
+    metrics.py                mae/rmse/mape(wape)/bias，供 forecast 与 tstr 共用
+  application/
+    intelligence.py           WarehouseIntelligence 门面（公共方法签名不变）
+    kpi.py                    kpis / abc_distribution / top_movers
+    replenishment.py          ReplenishmentPolicy 接口 + RuleOfThumbPolicy + SSPolicy + simulation
+    anomaly_rules.py          stockout / dead_stock 规则 + demand_anomalies 包装
+    vision.py                 shelf_occupancy_grid / stocktake_discrepancies
+    narrative.py              insights
+    knowledge.py              路由表 + 处理器（处理器只调用公共入口）
+    economics.py              只依赖 analytics.demand + replenishment.SSPolicy
+    agent/
+      tools.py                Tool / ToolResult / ToolRegistry
+      executor.py             call()：审批门与 read_only 在此强制
+      planner.py              Planner 接口 + KeywordPlanner（LLM planner 为 HOOK）
+      agent.py                WarehouseAgent 组装
+  observability.py            RunLogger（摘要与完整落盘分离）
+  workflow/pipeline.py        ctx 分为 artifacts 与 resources 两个命名空间
+  api/
+    app.py                    create_app(world_provider) ；默认 app = create_app()
+    state.py                  World 不可变快照 + 原子替换
+    static/dashboard.html     不变
+  cli/
+    __init__.py               argparse 子命令；每个子命令一个函数，只做参数解析与打印
+tests/
+  conftest.py                 安装包 / pythonpath 配置；默认世界 fixture
+  test_golden.py              §2.5 的黄金数字（容差 ±0.5%）
+  test_api_contract.py        `fastapi.testclient` 端点字段快照（`pytest.importorskip("fastapi")`）
+  test_cli.py                 每个子命令冒烟 + 退出码
+  test_layering.py            grep 导入图，断言不存在反向依赖
+  test_hooks.py               grep `# ALGORITHM-HOOK[<id>]`，与 CHECKLIST.md 的 ID 集合对齐
+  test_*（现有 18 项迁入按模块拆分）
+```
+
+设计约束（延续 `ARCHITECTURE.md`，不在本次重构中推翻）：
+
+- 核心保持零依赖；`numpy/pydantic` 仍只进 extras。
+- 生成器的随机数消费顺序不变，黄金数字不变。
+- 公共方法签名不变；仪表盘不改。
+- HOOK 标记统一为 `# ALGORITHM-HOOK[C1]: …` / `# DATA-HOOK[D1]: …`，方括号内为 `CHECKLIST.md` 的行号 ID，只出现在代码注释里（docstring 中改为正文说明）。
+
+---
+
+## 5. 施工顺序（每步一个 PR，前后不可调换）
+
+| 步 | PR 类型（按 CONTRIBUTING） | 内容 | 完成判据 |
+|---|---|---|---|
+| 0 | 方向性（本文） | 项目负责人确认 §4 目标结构与 §3.2 的处理方向 | 本 PR 合并 |
+| 1 | 实现 | **特征化测试**：`tests/test_golden.py`、`test_api_contract.py`、`test_cli.py`、`conftest.py`；`pytest.importorskip` 替换 `return`；CI 增加 `pip install -e ".[dev,api]"` 以跑端点测试 | 不改任何 `src/`；测试全绿 |
+| 2 | 实现 | **依赖方向**：新增 `synthesis/materialise.py`、`synthesis/spec.py`；`cli`、`api`、`scenarios`、`pipeline`、`tests` 改为从新位置导入；`cli.build_registry` 保留为再导出以兼容；`sdf/__init__` 去 eager import；`api/app.py` 改抛 `ImportError`；加 `test_layering.py` | 导入图无反向边；黄金数字不变 |
+| 3 | 实现 | **需求聚合统一 + 数值修复**：`analytics/demand.py`、`analytics/metrics.py`；`warehouse_demo`、`economics`、`forecast`、`knowledge` 改为消费；顺手修 C1、C2、C3、C4、C5、C6、C7、I1、I2、S3、S4、S5 | 黄金数字中 (s,S)/经济/回测项**会变**（C1/C5 影响），新值写回 `VALIDATION.md` 与 `test_golden.py`，并在 PR 里逐项解释差异 |
+| 4 | 实现 | **拆上帝对象**：`application/` 按 §4 拆分，`WarehouseIntelligence` 变门面；`ReplenishmentPolicy` 接口；`knowledge`、`agent`、`scenarios` 显式选策略 | 端点契约测试不变；`insights` 与 `/scenarios` 的"需订 SKU 数"口径在文案里标明策略 |
+| 5 | 实现 | **API 状态模型**：`create_app()`、不可变 `World`、原子替换、`/generate` 参数上限收紧并记录耗时 | 并发 `POST /generate` + `GET` 压测无撕裂；单例仍导出为 `app` |
+| 6 | 实现 | **Agent 执行器**：`agent/` 子包；审批门在 `executor.call` 强制；`ToolResult`；`Planner` 接口 | 新测试：注册一个有副作用的审批工具，断言 `fn` 未被调用 |
+| 7 | 实现 | **CLI argparse**：子命令名、默认值、退出码不变；`--help` 可用 | `test_cli.py` 不变通过 |
+| 8 | 实现 | **HOOK 规范化**：统一标记 + `test_hooks.py`；`CHECKLIST.md` 每行加"代码位置"列（由测试生成） | `grep` 结果与 CHECKLIST ID 集合相等 |
+| 9 | 实现 | 收尾：删 `feature/repo-governance` 远端分支；`VALIDATION.md` 全量数字由 `sdf validate` 子命令重跑生成；`observability` 完整落盘 | — |
+
+第 3 步是唯一会改变黄金数字的步骤，因此把它放在第 2 步（纯搬家）之后、第 4 步（纯拆分）之前，使每个 PR 的 diff 只解释一种变化。
+
+---
+
+## 6. 需要项目负责人拍板的事项
+
+1. **零依赖核心是否继续坚持**。若允许 `numpy` 进核心，`models.py`、`privacy.py`、`fidelity.py` 可缩短一半并去掉 O(n²)；若坚持，§4 结构不变，只是这些模块保持纯 Python。
+2. **紧凑单行风格是否保留**。`ruff` 目前忽略 `E501/E701/E702`；拆分模块时是否顺势收紧到默认规则（会触发大面积格式 diff，建议单独一个"仅格式"PR，放在第 2 步之后）。
+3. **`replenishment_suggestions` 的固定规则是否退役**。它在仪表盘"补货闭环"视图与 `insights` 里可见；退役意味着前端文案要改。建议保留为 `RuleOfThumbPolicy` 但从 `insights`/`agent` 默认路径切换到 (s,S)。
+4. **第 3 步导致的度量数字变化如何对外解释**。MAPE 口径修正后，`VALIDATION.md` 中所有 MAPE 列会变；建议同一 PR 里同时给出旧口径与新口径一次，之后只维护新口径。
+5. **`data/` 的 1 MB CSV 是否迁出**。与重构无关，可以并行。
+
+---
+
+## 7. 重构期间的操作纪律
+
+- 每个 PR 开始前重跑 `tests/test_golden.py`，结束后再跑一次；数字变动必须在 PR 描述里逐项列出原因。
+- 不在同一个 PR 里同时"搬家"和"改行为"。
+- 不改 `WarehouseGenerator` 内 `self._rng` 的调用次数与顺序。
+- 不改 `dashboard.html`，除非端点契约测试先改。
+- `# ALGORITHM-HOOK` 注释随代码搬家，不丢失。

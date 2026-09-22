@@ -81,3 +81,4 @@ ruff check . && pytest      # CI runs the same on Python 3.9 and 3.11
 - [Validation Results / 验证结果](docs/VALIDATION.md)
 - [Reference & Open Datasets / 数据集](docs/DATASETS.md)
 - [Roadmap / 路线图](docs/ROADMAP.md)
+- [Refactor Preparation / 重构准备](docs/REFACTOR_PREP.md)
