@@ -11,12 +11,12 @@
 
 ## 0. 一页结论
 
-- **仓库规模**：`src/sdf` 共 24 个 Python 模块、约 3,100 行；1 个 581 行的零依赖前端；1 个测试文件 18 项测试（3.11 下 1.2 s 跑完，`ruff` 干净）。
+- **仓库规模**：`src/sdf` 共 29 个 Python 文件（22 个实现模块 + 7 个 `__init__.py`）、约 3,100 行；1 个 581 行的零依赖前端；1 个测试文件 18 项测试（3.11 下 1.2 s 跑完，`ruff` 干净）。
 - **最大的结构问题不是某个 bug，而是三处"重心放错了地方"**：
   1. `build_registry()` 是所有入口（API、workflow、scenarios、tests）物化世界的唯一函数，却住在 `cli.py` 里，导致 `synthesis → cli`、`workflow → cli`、`api → cli` 三条反向依赖。
   2. "按 SKU 按天聚合需求"这件事在 `warehouse_demo._daily_demand`、`warehouse_demo._sku_daily_stats`、`warehouse_demo.demand_series`、`economics.financial_impact`、`forecast.daily_demand_series` 里各写了一遍，口径彼此不同。
   3. `WarehouseIntelligence` 是一个 396 行的上帝对象，同时承载 KPI、两套互不一致的补货逻辑、异常、视觉盘点、叙事；`economics.py` 直接读它的私有方法。
-- **必须保留的外部契约**只有四类：CLI 子命令名与默认参数、仪表盘消费的 20 个 HTTP 端点及其 JSON 字段、六个规范实体 + `GenerationSpec` 字段、`VALIDATION.md` 中的度量数字（固定种子下可复现）。其余都是内部实现，可以自由改。
+- **必须保留的外部契约**只有四类：CLI 子命令名与默认参数、仪表盘消费的 16 个 HTTP 端点及其 JSON 字段（另有 5 个业务端点与 `/health`、`/` 未被前端调用）、六个规范实体 + `GenerationSpec` 字段、`VALIDATION.md` 中的度量数字（固定种子下可复现）。其余都是内部实现，可以自由改。
 - **施工顺序**：先加"特征化测试"（黄金数字 + 端点契约）作为安全网 → 再修依赖方向 → 再统一需求聚合并顺手修数值 bug → 再拆上帝对象 / 改 API 状态模型 / 加固 Agent 审批门 → 最后 CLI 与 HOOK 标记规范化。每一步都是一个独立 PR。
 
 ---
@@ -43,7 +43,7 @@
 | `application/agent.py` | 143 | 工具注册 + 关键词规划器 + 审计 | 审批门不短路（见 §3 P11） |
 | `observability.py` | 109 | `RunLogger` | 输出被 `_summarise` 截断为 12 键，审计有损 |
 | `workflow/pipeline.py` | 136 | 拓扑排序 DAG | `ctx` 混放隐藏对象；反向依赖 `cli` |
-| `api/app.py` | 225 | FastAPI，21 个路由 | 模块级可变单例 `_state`；缺 fastapi 时 `SystemExit` |
+| `api/app.py` | 225 | FastAPI，23 个路由（21 个业务 + `/` + `/health`） | 模块级可变单例 `_state`；缺 fastapi 时 `SystemExit` |
 | `api/static/dashboard.html` | 581 | 零依赖前端 | 一次刷新并发打 11 个端点 |
 | `cli.py` | 319 | 手写 `if cmd ==` 分发 + `build_registry` | 被 4 处当作库导入 |
 | `tests/test_generators.py` | 229 | 18 项冒烟/结构测试 | `sys.path` hack；可选依赖测试用 `return` 而非 `pytest.skip` |
@@ -85,9 +85,13 @@ observability       ← application.agent, workflow.pipeline
 
 `demo | export [dir] | backtest [csv] | synth [csv] | tstr [csv] | sdv [csv] | agent "<q>" | pipeline | impact | scenarios | privacy [csv]`，
 `[csv]` 默认 `data/sample_online_retail_ii.csv`，`export` 默认 `out`，无参数默认 `demo`，未知命令打印 `__doc__` 返回 1。
-迁 `argparse` 时这些名字与默认值必须不变（文档、README、ONBOARDING 都引用）。
+迁 `argparse` 时这些名字与默认值必须不变（文档、README、ONBOARDING 都引用）。**新增**子命令（第 7 步的 `validate`）不受此限制。
 
-### 2.2 HTTP 端点（仪表盘实际调用的 20 个 + `/health`）
+### 2.2 HTTP 端点
+
+`app.py` 共 23 个路由：`/`（仪表盘页面）、`/health`、21 个业务端点。其中 **16 个**被 `dashboard.html` 直接 `fetch`
+（下表前 16 行，含 `POST /generate`），是重构期间字段必须逐个保持的契约；其余 5 个业务端点只出现在文档里，
+只需保证路径存在与返回可 JSON 化。
 
 | 端点 | 前端消费的字段 |
 |---|---|
@@ -107,7 +111,7 @@ observability       ← application.agent, workflow.pipeline
 | `GET /economics/impact` | `annualised_net_saving,stockout_units_avoided,unmet_units.{naive,ours},horizon_days,assumptions.holding_cost_annual_rate,period` |
 | `GET /workflow/run` | `trace[].{seq,name,status,duration_ms},run.{run_id,steps,total_ms,errors}` |
 | `GET /scenarios` | `scenarios[].{scenario,outbound_lines,skus_needing_order,safety_stock_units,safety_stock_vs_baseline_pct}` |
-| `GET /export?entity`、`/foundation/summary`、`/synthesis/quality`、`/application/kpis`、`/agent/tools`、`/health` | 未被前端调用，但在文档中出现 |
+| `GET /export?entity`、`/foundation/summary`、`/synthesis/quality`、`/application/kpis`、`/agent/tools` | 5 个未被前端调用的业务端点（`/health` 与 `/` 另计） |
 
 ### 2.3 数据契约
 
@@ -118,7 +122,15 @@ observability       ← application.agent, workflow.pipeline
 
 ### 2.4 度量口径
 
-`VALIDATION.md` 中每个数字都对应一条 CLI 命令；重构后这些命令在同一输入上必须给出同样的结果（容差 ±0.5%）。
+`VALIDATION.md` 里的数字按来源分三类，重构后的复现要求不同：
+
+| 来源 | 涉及的数字 | 现有复现路径 | 重构要求 |
+|---|---|---|---|
+| CLI 命令 | Phase 2.0 回测表、Phase 2.1 fidelity、Copula/SDMetrics、B2 TSTR、B3 隐私、Phase 4 经济与情景 | `backtest / synth / sdv / tstr / privacy / impact / scenarios` | 同一输入上结果不变（容差 ±0.5%） |
+| 测试内联序列 | C1 "受控序列"表（趋势+季节 / 纯季节高噪） | `tests/test_generators.py::test_phase3_model_and_tstr` 只断言"模型赢"，**没有记录数值** | 第 1 步把序列与数值写进 `test_golden.py` |
+| 默认世界手工调用 | C2 (s,S) 表、C3 异常示例、Phase 4 agent 轨迹 | **无 CLI 路径**，是当时在 REPL/仪表盘上读出的 | 第 1 步以 §2.5 快照锁定；第 9 步补 `sdf validate` 子命令统一生成 |
+
+因此"每个数字都能一键复现"是本次重构要**达成**的状态，不是当前状态。
 
 ### 2.5 黄金数字快照（`GenerationSpec()` 默认世界，seed=42；bundled CSV）
 
@@ -172,7 +184,7 @@ observability       ← application.agent, workflow.pipeline
 | # | 位置 | 现象 | 方向 |
 |---|---|---|---|
 | P1 | `api/app.py:50, 44-48` | 模块级可变单例；`regenerate` 逐字段赋值，FastAPI 同步端点在线程池并发执行时可读到 `wh` 新 / `intel` 旧的撕裂状态；`/generate?n_skus=2000&horizon_days=365` 实测 9.2 s，无鉴权即 DoS 向量 | `create_app()` 工厂 + 不可变 `World` 对象整体原子替换（`_state.world = new_world`）+ `/generate` 限流/上限收紧 |
-| P11 | `agent.py:79-85` | `call()` 对 `requires_approval` 工具**仍执行** `tool.fn`，只加一条 note；当前安全仅因 `_propose_order` 无副作用；`Tool.read_only` 字段**从未被读取** | 执行器级短路：`requires_approval and not approved → 返回 proposal，不调用 fn`；`read_only=False` 且未审批也拒绝 |
+| P11 | `agent.py:79-85` | `call()` 对 `requires_approval` 工具**仍执行** `tool.fn`，只加一条 note；当前安全仅因 `_propose_order` 无副作用；`Tool.read_only` 只在 `list_tools()`（l.141）里被序列化展示，**执行路径从不检查它** | 执行器级短路：`requires_approval and not approved → 返回 proposal，不调用 fn`；`read_only=False` 且未审批也拒绝 |
 | A2/A4 | `scenarios.py:44-46`, `pipeline.py:92`, `api/app.py:28` | 三处反向导入 `sdf.cli.build_registry` | 把 `build_registry` 移到 `foundation`/`synthesis` 边界（建议 `sdf/synthesis/materialise.py` 或 `sdf/foundation/bootstrap.py`），`cli` 只保留薄壳 |
 | A3 | `economics.py:65-72`, `warehouse_demo.py:197-213, 387-396, 124-147`, `forecast.py:22-39` | 五份"按 SKU/按天聚合"实现；`financial_impact` 用 `list(stats.items())[:max_skus]` 取**前 400 个首次出现**的 SKU 而非按重要性 | 单一 `demand.py`：`DemandTable(orders) → per_sku_daily(sku) / totals / stats`，其余模块只消费 |
 | 双补货逻辑 | `warehouse_demo.py:62-94` vs `215-265` | `replenishment_suggestions`（固定 3 天安全库存、lead=7 硬编码）与 `replenishment_ss_policy`（(s,S)）并存；`insights`、`agent`、`knowledge._replenish`、`simulation` 用前者，`scenarios`、`knowledge._safety`、`economics` 用后者。同一问题"多少 SKU 需要补货"在同一世界里给出 7 和 38 两个答案 | 定义 `ReplenishmentPolicy` 接口，两种策略成为两个实现，所有调用方通过同一入口并显式声明策略；仪表盘两张表分别标注策略名 |
@@ -211,7 +223,7 @@ src/sdf/
     warehouse.py              WarehouseGenerator（RNG 调用顺序不变）
     materialise.py            build_registry(spec) -> (SyntheticWarehouse, DataSourceRegistry)   ← 从 cli 迁入
     quality.py forecast.py models.py fit.py fidelity.py tstr.py anomaly.py privacy.py sdv_synth.py
-    scenarios.py              只依赖 spec + materialise + application 的公共入口（不再 import cli）
+    scenarios.py              只保留 SCENARIOS 表与 apply(spec, tweaks) -> spec 的纯变换（不依赖任何上层）
   analytics/                  （新）纯函数，不持有状态
     demand.py                 DemandTable：唯一的按 SKU/按天聚合与统计
     metrics.py                mae/rmse/mape(wape)/bias，供 forecast 与 tstr 共用
@@ -224,6 +236,7 @@ src/sdf/
     narrative.py              insights
     knowledge.py              路由表 + 处理器（处理器只调用公共入口）
     economics.py              只依赖 analytics.demand + replenishment.SSPolicy
+    scenarios.py              run_scenarios：对每个情景 materialise → 评估（从 synthesis 迁入；synthesis.scenarios 保留同名再导出一个版本）
     agent/
       tools.py                Tool / ToolResult / ToolRegistry
       executor.py             call()：审批门与 read_only 在此强制
@@ -262,14 +275,14 @@ tests/
 |---|---|---|---|
 | 0 | 方向性（本文） | 项目负责人确认 §4 目标结构与 §3.2 的处理方向 | 本 PR 合并 |
 | 1 | 实现 | **特征化测试**：`tests/test_golden.py`、`test_api_contract.py`、`test_cli.py`、`conftest.py`；`pytest.importorskip` 替换 `return`；CI 增加 `pip install -e ".[dev,api]"` 以跑端点测试 | 不改任何 `src/`；测试全绿 |
-| 2 | 实现 | **依赖方向**：新增 `synthesis/materialise.py`、`synthesis/spec.py`；`cli`、`api`、`scenarios`、`pipeline`、`tests` 改为从新位置导入；`cli.build_registry` 保留为再导出以兼容；`sdf/__init__` 去 eager import；`api/app.py` 改抛 `ImportError`；加 `test_layering.py` | 导入图无反向边；黄金数字不变 |
+| 2 | 实现 | **依赖方向**：新增 `synthesis/materialise.py`、`synthesis/spec.py`；`run_scenarios` 迁到 `application/scenarios.py`，`synthesis/scenarios.py` 只剩纯 spec 变换；`cli`、`api`、`pipeline`、`tests` 改为从新位置导入；`cli.build_registry` 与 `synthesis.scenarios.run_scenarios` 保留为再导出一个版本以兼容；`sdf/__init__` 去 eager import；`api/app.py` 改抛 `ImportError`；加 `test_layering.py` | 导入图无反向边（再导出 shim 允许在白名单内）；黄金数字不变 |
 | 3 | 实现 | **需求聚合统一 + 数值修复**：`analytics/demand.py`、`analytics/metrics.py`；`warehouse_demo`、`economics`、`forecast`、`knowledge` 改为消费；顺手修 C1、C2、C3、C4、C5、C6、C7、I1、I2、S3、S4、S5 | 黄金数字中 (s,S)/经济/回测项**会变**（C1/C5 影响），新值写回 `VALIDATION.md` 与 `test_golden.py`，并在 PR 里逐项解释差异 |
 | 4 | 实现 | **拆上帝对象**：`application/` 按 §4 拆分，`WarehouseIntelligence` 变门面；`ReplenishmentPolicy` 接口；`knowledge`、`agent`、`scenarios` 显式选策略 | 端点契约测试不变；`insights` 与 `/scenarios` 的"需订 SKU 数"口径在文案里标明策略 |
 | 5 | 实现 | **API 状态模型**：`create_app()`、不可变 `World`、原子替换、`/generate` 参数上限收紧并记录耗时 | 并发 `POST /generate` + `GET` 压测无撕裂；单例仍导出为 `app` |
 | 6 | 实现 | **Agent 执行器**：`agent/` 子包；审批门在 `executor.call` 强制；`ToolResult`；`Planner` 接口 | 新测试：注册一个有副作用的审批工具，断言 `fn` 未被调用 |
-| 7 | 实现 | **CLI argparse**：子命令名、默认值、退出码不变；`--help` 可用 | `test_cli.py` 不变通过 |
+| 7 | 实现 | **CLI argparse**：现有子命令名、默认值、退出码不变；`--help` 可用；**新增** `validate` 子命令，输出 §2.5 全部黄金数字（JSON），供第 9 步与 `test_golden.py` 共用 | `test_cli.py` 不变通过；`sdf validate` 输出与 `test_golden.py` 一致 |
 | 8 | 实现 | **HOOK 规范化**：统一标记 + `test_hooks.py`；`CHECKLIST.md` 每行加"代码位置"列（由测试生成） | `grep` 结果与 CHECKLIST ID 集合相等 |
-| 9 | 实现 | 收尾：删 `feature/repo-governance` 远端分支；`VALIDATION.md` 全量数字由 `sdf validate` 子命令重跑生成；`observability` 完整落盘 | — |
+| 9 | 实现 | 收尾：删 `feature/repo-governance` 远端分支；`VALIDATION.md` 中"默认世界手工调用"类数字改由第 7 步的 `sdf validate` 重跑生成；`observability` 完整落盘 | — |
 
 第 3 步是唯一会改变黄金数字的步骤，因此把它放在第 2 步（纯搬家）之后、第 4 步（纯拆分）之前，使每个 PR 的 diff 只解释一种变化。
 
