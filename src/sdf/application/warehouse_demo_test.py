@@ -1,0 +1,40 @@
+"""Tests for WarehouseIntelligence."""
+
+from __future__ import annotations
+
+from sdf.application.warehouse_demo import WarehouseIntelligence
+from sdf.cli import build_registry
+from sdf.synthesis.warehouse import GenerationSpec
+
+
+def test_application_layer_runs():
+    _, reg = build_registry(GenerationSpec(n_skus=60, horizon_days=30))
+    intel = WarehouseIntelligence(reg)
+    k = intel.kpis()
+    assert k.total_skus == 60
+    assert isinstance(intel.replenishment_suggestions(5), list)
+    assert len(intel.insights()) >= 3
+
+
+def test_vision_stocktake():
+    _, reg = build_registry(GenerationSpec(n_skus=120, horizon_days=45))
+    intel = WarehouseIntelligence(reg)
+    grid = intel.shelf_occupancy_grid()
+    assert grid and all("zone" in z and "aisles" in z for z in grid)
+    stock = intel.stocktake_discrepancies()
+    # Most locations should match; some flagged. Sanity, not a fidelity claim.
+    assert stock["locations_scanned"] > 0
+    assert stock["matched"] + stock["flagged"] == stock["locations_scanned"]
+    assert 0.0 <= stock["match_rate"] <= 1.0
+
+
+def test_phase3_ss_policy():
+    _, reg = build_registry(GenerationSpec(n_skus=80, horizon_days=45))
+    intel = WarehouseIntelligence(reg)
+    lo = intel.replenishment_ss_policy(service_level=0.90)
+    hi = intel.replenishment_ss_policy(service_level=0.99)
+    # Higher service level => more safety stock (monotone in z).
+    assert hi["total_safety_stock_units"] >= lo["total_safety_stock_units"]
+    assert hi["z"] > lo["z"]
+    for r in lo["rows"]:
+        assert r["reorder_point_s"] >= r["safety_stock"] >= 0

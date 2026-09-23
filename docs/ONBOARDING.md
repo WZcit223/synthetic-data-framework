@@ -21,7 +21,7 @@ cd synthetic-data-framework
 
 uv sync                      # environment + dev tools, locked to uv.lock
 # End-to-end demo — generates a synthetic warehouse and prints a report.
-uv run python demo/run_demo.py
+uv run sdf demo
 ```
 
 ## 3. The CLI

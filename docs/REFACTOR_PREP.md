@@ -74,7 +74,7 @@ observability       ← application.agent, workflow.pipeline
 ### 1.3 工具链现状
 
 - Python 3.12 ~ 3.14（`.python-version` 固定 3.14，CI 矩阵 3.12 / 3.13 / 3.14）；核心依赖 numpy / scipy / scikit-learn；`ruff` 配置已与 sciloom 对齐（`F/E/W/I/TID252` + `ruff format`），紧凑单行风格已于 PR #3 统一重排。
-- 项目改为仅由 uv 管理（`uv_build` 后端、`uv.lock`、`[dependency-groups] dev`，2026-09-23）；文档命令统一为 `uv run sdf ...`。`tests/` 与 `demo/` 仍保留 `sys.path.insert`，重构第 1 步随 `conftest.py` 一并移除。
+- 项目改为仅由 uv 管理（`uv_build` 后端、`uv.lock`、`[dependency-groups] dev`，2026-09-23）；文档命令统一为 `uv run sdf ...`。`tests/` 与 `demo/` 已在 layout 序列 PR 1 中移除（测试迁到同目录 `_test.py`，demo 只保留 `sdf demo` 命令）。
 - 远端分支：`main`、`system-v1/synthetic-data-generation`（v1 冻结）、`feature/repo-governance`（PR #1 已合并，**分支未删**，可清理）。
 
 ---
@@ -127,8 +127,8 @@ observability       ← application.agent, workflow.pipeline
 | 来源 | 涉及的数字 | 现有复现路径 | 重构要求 |
 |---|---|---|---|
 | CLI 命令 | Phase 2.0 回测表、Phase 2.1 fidelity、Copula/SDMetrics、B2 TSTR、B3 隐私、Phase 4 经济与情景 | `backtest / synth / sdv / tstr / privacy / impact / scenarios` | 同一输入上结果不变（容差 ±0.5%） |
-| 测试内联序列 | C1 "受控序列"表（趋势+季节 / 纯季节高噪） | `tests/test_generators.py::test_phase3_model_and_tstr` 只断言"模型赢"，**没有记录数值** | 第 1 步把序列与数值写进 `test_golden.py` |
-| 默认世界手工调用 | C2 (s,S) 表、C3 异常示例、Phase 4 agent 轨迹 | **无 CLI 路径**，是当时在 REPL/仪表盘上读出的 | 第 1 步以 §2.5 快照锁定；第 9 步补 `sdf validate` 子命令统一生成 |
+| 测试内联序列 | C1 "受控序列"表（趋势+季节 / 纯季节高噪） | `src/sdf/synthesis/models_test.py` 只断言"模型赢"，**没有记录数值** | 第 3 步数值 PR 把序列与数值写进 `golden_test.py` |
+| 默认世界手工调用 | C2 (s,S) 表、C3 异常示例、Phase 4 agent 轨迹 | **无 CLI 路径**，是当时在 REPL/仪表盘上读出的 | 已以 `src/sdf/golden_test.py` 锁定 §2.5 快照；第 9 步补 `sdf validate` 子命令统一生成 |
 
 因此"每个数字都能一键复现"是本次重构要**达成**的状态，不是当前状态。
 
@@ -250,14 +250,14 @@ src/sdf/
     static/dashboard.html     不变
   cli/
     __init__.py               click 子命令（已完成）；每个子命令一个函数，只做参数解析与打印
-tests/
-  conftest.py                 安装包 / pythonpath 配置；默认世界 fixture
-  test_golden.py              §2.5 的黄金数字（容差 ±0.5%）
-  test_api_contract.py        `fastapi.testclient` 端点字段快照（`pytest.importorskip("fastapi")`）
-  （已有 `src/sdf/cli_test.py`）每个子命令冒烟 + 退出码
-  test_layering.py            grep 导入图，断言不存在反向依赖
-  test_hooks.py               grep `# ALGORITHM-HOOK[<id>]`，与 CHECKLIST.md 的 ID 集合对齐
-  test_*（现有 18 项迁入按模块拆分）
+src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
+  conftest.py                 已有：默认世界 fixture + 两个内置 CSV 路径 fixture
+  golden_test.py              已有：§2.5 的黄金数字（整数精确、浮点 ±0.5%）
+  cli_test.py                 已有：每个子命令冒烟 + 退出码
+  <module>_test.py            已有：原 tests/test_generators.py 按模块拆入各自目录
+  layering_test.py            第 2 步：ast 解析导入图，断言不存在反向依赖
+  api/app_test.py             后续：`fastapi.testclient` 端点字段快照（`pytest.importorskip("fastapi")`）
+  hooks_test.py               后续：grep `# ALGORITHM-HOOK[<id>]`，与 CHECKLIST.md 的 ID 集合对齐
 ```
 
 设计约束（延续 `ARCHITECTURE.md`，不在本次重构中推翻）：
@@ -276,7 +276,7 @@ tests/
 | 步 | PR 类型（按 CONTRIBUTING） | 内容 | 完成判据 |
 |---|---|---|---|
 | 0 | 方向性（本文） | 项目负责人确认 §4 目标结构与 §3.2 的处理方向 | 本 PR 合并 |
-| 1 | 实现 | **特征化测试**：`tests/test_golden.py`、`test_api_contract.py`、`test_cli.py`、`conftest.py`；`pytest.importorskip` 替换 `return`；CI 增加 `pip install -e ".[dev,api]"` 以跑端点测试 | 不改任何 `src/`；测试全绿 |
+| 1 | 实现 | ~~**特征化测试**~~ 已完成（layout 序列 PR 1）：`src/sdf/conftest.py`、`golden_test.py`、原 `tests/` 按模块拆为同目录 `_test.py`，`pytest.importorskip` 替换 `return`，删除 `tests/` 与 `demo/`；端点契约测试推迟到 API 状态模型那一步一并加 | 不改任何 `src/` 运行时代码；测试全绿 |
 | 2 | 实现 | **依赖方向**：新增 `synthesis/materialise.py`、`synthesis/spec.py`；`run_scenarios` 迁到 `application/scenarios.py`，`synthesis/scenarios.py` 只剩纯 spec 变换；`cli`、`api`、`pipeline`、`tests` 改为从新位置导入；`cli.build_registry` 与 `synthesis.scenarios.run_scenarios` 保留为再导出一个版本以兼容；`sdf/__init__` 去 eager import；`api/app.py` 改抛 `ImportError`；加 `test_layering.py` | 导入图无反向边（再导出 shim 允许在白名单内）；黄金数字不变 |
 | 3 | 实现 | **需求聚合统一 + 数值修复**：`analytics/demand.py`、`analytics/metrics.py`；`warehouse_demo`、`economics`、`forecast`、`knowledge` 改为消费；顺手修 C1、C2、C3、C4、C5、C6、C7、I1、I2、S3、S4、S5 | 黄金数字中 (s,S)/经济/回测项**会变**（C1/C5 影响），新值写回 `VALIDATION.md` 与 `test_golden.py`，并在 PR 里逐项解释差异 |
 | 4 | 实现 | **拆上帝对象**：`application/` 按 §4 拆分，`WarehouseIntelligence` 变门面；`ReplenishmentPolicy` 接口；`knowledge`、`agent`、`scenarios` 显式选策略 | 端点契约测试不变；`insights` 与 `/scenarios` 的"需订 SKU 数"口径在文案里标明策略 |
@@ -302,7 +302,7 @@ tests/
 
 ## 7. 重构期间的操作纪律
 
-- 每个 PR 开始前重跑 `tests/test_golden.py`，结束后再跑一次；数字变动必须在 PR 描述里逐项列出原因。
+- 每个 PR 开始前重跑 `src/sdf/golden_test.py`，结束后再跑一次；数字变动必须在 PR 描述里逐项列出原因。
 - 不在同一个 PR 里同时"搬家"和"改行为"。
 - 不改 `WarehouseGenerator` 内 `self._rng` 的调用次数与顺序。
 - 不改 `dashboard.html`，除非端点契约测试先改。

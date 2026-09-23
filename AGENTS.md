@@ -57,9 +57,10 @@ intent still applies.
   `__version__` by hand.
   The version decision and its `Version:` line are still required at the end of
   every PR description and refactor plan file. Shipped code is `src/sdf/`.
-- **Tests.** Run with `uv run pytest`; `testpaths` covers both `src` (colocated
-  `<source>_test.py` files, starting with `src/sdf/cli_test.py`) and the legacy
-  `tests/test_generators.py`. New tests follow the colocated rule.
+- **Tests.** Run with `uv run pytest`; every test is a colocated
+  `<source>_test.py` under `src/sdf/` (`testpaths = ["src"]`), shared fixtures
+  live in `src/sdf/conftest.py`, and `src/sdf/golden_test.py` locks the numbers
+  in `docs/REFACTOR_PREP.md` §2.5. There is no separate `tests/` tree.
 - **Configuration conventions.** There is no `models/model_config.py`. The
   established config object in this repository is `GenerationSpec` in
   `src/sdf/synthesis/warehouse.py`; new config dataclasses follow its shape and
@@ -119,7 +120,7 @@ uv sync --locked
 uv run ruff check
 uv run ruff format --check
 uv run pytest
-uv run python demo/run_demo.py
+uv run sdf demo
 ```
 
 CI (`.github/workflows/ci.yml`) runs exactly these on Python 3.12, 3.13 and 3.14
