@@ -53,7 +53,12 @@ uv run uvicorn sdf.api.app:app --reload
 
 The API is stateful: `POST /generate` re-drives the synthetic world; the other
 endpoints (`/application/*`, `/validation/*`, `/agent/*`, `/economics/*`,
-`/workflow/*`, `/scenarios`) read from it.
+`/workflow/*`, `/scenarios`) read from it. The world is an immutable snapshot
+swapped in one step, so a request never mixes two worlds. `/generate` accepts
+at most 500 SKUs and 180 days (HTTP 422 above that) and runs one generation at a
+time (HTTP 409 while another runs). `create_app(limits=GenerateLimits(...))` builds
+an app with other limits; the HTTP contract tests in `src/sdf/api/app_test.py`
+need `uv sync --extra api`.
 
 ## 5. Tests and linting
 
@@ -63,7 +68,9 @@ uv run ruff format --check     # formatting
 uv run pytest                  # structural + validation tests
 ```
 
-CI (`.github/workflows/ci.yml`) runs exactly these on every PR into `main`.
+CI (`.github/workflows/ci.yml`) runs these on every PR into `main` with the `api`
+extra installed (so the HTTP contract tests run), then `sdf demo`, then the
+synthesis and CLI tests again with the `synthesis` extra.
 
 ## 6. Optional statistical extras
 

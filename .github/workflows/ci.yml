@@ -29,7 +29,8 @@ jobs:
         with:
           version: "0.12.10"
           python-version: ${{ matrix.python }}
-      - run: uv sync --locked
+      # The api extra lets the HTTP contract tests (src/sdf/api/app_test.py) run; without it they skip.
+      - run: uv sync --locked --extra api
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run pytest

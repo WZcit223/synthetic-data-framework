@@ -93,6 +93,10 @@ observability       ← application.agent, workflow.pipeline
 > `GET /application/replenishment/comparison?service_level`（字段 `service_level,horizon_days,
 > policies[].{policy,skus_needing_order,safety_stock_units,unmet_units,fill_rate,holding_cost,order_cost}`）。
 > 下表保留为改前记录。
+>
+> 2026-09-23（structure 序列 PR 6）：仪表盘的 `POST /generate` 现在传 `horizon_days`；超过上限（500 SKU、180 天）
+> 或低于下限的参数返回 422，另一生成进行中返回 409；响应新增 `generated_ms`。`/scenarios` 与 `/workflow/run`
+> 改用当前世界，不再各自重新生成。`src/sdf/api/app_test.py` 覆盖下表仍存在的每个字段。
 
 | 端点 | 前端消费的字段 |
 |---|---|
@@ -186,7 +190,7 @@ observability       ← application.agent, workflow.pipeline
 
 | # | 位置 | 现象 | 方向 |
 |---|---|---|---|
-| P1 | `api/app.py:50, 44-48` | 模块级可变单例；`regenerate` 逐字段赋值，FastAPI 同步端点在线程池并发执行时可读到 `wh` 新 / `intel` 旧的撕裂状态；`/generate?n_skus=2000&horizon_days=365` 实测 9.2 s，无鉴权即 DoS 向量 | `create_app()` 工厂 + 不可变 `World` 对象整体原子替换（`_state.world = new_world`）+ `/generate` 限流/上限收紧 |
+| P1（structure 序列 PR 6 已修复：`create_app()` + `WorldStore` 整体替换不可变快照，`/generate` 上限 500 SKU / 180 天，同时只允许一次生成） | `api/app.py:50, 44-48` | 模块级可变单例；`regenerate` 逐字段赋值，FastAPI 同步端点在线程池并发执行时可读到 `wh` 新 / `intel` 旧的撕裂状态；`/generate?n_skus=2000&horizon_days=365` 实测 9.2 s，无鉴权即 DoS 向量 | `create_app()` 工厂 + 不可变 `World` 对象整体原子替换（`_state.world = new_world`）+ `/generate` 限流/上限收紧 |
 | P11（structure 序列 PR 5 已修复：`Executor` 对未审批的门控工具不调用 `fn`） | `agent.py:79-85` | `call()` 对 `requires_approval` 工具**仍执行** `tool.fn`，只加一条 note；当前安全仅因 `_propose_order` 无副作用；`Tool.read_only` 只在 `list_tools()`（l.141）里被序列化展示，**执行路径从不检查它** | 执行器级短路：`requires_approval and not approved → 返回 proposal，不调用 fn`；`read_only=False` 且未审批也拒绝 |
 | A2/A4 | `scenarios.py:44-46`, `pipeline.py:92`, `api/app.py:28` | 三处反向导入 `sdf.cli.build_registry` | 把 `build_registry` 移到 `foundation`/`synthesis` 边界（建议 `sdf/synthesis/materialise.py` 或 `sdf/foundation/bootstrap.py`），`cli` 只保留薄壳 |
 | A3 | `economics.py:65-72`, `warehouse_demo.py:197-213, 387-396, 124-147`, `forecast.py:22-39` | 五份"按 SKU/按天聚合"实现；`financial_impact` 用 `list(stats.items())[:max_skus]` 取**前 400 个首次出现**的 SKU 而非按重要性 | 单一 `demand.py`：`DemandTable(orders) → per_sku_daily(sku) / totals / stats`，其余模块只消费 |

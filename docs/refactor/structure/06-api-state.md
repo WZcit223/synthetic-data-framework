@@ -1,5 +1,16 @@
 # PR 6 — Backend state: app factory, atomic snapshot, generation limits
 
+> Status: implemented (structure sequence PR 6). No number moved. Notes:
+> `create_app(*, limits=GenerateLimits())` takes no `ui_dir` yet; that parameter
+> arrives with the UI move in PR 7, where it has something to serve. The lower
+> bounds `/generate` used to clamp to (10 SKUs, 14 days, 0.5–20 orders, 0–0.5
+> stockout pressure) are now rejected with 422 like the upper limits, instead of
+> being silently clamped. `warehouse_pipeline` and `run_scenarios` gained a
+> keyword `world=` so the API passes its current world. The dashboard shows a
+> 409 or 422 in its status line. Starlette warns that its test client prefers
+> `httpx2` over `httpx`; the decided `httpx` works and the warning is noted for
+> a later dependency update.
+
 Interface contract: [`interfaces.md` §4.2](interfaces.md#42-target-after-pr-6-app-factory-and-atomic-snapshot).
 
 ## Goal

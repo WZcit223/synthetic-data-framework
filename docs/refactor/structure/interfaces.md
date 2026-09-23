@@ -474,7 +474,7 @@ the dashboard fetches unversioned paths such as `/application/overview`.
 from sdf.api.app import create_app
 from sdf.api.state import GenerateLimits, Snapshot, WorldStore
 
-app = create_app(limits=GenerateLimits(max_skus=500, max_horizon_days=180))
+app = create_app(limits=GenerateLimits(max_skus=500, max_horizon_days=180))   # ui_dir= is added in PR 7
 store: WorldStore = app.state.store
 snap: Snapshot = store.current          # Snapshot(world=World(...), intel=WarehouseIntelligence(...), generated_ms=…)
 store.regenerate(GenerationSpec(n_skus=80))   # builds a new Snapshot, then replaces `current` in one assignment

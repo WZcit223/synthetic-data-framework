@@ -75,7 +75,11 @@
     <div class="controls">
       <div class="ctrl">
         <label>SKUs <output id="o_skus">200</output></label>
-        <input id="skus" type="range" min="20" max="1000" step="20" value="200">
+        <input id="skus" type="range" min="20" max="500" step="20" value="200">
+      </div>
+      <div class="ctrl">
+        <label>Days of history <output id="o_days">90</output></label>
+        <input id="days" type="range" min="30" max="180" step="10" value="90">
       </div>
       <div class="ctrl">
         <label>Demand intensity (class-A) <output id="o_dem">6.0</output></label>
@@ -299,8 +303,8 @@ const CAPS = [
   {h:"Knowledge organisation", p:"Templated narrative insights today; LLM + knowledge-graph is the upgrade path.", t:"Application · ALGO-HOOK: LLM+KG"},
 ];
 
-for(const id of ["skus","dem","stk","seed"]){
-  const map={skus:"o_skus",dem:"o_dem",stk:"o_stk",seed:"o_seed"};
+for(const id of ["skus","days","dem","stk","seed"]){
+  const map={skus:"o_skus",days:"o_days",dem:"o_dem",stk:"o_stk",seed:"o_seed"};
   $("#"+id).addEventListener("input",e=>$("#"+map[id]).textContent=e.target.value);
 }
 
@@ -552,11 +556,18 @@ async function refreshAll(){
 
 async function regen(){
   $("#status").textContent="regenerating…";
-  const q=new URLSearchParams({n_skus:$("#skus").value,daily_orders_per_a_sku:$("#dem").value,
-    stockout_pressure:$("#stk").value,seed:$("#seed").value});
-  await fetch("/generate?"+q,{method:"POST"});
+  const q=new URLSearchParams({n_skus:$("#skus").value,horizon_days:$("#days").value,
+    daily_orders_per_a_sku:$("#dem").value,stockout_pressure:$("#stk").value,seed:$("#seed").value});
+  const res = await fetch("/generate?"+q,{method:"POST"});
+  if(!res.ok){
+    const why = res.status===409 ? "another generation is running — try again in a moment"
+                                 : `rejected (${res.status})`;
+    $("#status").textContent="✗ "+why;
+    return;
+  }
+  const g = await res.json();
   await refreshAll();
-  $("#status").textContent="✓ updated";
+  $("#status").textContent=`✓ updated (${g.generated_ms} ms)`;
   setTimeout(()=>$("#status").textContent="",1500);
 }
 
