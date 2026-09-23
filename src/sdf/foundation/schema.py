@@ -8,7 +8,7 @@ one are interchangeable as long as they satisfy these schemas.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Dict, Optional
 

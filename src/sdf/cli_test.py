@@ -1,0 +1,95 @@
+"""Tests for the click command surface in ``sdf.cli``."""
+
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+import pytest
+from click.testing import CliRunner
+
+from sdf import __version__
+from sdf.cli import main
+
+ROOT = Path(__file__).resolve().parents[2]
+SAMPLE_CSV = str(ROOT / "data" / "sample_online_retail_ii.csv")
+COMMANDS = ["demo", "export", "backtest", "synth", "tstr", "sdv", "agent", "pipeline", "impact", "scenarios", "privacy"]
+
+
+def run(*args: str):
+    return CliRunner().invoke(main, list(args))
+
+
+def test_no_command_runs_demo():
+    result = run()
+    assert result.exit_code == 0, result.output
+    assert "AI Warehouse Management (framework demo)" in result.output
+
+
+def test_help_lists_every_command():
+    result = run("--help")
+    assert result.exit_code == 0
+    for name in COMMANDS:
+        assert name in result.output
+
+
+def test_version():
+    result = run("--version")
+    assert result.exit_code == 0
+    assert __version__ in result.output
+
+
+@pytest.mark.parametrize(
+    ("args", "marker"),
+    [
+        (("demo",), "[Application] KPIs:"),
+        (("pipeline",), "DAG run record"),
+        (("impact",), "ANNUALISED net saving"),
+        (("scenarios",), "promo_spike"),
+        (("agent", "should I reorder and what is the money impact?"), "proposed actions (need approval)"),
+        (("agent",), "Q: what can you do?"),
+        (("backtest", SAMPLE_CSV), "best (lowest MAE)"),
+        (("synth", SAMPLE_CSV), "fidelity score"),
+        (("tstr", SAMPLE_CSV), "ratio TSTR/TRTR"),
+        (("privacy", SAMPLE_CSV), "clone_risk_pct"),
+    ],
+)
+def test_commands_run(args, marker):
+    result = run(*args)
+    assert result.exit_code == 0, result.output
+    assert marker in result.output
+
+
+def test_csv_argument_defaults_to_bundled_sample(monkeypatch):
+    monkeypatch.chdir(ROOT)
+    result = run("backtest")
+    assert result.exit_code == 0, result.output
+    assert "sample_online_retail_ii.csv" in result.output
+
+
+def test_export_writes_six_csvs(tmp_path):
+    outdir = tmp_path / "out"
+    result = run("export", str(outdir))
+    assert result.exit_code == 0, result.output
+    names = sorted(p.name for p in outdir.iterdir())
+    assert names == ["inbound.csv", "inventory.csv", "locations.csv", "outbound.csv", "sensors.csv", "skus.csv"]
+
+
+def test_missing_csv_is_a_usage_error(tmp_path):
+    result = run("backtest", str(tmp_path / "missing.csv"))
+    assert result.exit_code == 2
+    assert "does not exist" in result.output
+
+
+def test_unknown_command_is_a_usage_error():
+    result = run("frobnicate")
+    assert result.exit_code == 2
+    assert "No such command" in result.output
+
+
+def test_sdv_without_optional_extra_exits_1():
+    if importlib.util.find_spec("copulas") and importlib.util.find_spec("sdmetrics"):
+        pytest.skip("synthesis extra installed; the ImportError path is not reachable")
+    result = run("sdv", SAMPLE_CSV)
+    assert result.exit_code == 1
+    assert "uv sync --extra synthesis" in result.output

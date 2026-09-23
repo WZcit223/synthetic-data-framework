@@ -39,9 +39,7 @@ class FittedSeasonalDemand:
             cnt[i % self.period] += 1
         self.profile = [prof[h] / c if c else 0.0 for h, c in enumerate(cnt)]
         self.resid = [
-            v / self.profile[i % self.period]
-            for i, v in enumerate(series)
-            if self.profile[i % self.period] > 0
+            v / self.profile[i % self.period] for i, v in enumerate(series) if self.profile[i % self.period] > 0
         ] or [1.0]
         return self
 
@@ -49,8 +47,7 @@ class FittedSeasonalDemand:
         rng = random.Random(self.seed)
         if n_points is None:
             n_points = len(self.reference)
-        return [self.profile[i % self.period] * rng.choice(self.resid)
-                for i in range(n_points)]
+        return [self.profile[i % self.period] * rng.choice(self.resid) for i in range(n_points)]
 
 
 class FittedHourlyDemand:

@@ -1,50 +1,68 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "sdf"
 
 [project]
 name = "synthetic-data-framework"
-version = "0.1.0"
+version = "0.2.0"
 description = "Three-layer industrial-AI framework with synthetic-data-driven AI warehouse demo"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12,<3.15"
 license = { text = "Proprietary" }
-dependencies = []  # core framework is dependency-free by design
+dependencies = [
+    "numpy>=2.5.3",
+    "scipy>=1.18.1",
+    "scikit-learn>=1.9.1",
+    "click>=8.5.0",
+]
 
 [project.optional-dependencies]
-api = ["fastapi", "uvicorn"]
-synthesis = ["copulas", "sdmetrics", "pandas", "numpy"]
-synthesis-deep = ["sdv", "faker"]  # CTGAN/TVAE (pulls torch)
-app = ["scikit-learn", "lightgbm"]
-dev = ["pytest>=7", "ruff>=0.4"]
+api = ["fastapi>=0.141.1", "uvicorn>=0.53.0"]
+synthesis = ["copulas>=0.14.1", "sdmetrics>=0.31.1", "pandas>=2.3.3,<3"]  # copulas/sdmetrics cap pandas below 3
+synthesis-deep = ["sdv>=1.38.3", "faker>=40.39.0"]  # CTGAN/TVAE (pulls torch)
+app = ["lightgbm>=4.7.0"]
+# pywhy causal stack for simulation / inference backends. dowhy 0.14 declares
+# Requires-Python <3.14 and caps scipy at 1.15.3 below 3.13, so it is only
+# installable on 3.13 alongside the scipy core floor; lift the marker when upstream catches up.
+causal = [
+    "econml>=0.17.0",
+    "dowhy>=0.14; python_full_version >= '3.13' and python_full_version < '3.14'",
+]
 
 [project.scripts]
 sdf = "sdf.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-"sdf.api" = ["static/*.html"]
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.8",
+]
 
 [tool.pytest.ini_options]
 addopts = "-q"
-testpaths = ["tests"]
+testpaths = ["src", "tests"]
 
 [tool.ruff]
-# The core framework favours a deliberately compact, one-statement-per-line style
-# for the numerical stand-ins. Line length and a few style checks are relaxed so
-# CI enforces real problems (undefined names, unused imports) without forcing a
-# rewrite of that style.
-line-length = 140
-target-version = "py39"
-extend-exclude = ["src/sdf/api/static", "demo"]
+# Aligned with TsumiNa/sciloom's ruff configuration; only `src` (single package)
+# differs. The target Python version is inferred from `requires-python`.
+include = ["*.py", "*.pyi"]
+exclude = [".venv", "venv", "__pycache__", ".git"]
+src = [".", "src"]
+line-length = 120
+indent-width = 4
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
-ignore = [
-    "E701",  # multiple statements on one line (colon) — intentional compact style
-    "E702",  # multiple statements on one line (semicolon) — intentional compact style
-    "E741",  # ambiguous variable name (e.g. loop var `l`) — local math notation
-    "E501",  # line too long — compact numeric one-liners
-]
+select = ["F", "E", "W", "I", "TID252"]
+ignore = ["F841", "E741", "W505", "E501"]
+fixable = ["ALL"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+no-lines-before = ["local-folder"]
+
+[tool.ruff.format]
+quote-style = "double"
+skip-magic-trailing-comma = false

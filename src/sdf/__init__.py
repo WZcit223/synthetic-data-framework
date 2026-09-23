@@ -7,17 +7,17 @@ A three-layer industrial-AI framework prototype:
     Application Layer  -> operation / application logic (AI warehouse demo)
 
 This package is the *engineering framework*: it demonstrates the end-to-end flow
-with zero heavy dependencies so it runs anywhere. The places where a real
+on a small numerical core (numpy, scipy, scikit-learn). The places where a real
 algorithm or real dataset must eventually plug in are marked with
 ``# ALGORITHM-HOOK`` / ``# DATA-HOOK`` and catalogued in
 ``docs/ALGORITHM_AND_DATA_CHECKLIST.md``.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
-from sdf.foundation.registry import DataSourceRegistry
-from sdf.synthesis.warehouse import WarehouseGenerator, GenerationSpec
 from sdf.application.warehouse_demo import WarehouseIntelligence
+from sdf.foundation.registry import DataSourceRegistry
+from sdf.synthesis.warehouse import GenerationSpec, WarehouseGenerator
 
 __all__ = [
     "DataSourceRegistry",

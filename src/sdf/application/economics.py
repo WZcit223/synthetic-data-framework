@@ -21,20 +21,19 @@ from typing import Dict, List
 class CostModel:
     """Explicit, client-overridable cost assumptions."""
 
-    holding_cost_annual_rate: float = 0.25      # 25%/yr of unit cost to hold
-    stockout_penalty_mult: float = 1.0          # penalty = this × unit margin per lost unit
-    order_fixed_cost: float = 25.0              # per replenishment order
+    holding_cost_annual_rate: float = 0.25  # 25%/yr of unit cost to hold
+    stockout_penalty_mult: float = 1.0  # penalty = this × unit margin per lost unit
+    order_fixed_cost: float = 25.0  # per replenishment order
     lead_time_days: int = 7
     review_days: int = 7
-    service_z: float = 1.645                    # 95% service level for the "good" policy
+    service_z: float = 1.645  # 95% service level for the "good" policy
     working_days_per_year: int = 313
 
 
-def _simulate(demand: List[float], s: float, S: float, lead: int,
-              unit_cost: float, cm: CostModel) -> Dict[str, float]:
+def _simulate(demand: List[float], s: float, S: float, lead: int, unit_cost: float, cm: CostModel) -> Dict[str, float]:
     """One-SKU (s,S) simulation. Returns unmet units, holding £-days, #orders."""
     on_hand = S
-    pipeline: Dict[int, float] = defaultdict(float)   # day -> arriving qty
+    pipeline: Dict[int, float] = defaultdict(float)  # day -> arriving qty
     unmet = 0.0
     holding_unit_days = 0.0
     orders = 0
@@ -51,8 +50,12 @@ def _simulate(demand: List[float], s: float, S: float, lead: int,
                 pipeline[t + lead] += qty
                 orders += 1
     daily_holding = unit_cost * cm.holding_cost_annual_rate / cm.working_days_per_year
-    return {"unmet_units": unmet, "holding_cost": holding_unit_days * daily_holding,
-            "order_cost": orders * cm.order_fixed_cost, "orders": orders}
+    return {
+        "unmet_units": unmet,
+        "holding_cost": holding_unit_days * daily_holding,
+        "order_cost": orders * cm.order_fixed_cost,
+        "orders": orders,
+    }
 
 
 def financial_impact(intel, cost_model: CostModel = None, max_skus: int = 400) -> Dict:
@@ -90,7 +93,7 @@ def financial_impact(intel, cost_model: CostModel = None, max_skus: int = 400) -
         s_n = mu * cm.lead_time_days
         S_n = mu * protect
         # ours: safety stock sized to the service level
-        ss = cm.service_z * sigma * (protect ** 0.5)
+        ss = cm.service_z * sigma * (protect**0.5)
         s_o = mu * protect + ss
         S_o = s_o
         rn = _simulate(series, s_n, S_n, cm.lead_time_days, uc, cm)
@@ -103,17 +106,16 @@ def financial_impact(intel, cost_model: CostModel = None, max_skus: int = 400) -
         lost_margin += (rn["unmet_units"] - ro["unmet_units"]) * margin * cm.stockout_penalty_mult
 
     horizon_days = max(1, len(days))
-    scale = cm.working_days_per_year / horizon_days      # annualise
+    scale = cm.working_days_per_year / horizon_days  # annualise
     stockout_saving = lost_margin
-    holding_delta = tot["ours"]["holding"] - tot["naive"]["holding"]     # +ve = we hold more
+    holding_delta = tot["ours"]["holding"] - tot["naive"]["holding"]  # +ve = we hold more
     order_delta = tot["ours"]["order"] - tot["naive"]["order"]
     net_period = stockout_saving - holding_delta - order_delta
     return {
         "assumptions": cm.__dict__,
         "skus_considered": considered,
         "horizon_days": horizon_days,
-        "unmet_units": {"naive": round(tot["naive"]["unmet"]),
-                        "ours": round(tot["ours"]["unmet"])},
+        "unmet_units": {"naive": round(tot["naive"]["unmet"]), "ours": round(tot["ours"]["unmet"])},
         "stockout_units_avoided": round(tot["naive"]["unmet"] - tot["ours"]["unmet"]),
         "period": {
             "stockout_cost_saved": round(stockout_saving),
@@ -123,5 +125,5 @@ def financial_impact(intel, cost_model: CostModel = None, max_skus: int = 400) -
         },
         "annualised_net_saving": round(net_period * scale),
         "note": "Estimate on synthetic demand with assumed unit costs (CostModel). "
-                "DATA-HOOK: real costs + real current policy give the true figure.",
+        "DATA-HOOK: real costs + real current policy give the true figure.",
     }

@@ -40,8 +40,7 @@ def tstr_report(orders, test_frac: float = 0.3) -> Dict:
     n = len(series)
     split = max(2 * period + 2, int(n * (1 - test_frac)))
     if split >= n - 1:
-        return {"error": "series too short for a TSTR split",
-                "series_len": n, "granularity": freq}
+        return {"error": "series too short for a TSTR split", "series_len": n, "granularity": freq}
 
     real_train = series[:split]
 

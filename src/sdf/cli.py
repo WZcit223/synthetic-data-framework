@@ -1,16 +1,6 @@
 """Command-line entry point for the framework demo.
 
-    python -m sdf.cli demo            # run the end-to-end pipeline, print report
-    python -m sdf.cli export outdir/  # generate + write CSVs to a directory
-    python -m sdf.cli backtest [csv]  # Phase 2: forecast backtest on real data
-    python -m sdf.cli synth [csv]     # Phase 2.1: fit synthesizer + fidelity score
-    python -m sdf.cli tstr [csv]      # Phase 3: train-on-synthetic, test-on-real
-    python -m sdf.cli sdv [csv]       # Phase 2.1 full: Gaussian-copula + SDMetrics
-    python -m sdf.cli agent "<q>"     # Phase 4: tool-using agent + audit trace
-    python -m sdf.cli pipeline        # Data Intelligence Workflow (DAG) run record
-    python -m sdf.cli impact          # business-outcome economics (£ counterfactual)
-    python -m sdf.cli scenarios       # what-if scenario simulation
-    python -m sdf.cli privacy [csv]   # synthetic-data privacy (DCR/NNDR/clone risk)
+``uv run sdf --help`` lists the commands; ``uv run sdf`` with no command runs ``demo``.
 """
 
 from __future__ import annotations
@@ -18,13 +8,17 @@ from __future__ import annotations
 import csv
 import json
 import os
-import sys
 from typing import List
 
-from sdf.foundation.registry import DataSourceRegistry
-from sdf.synthesis.warehouse import WarehouseGenerator, GenerationSpec
-from sdf.synthesis.quality import structural_quality_check
+import click
+
+from sdf import __version__
 from sdf.application.warehouse_demo import WarehouseIntelligence
+from sdf.foundation.registry import DataSourceRegistry
+from sdf.synthesis.quality import structural_quality_check
+from sdf.synthesis.warehouse import GenerationSpec, WarehouseGenerator
+
+DEFAULT_CSV = os.path.join("data", "sample_online_retail_ii.csv")
 
 
 def build_registry(spec: GenerationSpec) -> tuple:
@@ -62,8 +56,9 @@ def cmd_demo() -> int:
 
     print("\n[Application] top replenishment suggestions:")
     for s in intel.replenishment_suggestions(top_n=5):
-        print(f"  {s['sku_id']}  order {s['suggested_order_qty']:>4}  "
-              f"(avail {s['available']}, ROP {s['reorder_point']})")
+        print(
+            f"  {s['sku_id']}  order {s['suggested_order_qty']:>4}  (avail {s['available']}, ROP {s['reorder_point']})"
+        )
 
     print("\n[Application] insights:")
     for line in intel.insights():
@@ -91,9 +86,12 @@ def cmd_export(outdir: str) -> int:
     os.makedirs(outdir, exist_ok=True)
     wh, _ = build_registry(GenerationSpec())
     for name, rows in [
-        ("skus", wh.skus), ("locations", wh.locations),
-        ("inventory", wh.inventory), ("inbound", wh.inbound),
-        ("outbound", wh.outbound), ("sensors", wh.sensors),
+        ("skus", wh.skus),
+        ("locations", wh.locations),
+        ("inventory", wh.inventory),
+        ("inbound", wh.inbound),
+        ("outbound", wh.outbound),
+        ("sensors", wh.sensors),
     ]:
         _write_csv(os.path.join(outdir, f"{name}.csv"), rows)
     print(f"Wrote 6 CSVs to {outdir}/")
@@ -103,12 +101,11 @@ def cmd_export(outdir: str) -> int:
 def cmd_backtest(path: str) -> int:
     """Phase 2: forecast backtest on a real/open dataset (Online Retail II)."""
     from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-    from sdf.synthesis.forecast import build_series, models_for, compare_models
+    from sdf.synthesis.forecast import build_series, compare_models, models_for
 
     skus, orders = load_online_retail_csv(path)
     series, freq, period = build_series(orders)
-    report = compare_models(series, test_len=2 * period,
-                            models=models_for(period))
+    report = compare_models(series, test_len=2 * period, models=models_for(period))
 
     print("=" * 60)
     print("  Forecast backtest — real-data-driven (Phase 2)")
@@ -116,12 +113,10 @@ def cmd_backtest(path: str) -> int:
     print(f"  source        : {path}")
     print(f"  SKUs / orders : {len(skus)} / {len(orders)}")
     print(f"  granularity   : {freq} (seasonal period {period})")
-    print(f"  series        : {report['series_len']} points, "
-          f"mean {report['series_mean']:.1f} units/bucket")
+    print(f"  series        : {report['series_len']} points, mean {report['series_mean']:.1f} units/bucket")
     print(f"  {'model':<10}{'MAE':>9}{'RMSE':>9}{'MAPE%':>9}{'bias':>9}")
     for r in report["results"]:
-        print(f"  {r['model']:<10}{r['MAE']:>9}{r['RMSE']:>9}"
-              f"{r['MAPE_pct']:>9}{r['bias']:>9}")
+        print(f"  {r['model']:<10}{r['MAE']:>9}{r['RMSE']:>9}{r['MAPE_pct']:>9}{r['bias']:>9}")
     print(f"\n  best (lowest MAE): {report['best_model']}")
     print("  ALGORITHM-HOOK: beat these baselines with DeepAR/TFT/LightGBM.\n")
     return 0
@@ -130,8 +125,8 @@ def cmd_backtest(path: str) -> int:
 def cmd_synth(path: str) -> int:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
     from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-    from sdf.synthesis.fit import FittedHourlyDemand
     from sdf.synthesis.fidelity import fidelity_report
+    from sdf.synthesis.fit import FittedHourlyDemand
 
     _skus, orders = load_online_retail_csv(path)
     model = FittedHourlyDemand().fit(orders)
@@ -170,8 +165,7 @@ def cmd_tstr(path: str) -> int:
     print(f"  train / test  : {r['train_len']} / {r['test_len']}")
     print(f"  TRTR MAE (real-trained)      : {r['TRTR_mae']}")
     print(f"  TSTR MAE (synthetic-trained) : {r['TSTR_mae']}")
-    print(f"  ratio TSTR/TRTR              : {r['ratio_tstr_over_trtr']}  "
-          f"(→1.0 = synthetic as useful as real)\n")
+    print(f"  ratio TSTR/TRTR              : {r['ratio_tstr_over_trtr']}  (→1.0 = synthetic as useful as real)\n")
     return 0
 
 
@@ -179,9 +173,10 @@ def cmd_sdv(path: str) -> int:
     """Phase 2.1 (full): Gaussian-copula synthesis scored by SDMetrics."""
     try:
         from sdf.synthesis.sdv_synth import gaussian_copula_fidelity
+
         rep = gaussian_copula_fidelity(path)
     except ImportError:
-        print("This command needs: pip install copulas sdmetrics pandas numpy")
+        print("This command needs: uv sync --extra synthesis")
         return 1
     print("=" * 60)
     print("  Gaussian-copula synthesis + SDMetrics (Phase 2.1 full, B1)")
@@ -199,6 +194,7 @@ def cmd_sdv(path: str) -> int:
 def cmd_agent(query: str) -> int:
     """Phase 4: tool-using warehouse agent with an audit trace."""
     from sdf.application.agent import WarehouseAgent
+
     _wh, reg = build_registry(GenerationSpec())
     agent = WarehouseAgent(WarehouseIntelligence(reg))
     res = agent.handle(query)
@@ -212,8 +208,10 @@ def cmd_agent(query: str) -> int:
         print(f"  proposed actions (need approval): {res['proposed_actions']}")
     print("  audit trace:")
     for e in res["trace"]:
-        print(f"    #{e['seq']} {e['name']:<16} {e['status']:<5} {e['duration_ms']}ms"
-              + ("  [approval]" if 'approval' in e.get('note', '') else ""))
+        print(
+            f"    #{e['seq']} {e['name']:<16} {e['status']:<5} {e['duration_ms']}ms"
+            + ("  [approval]" if "approval" in e.get("note", "") else "")
+        )
     print(f"  run: {res['run']['run_id']}  steps={res['run']['steps']}\n")
     return 0
 
@@ -221,6 +219,7 @@ def cmd_agent(query: str) -> int:
 def cmd_pipeline() -> int:
     """Run the Data Intelligence Workflow (DAG) and print its run record."""
     from sdf.workflow import warehouse_pipeline
+
     result = warehouse_pipeline(GenerationSpec()).run()
     print("=" * 64)
     print("  Data Intelligence Workflow — DAG run record")
@@ -229,91 +228,160 @@ def cmd_pipeline() -> int:
     for e in result["trace"]:
         print(f"    {e['seq']}. {e['name']:<14} {e['status']:<5} {e['duration_ms']}ms")
     econ = result["artifacts"].get("report", {}).get("economics_annual_saving")
-    print(f"  run: {result['run']['run_id']}  total={result['run']['total_ms']}ms"
-          f"  annual_saving≈{econ}\n")
+    print(f"  run: {result['run']['run_id']}  total={result['run']['total_ms']}ms  annual_saving≈{econ}\n")
     return 0
 
 
 def cmd_impact() -> int:
     """Business-outcome economics: counterfactual £ savings."""
     from sdf.application.economics import financial_impact
+
     _wh, reg = build_registry(GenerationSpec())
     rep = financial_impact(WarehouseIntelligence(reg))
     print("=" * 64)
     print("  Business-outcome economics — £ counterfactual")
     print("=" * 64)
     print(f"  SKUs considered      : {rep['skus_considered']}  over {rep['horizon_days']} days")
-    print(f"  stockout units       : naive {rep['unmet_units']['naive']:,}  "
-          f"→ ours {rep['unmet_units']['ours']:,}")
+    print(f"  stockout units       : naive {rep['unmet_units']['naive']:,}  → ours {rep['unmet_units']['ours']:,}")
     print(f"  stockout units avoided: {rep['stockout_units_avoided']:,}")
     print(f"  period net saving    : {rep['period']['net_saving']:,}")
     print(f"  ANNUALISED net saving : ≈ {rep['annualised_net_saving']:,}")
-    print(f"  (assumptions: {rep['assumptions']['holding_cost_annual_rate']:.0%} holding, "
-          f"z={rep['assumptions']['service_z']})  DATA-HOOK: real unit costs.\n")
+    print(
+        f"  (assumptions: {rep['assumptions']['holding_cost_annual_rate']:.0%} holding, "
+        f"z={rep['assumptions']['service_z']})  DATA-HOOK: real unit costs.\n"
+    )
     return 0
 
 
 def cmd_scenarios() -> int:
     """What-if scenario simulation across a family of specs."""
     from sdf.synthesis.scenarios import run_scenarios
+
     rep = run_scenarios(GenerationSpec())
     print("=" * 72)
     print("  What-if scenario simulation")
     print("=" * 72)
     print(f"  {'scenario':<20}{'out-lines':>10}{'need-order':>11}{'safety':>9}{'vs base':>9}")
     for r in rep["scenarios"]:
-        print(f"  {r['scenario']:<20}{r['outbound_lines']:>10}{r['skus_needing_order']:>11}"
-              f"{int(r['safety_stock_units']):>9}{r['safety_stock_vs_baseline_pct']:>8}%")
+        print(
+            f"  {r['scenario']:<20}{r['outbound_lines']:>10}{r['skus_needing_order']:>11}"
+            f"{int(r['safety_stock_units']):>9}{r['safety_stock_vs_baseline_pct']:>8}%"
+        )
     print()
     return 0
 
 
 def cmd_privacy(path: str) -> int:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
-    from sdf.synthesis.privacy import (privacy_report, read_retail_feature_table,
-                                       bootstrap_synthesize)
+    from sdf.synthesis.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
+
     real = read_retail_feature_table(path)
     synth = bootstrap_synthesize(real)
     rep = privacy_report(real, synth)
     print("=" * 60)
     print("  Synthetic-data privacy (B3)")
     print("=" * 60)
-    for k in ("n_real", "n_synth", "dcr_median", "dcr_p05",
-              "nndr_median", "clone_risk_pct", "verdict"):
+    for k in ("n_real", "n_synth", "dcr_median", "dcr_p05", "nndr_median", "clone_risk_pct", "verdict"):
         print(f"  {k:<16}: {rep.get(k)}")
     print("  ALGORITHM-HOOK: full membership-inference + differential privacy.\n")
     return 0
 
 
-def main(argv=None) -> int:
-    argv = list(sys.argv[1:] if argv is None else argv)
-    cmd = argv[0] if argv else "demo"
-    default_csv = os.path.join("data", "sample_online_retail_ii.csv")
-    if cmd == "demo":
-        return cmd_demo()
-    if cmd == "export":
-        return cmd_export(argv[1] if len(argv) > 1 else "out")
-    if cmd == "backtest":
-        return cmd_backtest(argv[1] if len(argv) > 1 else default_csv)
-    if cmd == "synth":
-        return cmd_synth(argv[1] if len(argv) > 1 else default_csv)
-    if cmd == "tstr":
-        return cmd_tstr(argv[1] if len(argv) > 1 else default_csv)
-    if cmd == "sdv":
-        return cmd_sdv(argv[1] if len(argv) > 1 else default_csv)
-    if cmd == "agent":
-        return cmd_agent(argv[1] if len(argv) > 1 else "what can you do?")
-    if cmd == "pipeline":
-        return cmd_pipeline()
-    if cmd == "impact":
-        return cmd_impact()
-    if cmd == "scenarios":
-        return cmd_scenarios()
-    if cmd == "privacy":
-        return cmd_privacy(argv[1] if len(argv) > 1 else default_csv)
-    print(__doc__)
-    return 1
+# -- click surface ------------------------------------------------------------
+
+_csv_argument = click.argument(
+    "csv_path",
+    metavar="[CSV]",
+    default=DEFAULT_CSV,
+    type=click.Path(exists=True, dir_okay=False),
+)
+
+
+@click.group(invoke_without_command=True, context_settings={"help_option_names": ["-h", "--help"]})
+@click.version_option(__version__, prog_name="sdf")
+@click.pass_context
+def main(ctx: click.Context) -> None:
+    """Synthetic Data Framework — AI warehouse demo. With no command, runs ``demo``.
+
+    CSV arguments default to the bundled sample, data/sample_online_retail_ii.csv.
+    """
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(demo)
+
+
+@main.command()
+def demo() -> None:
+    """Run the end-to-end pipeline and print the report."""
+    cmd_demo()
+
+
+@main.command()
+@click.argument("outdir", default="out", type=click.Path(file_okay=False))
+def export(outdir: str) -> None:
+    """Generate the synthetic world and write one CSV per entity to OUTDIR."""
+    cmd_export(outdir)
+
+
+@main.command()
+@_csv_argument
+def backtest(csv_path: str) -> None:
+    """Phase 2: walk-forward forecast backtest on real data."""
+    cmd_backtest(csv_path)
+
+
+@main.command()
+@_csv_argument
+def synth(csv_path: str) -> None:
+    """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
+    cmd_synth(csv_path)
+
+
+@main.command()
+@_csv_argument
+def tstr(csv_path: str) -> None:
+    """Phase 3: train on synthetic, test on real."""
+    cmd_tstr(csv_path)
+
+
+@main.command()
+@_csv_argument
+def sdv(csv_path: str) -> None:
+    """Phase 2.1 (full): Gaussian-copula synthesis scored by SDMetrics (needs the synthesis extra)."""
+    if cmd_sdv(csv_path):
+        raise click.exceptions.Exit(1)
+
+
+@main.command()
+@click.argument("query", default="what can you do?")
+def agent(query: str) -> None:
+    """Phase 4: tool-using agent with an audit trace, answering QUERY."""
+    cmd_agent(query)
+
+
+@main.command()
+def pipeline() -> None:
+    """Run the Data Intelligence Workflow DAG and print its run record."""
+    cmd_pipeline()
+
+
+@main.command()
+def impact() -> None:
+    """Business-outcome economics: counterfactual £ savings."""
+    cmd_impact()
+
+
+@main.command()
+def scenarios() -> None:
+    """What-if scenario simulation across a family of specs."""
+    cmd_scenarios()
+
+
+@main.command()
+@_csv_argument
+def privacy(csv_path: str) -> None:
+    """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
+    cmd_privacy(csv_path)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

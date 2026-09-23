@@ -43,12 +43,8 @@ def structural_quality_check(warehouse) -> QualityReport:
     sku_ids = {s.sku_id for s in warehouse.skus}
     loc_ids = {l.location_id for l in warehouse.locations}
 
-    inv_refs_ok = all(
-        s.sku_id in sku_ids and s.location_id in loc_ids
-        for s in warehouse.inventory
-    )
-    non_negative_ok = all(s.on_hand >= 0 and s.reserved >= 0
-                          for s in warehouse.inventory)
+    inv_refs_ok = all(s.sku_id in sku_ids and s.location_id in loc_ids for s in warehouse.inventory)
+    non_negative_ok = all(s.on_hand >= 0 and s.reserved >= 0 for s in warehouse.inventory)
     outbound_refs_ok = all(o.sku_id in sku_ids for o in warehouse.outbound)
     coverage = len({s.sku_id for s in warehouse.inventory}) / max(1, len(sku_ids))
 

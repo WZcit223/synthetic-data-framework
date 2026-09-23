@@ -33,6 +33,7 @@ def _normaliser(rows: List[Row]):
 
     def norm(r: Row) -> List[float]:
         return [(v - l) / s for v, l, s in zip(r, lo, span)]
+
     return norm
 
 
@@ -47,8 +48,7 @@ def _two_nearest(p: List[float], reals: List[List[float]]) -> Tuple[float, float
     return d1, d2
 
 
-def privacy_report(real: List[Row], synth: List[Row], eps: float = 0.02,
-                   max_n: int = 800, seed: int = 7) -> Dict:
+def privacy_report(real: List[Row], synth: List[Row], eps: float = 0.02, max_n: int = 800, seed: int = 7) -> Dict:
     """Compute DCR / NNDR / clone-risk between synthetic and real tables."""
     if not real or not synth:
         return {"error": "empty input"}
@@ -66,13 +66,18 @@ def privacy_report(real: List[Row], synth: List[Row], eps: float = 0.02,
             clones += 1
     dcrs.sort()
     return {
-        "n_real": len(real_s), "n_synth": len(synth_s), "dims": len(R[0]),
+        "n_real": len(real_s),
+        "n_synth": len(synth_s),
+        "dims": len(R[0]),
         "dcr_median": round(statistics.median(dcrs), 4),
         "dcr_p05": round(dcrs[max(0, int(0.05 * len(dcrs)) - 1)], 4),
         "nndr_median": round(statistics.median(nndrs), 4),
         "clone_risk_pct": round(100 * clones / len(synth_s), 2),
-        "verdict": ("low leakage risk" if dcrs[max(0, int(0.05 * len(dcrs)) - 1)] > eps
-                    else "review — some synthetic rows are close to real rows"),
+        "verdict": (
+            "low leakage risk"
+            if dcrs[max(0, int(0.05 * len(dcrs)) - 1)] > eps
+            else "review — some synthetic rows are close to real rows"
+        ),
     }
 
 
@@ -82,12 +87,15 @@ def read_retail_feature_table(path: str, limit: int = 3000) -> List[Row]:
     Price adds continuity so distances are meaningful (not all-ties).
     """
     import csv
+
     from sdf.foundation.adapters.retail_csv import _parse_dt
+
     rows: List[Row] = []
     with open(path, newline="", encoding="utf-8-sig") as fh:
         for r in csv.DictReader(fh):
             try:
-                q = float(r.get("Quantity", 0)); p = float(r.get("Price", 0) or 0)
+                q = float(r.get("Quantity", 0))
+                p = float(r.get("Price", 0) or 0)
                 if q <= 0 or p <= 0:
                     continue
                 dt = _parse_dt(r.get("InvoiceDate", ""))
@@ -99,8 +107,7 @@ def read_retail_feature_table(path: str, limit: int = 3000) -> List[Row]:
     return rows
 
 
-def bootstrap_synthesize(real: List[Row], n: int = None, jitter: float = 0.05,
-                         seed: int = 7) -> List[Row]:
+def bootstrap_synthesize(real: List[Row], n: int = None, jitter: float = 0.05, seed: int = 7) -> List[Row]:
     """A minimal stdlib synthesizer: per-column bootstrap + Gaussian jitter.
 
     Stands in for a fitted generator so privacy can be measured with no heavy
@@ -114,6 +121,5 @@ def bootstrap_synthesize(real: List[Row], n: int = None, jitter: float = 0.05,
     stds = [statistics.pstdev(c) or 1.0 for c in cols]
     out: List[Row] = []
     for _ in range(n):
-        out.append(tuple(rng.choice(cols[j]) + rng.gauss(0, jitter * stds[j])
-                         for j in range(len(cols))))
+        out.append(tuple(rng.choice(cols[j]) + rng.gauss(0, jitter * stds[j]) for j in range(len(cols))))
     return out

@@ -36,8 +36,8 @@ The harness auto-selects the finest granularity the data can support (daily when
 Reproduce:
 
 ```bash
-python -m sdf.cli backtest                                   # bundled synthetic sample (daily)
-python -m sdf.cli backtest data/online_retail_ii_2010_10k.csv  # real UCI extract (hourly)
+uv run sdf backtest                                   # bundled synthetic sample (daily)
+uv run sdf backtest data/online_retail_ii_2010_10k.csv  # real UCI extract (hourly)
 ```
 
 ### A. Real UCI data — `data/online_retail_ii_2010_10k.csv` (10k rows)
@@ -88,7 +88,7 @@ reproduces the real shape. Fidelity is scored dependency-free
 
 Reproduce:
 ```bash
-python -m sdf.cli synth data/online_retail_ii_2010_10k.csv
+uv run sdf synth data/online_retail_ii_2010_10k.csv
 ```
 
 Result on the real 10k extract:
@@ -113,8 +113,8 @@ Upgraded from the dependency-free baseline to a real **Gaussian-copula** synthes
 on the transaction-line table `[Quantity, Price, hour, weekday]`.
 
 ```bash
-pip install copulas sdmetrics pandas numpy
-python -m sdf.cli sdv data/online_retail_ii_2010_10k.csv
+uv sync --extra synthesis
+uv run sdf sdv data/online_retail_ii_2010_10k.csv
 ```
 
 | SDMetrics dimension | score (1.0 = identical) |
@@ -182,8 +182,8 @@ measure it on **real** held-out data, vs the same model trained on real data.
 A ratio near **1.0** means synthetic data is as useful as real for training.
 
 ```bash
-python -m sdf.cli tstr                                   # synthetic sample (daily)
-python -m sdf.cli tstr data/online_retail_ii_2010_10k.csv  # real extract (hourly)
+uv run sdf tstr                                   # synthetic sample (daily)
+uv run sdf tstr data/online_retail_ii_2010_10k.csv  # real extract (hourly)
 ```
 
 | reference | TRTR MAE (real-trained) | TSTR MAE (synthetic-trained) | **ratio** |

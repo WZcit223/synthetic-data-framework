@@ -6,8 +6,10 @@ The single most important decision in this project is the **clean separation of
 the engineering framework from the algorithm research**.
 
 - **Framework (this repo, phase 1):** proves the *end-to-end flow* and the *user-facing
-  effect*. It runs with zero heavy dependencies, uses deterministic rule-based
-  stand-ins, and does **not** validate data quality or model accuracy.
+  effect*. It runs on a small numerical core (numpy, scipy, scikit-learn), uses
+  deterministic rule-based stand-ins, and does **not** validate data quality or
+  model accuracy. Heavier backends (SDV, LightGBM, the pywhy causal stack) stay
+  optional extras.
 - **Algorithm (phase 2+):** replaces each stand-in with a real model trained on
   real/open reference data, and introduces statistical validation.
 

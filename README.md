@@ -2,7 +2,7 @@
 # 合成数据工业 AI 框架（工程可复用框架）
 
 [![CI](https://github.com/WZcit223/synthetic-data-framework/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WZcit223/synthetic-data-framework/actions/workflows/ci.yml)
-![python](https://img.shields.io/badge/python-3.9%2B-blue)
+![python](https://img.shields.io/badge/python-3.12--3.14-blue)
 
 A three-layer industrial-AI framework that uses **synthetic data** to build and
 demonstrate applications before real data is available. The first validation
@@ -16,13 +16,15 @@ scenario is **AI Warehouse Management**.
 
 ## Quickstart
 
-No install required (pure Python 3.9+ stdlib):
+The project is managed with [uv](https://docs.astral.sh/uv/); `uv sync` creates the
+environment (Python 3.14 by default, numpy / scipy / scikit-learn core) and locks it to `uv.lock`:
 
 ```bash
-python demo/run_demo.py                          # end-to-end demo, prints report
-PYTHONPATH=src python -m sdf.cli export out/     # write synthetic CSVs
-PYTHONPATH=src python -m sdf.cli backtest        # real-data forecast backtest
-PYTHONPATH=src python -m sdf.cli agent "reorder & impact?"  # tool-using agent + audit trace
+uv sync
+uv run python demo/run_demo.py       # end-to-end demo, prints report
+uv run sdf export out/               # write synthetic CSVs
+uv run sdf backtest                  # real-data forecast backtest
+uv run sdf agent "reorder & impact?" # tool-using agent + audit trace
 ```
 
 The full command list is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
@@ -30,8 +32,8 @@ The full command list is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
 Web dashboard (FastAPI + a dependency-free HTML page, works offline):
 
 ```bash
-pip install ".[api]"
-PYTHONPATH=src uvicorn sdf.api.app:app --reload
+uv sync --extra api
+uv run uvicorn sdf.api.app:app --reload
 # open http://127.0.0.1:8000
 ```
 
@@ -65,11 +67,13 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 `feature/*` branches and merges via Pull Request. Before opening a PR:
 
 ```bash
-pip install -e ".[dev]"     # pytest + ruff
-ruff check . && pytest      # CI runs the same on Python 3.9 and 3.11
+uv sync                                                      # environment + pytest + ruff
+uv run ruff check && uv run ruff format --check && uv run pytest   # CI runs the same on Python 3.12, 3.13 and 3.14
 ```
 
 - **New engineers:** start with [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
+- **Coding agents and contributors:** [`AGENTS.md`](AGENTS.md) lists the repository rules
+  (`.github/instructions/`) that every change must follow.
 - **Contribution & PR policy:** [`CONTRIBUTING.md`](CONTRIBUTING.md) (implementation
   PRs may auto-merge on green CI; architecture changes need a short written plan,
   approved by the project lead, first).
@@ -81,3 +85,4 @@ ruff check . && pytest      # CI runs the same on Python 3.9 and 3.11
 - [Validation Results / 验证结果](docs/VALIDATION.md)
 - [Reference & Open Datasets / 数据集](docs/DATASETS.md)
 - [Roadmap / 路线图](docs/ROADMAP.md)
+- [Refactor Preparation / 重构准备](docs/REFACTOR_PREP.md)
