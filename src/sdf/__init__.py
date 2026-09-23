@@ -7,7 +7,7 @@ A three-layer industrial-AI framework prototype:
     Application Layer  -> operation / application logic (AI warehouse demo)
 
 This package is the *engineering framework*: it demonstrates the end-to-end flow
-with zero heavy dependencies so it runs anywhere. The places where a real
+on a small numerical core (numpy, scipy, scikit-learn). The places where a real
 algorithm or real dataset must eventually plug in are marked with
 ``# ALGORITHM-HOOK`` / ``# DATA-HOOK`` and catalogued in
 ``docs/ALGORITHM_AND_DATA_CHECKLIST.md``.

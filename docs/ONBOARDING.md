@@ -7,10 +7,10 @@ implementation still needs see
 
 ## 1. Requirements
 
-- Python **3.9+** (CI runs 3.9 and 3.11). The core framework is **stdlib-only** —
-  no install is required to run it.
-- Optional extras (API server, statistical fidelity, deep synthesis) are declared
-  in `pyproject.toml` and installed on demand.
+- Python **3.9+** (CI runs 3.9 and 3.11). The core framework depends on
+  **numpy, scipy and scikit-learn**; install it once with `pip install -e .`.
+- Optional extras (API server, statistical fidelity, deep synthesis, gradient
+  boosting, causal inference) are declared in `pyproject.toml` and installed on demand.
 
 ## 2. Clone and sanity-check
 
@@ -68,7 +68,8 @@ CI (`.github/workflows/ci.yml`) runs exactly these on every PR into `main`.
 ```bash
 pip install ".[synthesis]"        # copulas + sdmetrics (Gaussian-copula fidelity, SDMetrics)
 pip install ".[synthesis-deep]"   # sdv + faker (CTGAN/TVAE; pulls torch)
-pip install ".[app]"              # scikit-learn + lightgbm
+pip install ".[app]"              # lightgbm
+pip install ".[causal]"           # dowhy + econml (pywhy causal stack)
 ```
 
 These are lazy-imported; tests that need them **skip** cleanly when they are absent.

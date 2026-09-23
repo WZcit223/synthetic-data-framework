@@ -16,7 +16,7 @@ scenario is **AI Warehouse Management**.
 
 ## Quickstart
 
-No install required (pure Python 3.9+ stdlib):
+Install once (`pip install -e .`; the numerical core needs numpy, scipy and scikit-learn), then:
 
 ```bash
 python demo/run_demo.py                          # end-to-end demo, prints report

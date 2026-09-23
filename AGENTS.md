@@ -89,9 +89,13 @@ intent still applies.
    points marked `# ALGORITHM-HOOK` and real data at `# DATA-HOOK`, catalogued in
    [`docs/ALGORITHM_AND_DATA_CHECKLIST.md`](docs/ALGORITHM_AND_DATA_CHECKLIST.md).
    Keep those markers when moving code and add one when introducing a new stand-in.
-2. **The core stays standard-library only.** Optional dependencies live in the
-   `pyproject.toml` extras and are imported lazily; a test that needs one skips
-   with `pytest.importorskip`.
+2. **The core's runtime dependencies are numpy, scipy and scikit-learn**
+   (decided 2026-09-23; before that the core was standard-library only). Anything
+   heavier (SDV/copulas, FastAPI, LightGBM, the pywhy causal stack) lives in the
+   `pyproject.toml` extras, is imported lazily, and a test that needs it skips
+   with `pytest.importorskip`. New numerical code uses numpy/scipy rather than
+   hand-rolled loops; existing pure-Python stand-ins are ported in the refactor
+   step that touches them.
 3. **Layer direction is Foundation → Synthesis → Application → entry points**
    (`cli`, `api`, `workflow`). Do not add imports that point the other way; the
    known violations and their fix are listed in `docs/REFACTOR_PREP.md` §1.2.

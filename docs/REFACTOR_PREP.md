@@ -262,7 +262,7 @@ tests/
 
 设计约束（延续 `ARCHITECTURE.md`，不在本次重构中推翻）：
 
-- 核心保持零依赖；`numpy/pydantic` 仍只进 extras。
+- 核心运行时依赖为 numpy / scipy / scikit-learn（2026-09-23 决定）；SDV、FastAPI、LightGBM、pywhy 因果栈与 pydantic 仍只进 extras。
 - 生成器的随机数消费顺序不变，黄金数字不变。
 - 公共方法签名不变；仪表盘不改。
 - HOOK 标记统一为 `# ALGORITHM-HOOK[C1]: …` / `# DATA-HOOK[D1]: …`，方括号内为 `CHECKLIST.md` 的行号 ID，只出现在代码注释里（docstring 中改为正文说明）。
@@ -290,7 +290,7 @@ tests/
 
 ## 6. 需要项目负责人拍板的事项
 
-1. **零依赖核心是否继续坚持**。若允许 `numpy` 进核心，`models.py`、`privacy.py`、`fidelity.py` 可缩短一半并去掉 O(n²)；若坚持，§4 结构不变，只是这些模块保持纯 Python。
+1. ~~**零依赖核心是否继续坚持**~~ 已决定：numpy / scipy / scikit-learn 进入核心依赖，pywhy 因果栈作为 `causal` extra。第 3 步中 `models.py`、`fidelity.py`、`privacy.py`、`anomaly.py` 改用 numpy/scipy 实现；数值可能在浮点舍入层面变化，须在同一 PR 更新 `test_golden.py` 与 `VALIDATION.md`。
 2. ~~**紧凑单行风格是否保留**~~ 已决定：`ruff` 对齐 sciloom 并启用 `ruff format`，全仓库已在 PR #3 中一次性重排（29 个文件、行为与黄金数字均未变），后续步骤不再有格式 diff。
 3. **`replenishment_suggestions` 的固定规则是否退役**。它在仪表盘"补货闭环"视图与 `insights` 里可见；退役意味着前端文案要改。建议保留为 `RuleOfThumbPolicy` 但从 `insights`/`agent` 默认路径切换到 (s,S)。
 4. **第 3 步导致的度量数字变化如何对外解释**。MAPE 口径修正后，`VALIDATION.md` 中所有 MAPE 列会变；建议同一 PR 里同时给出旧口径与新口径一次，之后只维护新口径。

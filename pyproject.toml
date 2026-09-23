@@ -9,13 +9,18 @@ description = "Three-layer industrial-AI framework with synthetic-data-driven AI
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "Proprietary" }
-dependencies = []  # core framework is dependency-free by design
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "scikit-learn>=1.4",
+]
 
 [project.optional-dependencies]
 api = ["fastapi", "uvicorn"]
-synthesis = ["copulas", "sdmetrics", "pandas", "numpy"]
+synthesis = ["copulas", "sdmetrics", "pandas"]
 synthesis-deep = ["sdv", "faker"]  # CTGAN/TVAE (pulls torch)
-app = ["scikit-learn", "lightgbm"]
+app = ["lightgbm"]
+causal = ["dowhy>=0.11", "econml>=0.15"]  # pywhy causal stack for simulation / inference backends
 dev = ["pytest>=7", "ruff>=0.16.7"]
 
 [project.scripts]

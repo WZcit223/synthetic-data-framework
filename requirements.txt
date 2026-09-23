@@ -1,20 +1,13 @@
-# Core shell: NO dependencies (Python 3.9+ standard library only).
-#
-# Optional extras, by phase (see docs/ROADMAP.md). Uncomment as adopted.
+# Core runtime dependencies (see pyproject.toml [project].dependencies).
+# Install the package instead of this file: pip install -e .
+numpy>=1.26
+scipy>=1.11
+scikit-learn>=1.4
 
-# --- Optional: HTTP API + dashboard (Phase 1) ---
-# fastapi
-# uvicorn
-
-# --- Optional: real synthesis + validation (Phase 2.1) ---
-# Enables `sdf.cli sdv`: Gaussian-copula synthesis + real SDMetrics scoring.
-# copulas
-# sdmetrics
-# pandas
-# numpy
-# sdv        # adds CTGAN/TVAE (pulls torch) — heavier, for complex joints
-# faker
-
-# --- Optional: application algorithms (Phase 3) ---
-# scikit-learn
-# lightgbm
+# Optional extras, by concern (pip install ".[<extra>]"):
+#   api             fastapi uvicorn
+#   synthesis       copulas sdmetrics pandas
+#   synthesis-deep  sdv faker            (CTGAN/TVAE; pulls torch)
+#   app             lightgbm
+#   causal          dowhy econml         (pywhy causal stack)
+#   dev             pytest ruff
