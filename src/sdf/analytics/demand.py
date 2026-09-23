@@ -3,8 +3,14 @@
 Before this module existed the aggregation was written five times with slightly
 different conventions. ``DemandTable`` is the shared result: a dense day axis
 from the first to the last order day and one quantity series per SKU on that
-axis. Callers that need a different divisor (the number of days that had any
-order at all, as the rule-of-thumb replenishment does) read ``active_days``.
+axis. Daily rates everywhere divide by the number of calendar days in the
+table (``len(days)``); ``active_days`` (days with any order) is kept for
+reporting only.
+
+``DemandProfile`` describes the *shape* of one SKU's demand. An SKU with no
+demand on more than half of the days is *intermittent*: its risk is not a
+little extra demand every day but one large order on a rare selling day, so its
+``variability`` is at least the average size of a selling day.
 """
 
 from __future__ import annotations
@@ -15,6 +21,34 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from sdf.foundation.schema import OutboundOrder
+
+INTERMITTENT_ZERO_RATIO = 0.5
+
+
+@dataclass(frozen=True)
+class DemandProfile:
+    """Mean, spread and zero-day share of one SKU's daily demand."""
+
+    mean: float
+    std: float
+    zero_ratio: float
+
+    @property
+    def is_intermittent(self) -> bool:
+        return self.zero_ratio > INTERMITTENT_ZERO_RATIO
+
+    @property
+    def variability(self) -> float:
+        """Standard deviation to size safety stock with.
+
+        Smooth SKUs: the day-to-day ``std``. Intermittent SKUs: the larger of
+        ``std`` and the average quantity on a day that sold,
+        ``mean / (1 − zero_ratio)``, so one typical order is buffered.
+        ALGORITHM-HOOK[C2]: replace with a Croston/TSB lead-time-demand model.
+        """
+        if not self.is_intermittent or self.zero_ratio >= 1.0:
+            return self.std
+        return max(self.std, self.mean / (1.0 - self.zero_ratio))
 
 
 @dataclass(frozen=True)
@@ -57,6 +91,14 @@ class DemandTable:
         """Mean daily demand over all days (zero days included)."""
         s = self.series[sku_id]
         return sum(s) / len(s) if s else 0.0
+
+    def zero_ratio(self, sku_id: str) -> float:
+        """Share of days on which the SKU had no demand."""
+        s = self.series[sku_id]
+        return sum(1 for x in s if x <= 0) / len(s) if s else 1.0
+
+    def profile(self, sku_id: str) -> DemandProfile:
+        return DemandProfile(mean=self.mean(sku_id), std=self.std(sku_id), zero_ratio=self.zero_ratio(sku_id))
 
     def std(self, sku_id: str) -> float:
         """Population standard deviation of daily demand over all days."""
