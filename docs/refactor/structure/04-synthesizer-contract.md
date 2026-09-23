@@ -1,5 +1,16 @@
 # PR 4 — Synthesizer contract and registry
 
+> Status: implemented (structure sequence PR 4). No number moved: golden tests,
+> `VALIDATION.md` and `sdf demo` are identical to main. Deviations from the scope
+> below: `bootstrap_synthesize` was replaced by the `BootstrapTable` class in
+> `synthesis/bootstrap.py` instead of moving as a function, so the synthesizer
+> has one interface; its first `sample()` reproduces the old function's rows.
+> `FittedHourlyDemand` takes the series synthesizer as an argument (default
+> `seasonal-profile`), so `synth --synthesizer` reaches it without the fit module
+> importing the registry. `synth`, `tstr` and `privacy` print the synthesizer
+> they used, and `--synthesizer` offers only the names that produce the kind of
+> data the command needs (a series or a table).
+
 Interface contract: [`interfaces.md` §2](interfaces.md#2-synthesizer-contract-sdfsynthesisapi-sdfsynthesisregistry--f1).
 
 ## Goal

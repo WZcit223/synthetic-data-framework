@@ -21,11 +21,13 @@ from pathlib import Path
 
 from sdf.analytics.forecast import build_series, compare_models, models_for
 from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+from sdf.synthesis.api import TableData
 from sdf.synthesis.fit import FittedHourlyDemand
 from sdf.synthesis.materialise import build_registry
+from sdf.synthesis.registry import default_registry
 from sdf.synthesis.spec import GenerationSpec
 from sdf.validation.fidelity import fidelity_report
-from sdf.validation.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
+from sdf.validation.privacy import FEATURE_COLUMNS, privacy_report, read_retail_feature_table
 from sdf.validation.quality import structural_quality_check
 from sdf.validation.tstr import tstr_report
 from .agent import WarehouseAgent
@@ -119,7 +121,9 @@ def default_world_snapshot(spec: GenerationSpec | None = None) -> dict:
 def csv_snapshot(path: str) -> dict:
     """Every recorded number for one retail CSV (backtest, fidelity, TSTR, privacy)."""
     skus, orders, load = load_online_retail_csv(path)
-    model = FittedHourlyDemand().fit(orders)
+    synthesizers = default_registry()
+    model = FittedHourlyDemand(synthesizers.create("seasonal-profile")).fit(orders)
+    bootstrap = synthesizers.create("bootstrap-table")
     real = read_retail_feature_table(path)
     return {
         "file": Path(path).name,
@@ -129,7 +133,7 @@ def csv_snapshot(path: str) -> dict:
         "backtest": _backtest(orders),
         "fidelity": fidelity_report(model.real_series, model.generate(), model.ppd),
         "tstr": tstr_report(orders),
-        "privacy": privacy_report(real, bootstrap_synthesize(real)),
+        "privacy": privacy_report(real, bootstrap.fit(TableData(rows=real, columns=FEATURE_COLUMNS)).sample()),
     }
 
 

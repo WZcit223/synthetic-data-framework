@@ -56,6 +56,16 @@ requirements*) into a full dataset. In the framework this is a seeded stdlib sam
 In the real system the same spec drives a fitted generative model (SDV / CTGAN /
 TimeGAN) or an LLM code-generation step, plus a real quality/validation stage.
 
+Every synthesis algorithm satisfies one contract (`synthesis/api.py`): a
+`SynthesizerInfo` class attribute plus `fit(data)` and `sample(n, *, seed)`.
+`synthesis/registry.py` lists them by name: `warehouse-spec` (the spec-driven
+world generator), `seasonal-profile` (a series fitted on real demand),
+`bootstrap-table` (a per-column table bootstrap) and, with the `synthesis`
+extra, `gaussian-copula`. Callers choose one by name, for example
+`uv run sdf tstr --synthesizer seasonal-profile`. A user-written algorithm is
+one registered class; the contract is in
+[`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §2.
+
 ### Application Layer
 The AI Warehouse-Management demo. It consumes whatever the registry overlays and
 produces four capability families that generalise to other industrial domains:
@@ -86,6 +96,6 @@ all run through it. The contract is in
   hook) rather than starting cold.
 
 ## 4. Data flow (one call)
-`GenerationSpec` → `WarehouseGenerator.generate()` → `SyntheticWarehouse`
+`GenerationSpec` → the `warehouse-spec` synthesizer (`WarehouseGenerator`) → `SyntheticWarehouse`
 → registered into `DataSourceRegistry` → `WarehouseIntelligence` reads streams →
 KPIs / suggestions / insights. See `cmd_demo` in `src/sdf/cli.py` (`uv run sdf demo`).

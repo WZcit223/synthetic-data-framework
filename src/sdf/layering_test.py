@@ -105,3 +105,20 @@ def test_api_and_cli_do_not_import_each_other():
 def test_importing_a_lower_layer_does_not_load_a_higher_one(module, must_not_load):
     code = f"import sys, {module}; assert '{must_not_load}' not in sys.modules, sorted(m for m in sys.modules if m.startswith('sdf'))"
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_validation_defines_no_synthesizer():
+    """Synthesizers live in ``sdf.synthesis`` behind the registry; validation only scores their output."""
+    offenders = []
+    for path in sorted((PACKAGE / "validation").rglob("*.py")):
+        if path.name.endswith("_test.py"):
+            continue
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            if isinstance(node, ast.ClassDef) and any(
+                isinstance(stmt, ast.AnnAssign | ast.Assign) and "info" in ast.unparse(stmt).split("=")[0]
+                for stmt in node.body
+            ):
+                offenders.append(f"{path.name}: class {node.name}")
+            if isinstance(node, ast.FunctionDef | ast.ClassDef) and "synthes" in node.name.lower():
+                offenders.append(f"{path.name}: {node.name}")
+    assert not offenders, "\n".join(offenders)

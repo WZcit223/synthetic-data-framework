@@ -398,7 +398,8 @@ under [Reproducible numbers → Default world](#reproducible-numbers).
 > turning metrics into money, not a claim. DATA-HOOK: client's real unit costs +
 > current policy give the true before/after.
 
-**Synthetic-data privacy (B3)** — `validation/privacy.py` on the retail feature table:
+**Synthetic-data privacy (B3)** — `validation/privacy.py` scores the `bootstrap-table`
+synthesizer's output on the retail feature table:
 sample → DCR median 0.09, p05 0.02, clone-risk 4.4% ("low leakage"); full dataset →
 clone-risk 9.5% ("review"). The metric discriminates and gates shareability.
 

@@ -24,7 +24,8 @@ from sdf.analytics import metrics
 from sdf.analytics.forecast import build_series
 from sdf.analytics.models import fit_weights_with_rank, predict_at
 from sdf.foundation.schema import OutboundOrder
-from sdf.synthesis.fit import FittedSeasonalDemand
+from sdf.synthesis.api import SeriesData
+from sdf.synthesis.registry import default_registry
 
 
 def _mae(weights, series, period, start) -> float:
@@ -32,8 +33,16 @@ def _mae(weights, series, period, start) -> float:
     return metrics.mae(series[start:], preds)
 
 
-def tstr_report(orders: Iterable[OutboundOrder], test_frac: float = 0.3) -> dict:
-    """Run TSTR on a real order stream (auto daily/hourly granularity)."""
+def tstr_report(
+    orders: Iterable[OutboundOrder], test_frac: float = 0.3, *, synthesizer: str = "seasonal-profile"
+) -> dict:
+    """Run TSTR on a real order stream (auto daily/hourly granularity).
+
+    ``synthesizer`` names a registered synthesizer that produces a series.
+    """
+    registry = default_registry()
+    if registry.info(synthesizer).produces != "series":
+        raise ValueError(f"{synthesizer} produces {registry.info(synthesizer).produces!r}; TSTR needs a series")
     series, freq, period = build_series(orders)
     n = len(series)
     split = max(2 * period + 2, int(n * (1 - test_frac)))
@@ -47,8 +56,8 @@ def tstr_report(orders: Iterable[OutboundOrder], test_frac: float = 0.3) -> dict
 
     # TSTR — fit the synthesizer on the SAME real train (same granularity),
     # generate a synthetic series of equal length, train the forecaster on it.
-    synth = FittedSeasonalDemand().fit(real_train, period)
-    synth_series = synth.generate(max(len(real_train), 2 * period + 2))
+    synth = registry.create(synthesizer).fit(SeriesData(values=real_train, period=period))
+    synth_series = synth.sample(max(len(real_train), 2 * period + 2))
     w_synth, synth_rank_deficient = fit_weights_with_rank(synth_series, period)
 
     trtr = _mae(w_real, series, period, split)

@@ -152,3 +152,21 @@ def test_csv_commands_exit_1_when_no_row_is_usable(command):
     result = run(command, SAMPLE_CSV, "--date-format", "%d/%m/%Y %H:%M")
     assert result.exit_code == 1, result.output
     assert "no usable rows" in result.output
+
+
+@pytest.mark.parametrize(
+    ("command", "valid", "invalid"),
+    [("synth", "seasonal-profile", "bootstrap-table"), ("tstr", "seasonal-profile", "warehouse-spec")],
+)
+def test_synthesizer_option_accepts_only_matching_names(command, valid, invalid):
+    ok = run(command, SAMPLE_CSV, "--synthesizer", valid)
+    assert ok.exit_code == 0, ok.output
+    assert "synthesizer" in ok.output and valid in ok.output
+    wrong = run(command, SAMPLE_CSV, "--synthesizer", invalid)
+    assert wrong.exit_code == 2 and "seasonal-profile" in wrong.output
+
+
+def test_unknown_synthesizer_is_a_usage_error_listing_the_names():
+    result = run("privacy", SAMPLE_CSV, "--synthesizer", "nope")
+    assert result.exit_code == 2
+    assert "Invalid value for '--synthesizer': 'nope'" in result.output and "bootstrap-table" in result.output

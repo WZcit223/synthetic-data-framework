@@ -333,6 +333,14 @@ reg.register(ShuffleSeries)
 reg.create("shuffle-series", seed=3).fit(SeriesData(values=[1.0, 2.0, 3.0], period=1)).sample()
 ```
 
+The built-ins after PR 4: `FittedSeasonalDemand` (`sdf.synthesis.fit`) is
+`seasonal-profile`; `BootstrapTable` (`sdf.synthesis.bootstrap`) is
+`bootstrap-table` and replaces `bootstrap_synthesize`; `WarehouseSpecSynthesizer`
+(`sdf.synthesis.warehouse`) is `warehouse-spec`; `GaussianCopulaTable`
+(`sdf.synthesis.sdv_synth`) is `gaussian-copula`. `FittedHourlyDemand(model=None,
+*, seed=7)` fits any series synthesizer on the hourly series derived from orders.
+The privacy feature table's columns are `sdf.validation.privacy.FEATURE_COLUMNS`.
+
 Consumers choose a synthesizer by name (after PR 4):
 
 ```python

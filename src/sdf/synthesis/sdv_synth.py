@@ -16,6 +16,10 @@ fidelity on complex joint distributions; the SDMetrics scoring is identical.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
+from .api import SynthesizerInfo, TableData
+
 _COLS = ["Quantity", "Price", "hour", "weekday"]
 _PAIRS = [("Quantity", "Price"), ("Quantity", "hour"), ("Price", "weekday")]
 
@@ -37,6 +41,50 @@ def _load_line_table(path: str, max_rows: int = 2000, seed: int = 1):
     if len(real) > max_rows:
         real = real.sample(max_rows, random_state=seed)
     return real.reset_index(drop=True)
+
+
+class GaussianCopulaTable:
+    """Gaussian copula over a numeric table (``gaussian-copula``; needs the ``synthesis`` extra).
+
+    ``seed`` seeds numpy's global generator before each draw, which is where
+    ``copulas`` samples from; without a seed a draw uses whatever state numpy has.
+    """
+
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo(
+        name="gaussian-copula",
+        produces="table",
+        needs_fit=True,
+        description="Gaussian copula with fitted marginals (copulas.GaussianMultivariate)",
+    )
+
+    def __init__(self, *, seed: int | None = None) -> None:
+        self.seed = seed
+        self._columns: tuple[str, ...] = ()
+        self._n_rows = 0
+        self._model = None
+
+    def fit(self, data: TableData) -> GaussianCopulaTable:
+        import pandas as pd
+        from copulas.multivariate import GaussianMultivariate
+
+        self._columns, self._n_rows = tuple(data.columns), len(data.rows)
+        self._model = GaussianMultivariate()
+        self._model.fit(pd.DataFrame(data.rows, columns=list(data.columns), dtype=float))
+        return self
+
+    def sample(self, n: int | None = None, *, seed: int | None = None) -> list[tuple[float, ...]]:
+        import numpy as np
+
+        if self._model is None:
+            raise RuntimeError("gaussian-copula: call fit() before sample()")
+        pinned = seed if seed is not None else self.seed
+        if pinned is not None:
+            np.random.seed(pinned)
+        n = self._n_rows if n is None else n
+        if n == 0:
+            return []
+        frame = self._model.sample(n)
+        return [tuple(float(v) for v in row) for row in frame[list(self._columns)].itertuples(index=False)]
 
 
 def gaussian_copula_fidelity(path: str, *, max_rows: int = 2000, seed: int = 1) -> dict:

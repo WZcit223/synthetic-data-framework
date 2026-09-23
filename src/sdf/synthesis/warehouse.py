@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import random
 import string
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
+from typing import ClassVar
 
 from sdf.foundation.schema import (
     SKU,
@@ -28,6 +29,7 @@ from sdf.foundation.schema import (
     OutboundOrder,
     SensorReading,
 )
+from .api import SynthesizerInfo
 from .spec import GenerationSpec
 
 
@@ -283,3 +285,30 @@ class WarehouseGenerator:
         return (
             "".join(self._rng.choice(string.ascii_uppercase) for _ in range(3)) + "-" + str(self._rng.randint(100, 999))
         )
+
+
+class WarehouseSpecSynthesizer:
+    """The spec-driven generator behind the synthesizer contract (``warehouse-spec``).
+
+    Configured entirely by its ``GenerationSpec``, so ``fit`` does nothing and
+    ``sample`` returns one ``SyntheticWarehouse``; ``seed`` overrides the spec's seed.
+    """
+
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo(
+        name="warehouse-spec",
+        produces="warehouse",
+        needs_fit=False,
+        description="Seeded sampler for a whole warehouse world, driven by a GenerationSpec",
+    )
+
+    def __init__(self, *, spec: GenerationSpec | None = None) -> None:
+        self.spec = spec or GenerationSpec()
+
+    def fit(self, data: None = None) -> WarehouseSpecSynthesizer:
+        return self
+
+    def sample(self, n: int | None = None, *, seed: int | None = None) -> SyntheticWarehouse:
+        if n is not None:
+            raise ValueError("warehouse-spec is sized by its GenerationSpec; call sample() without n")
+        spec = self.spec if seed is None else replace(self.spec, seed=seed)
+        return WarehouseGenerator(spec).generate()
