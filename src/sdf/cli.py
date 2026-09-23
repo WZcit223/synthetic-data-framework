@@ -1,16 +1,6 @@
 """Command-line entry point for the framework demo.
 
-uv run sdf demo            # run the end-to-end pipeline, print report
-uv run sdf export outdir/  # generate + write CSVs to a directory
-uv run sdf backtest [csv]  # Phase 2: forecast backtest on real data
-uv run sdf synth [csv]     # Phase 2.1: fit synthesizer + fidelity score
-uv run sdf tstr [csv]      # Phase 3: train-on-synthetic, test-on-real
-uv run sdf sdv [csv]       # Phase 2.1 full: Gaussian-copula + SDMetrics
-uv run sdf agent "<q>"     # Phase 4: tool-using agent + audit trace
-uv run sdf pipeline        # Data Intelligence Workflow (DAG) run record
-uv run sdf impact          # business-outcome economics (£ counterfactual)
-uv run sdf scenarios       # what-if scenario simulation
-uv run sdf privacy [csv]   # synthetic-data privacy (DCR/NNDR/clone risk)
+``uv run sdf --help`` lists the commands; ``uv run sdf`` with no command runs ``demo``.
 """
 
 from __future__ import annotations
@@ -18,13 +8,17 @@ from __future__ import annotations
 import csv
 import json
 import os
-import sys
 from typing import List
 
+import click
+
+from sdf import __version__
 from sdf.application.warehouse_demo import WarehouseIntelligence
 from sdf.foundation.registry import DataSourceRegistry
 from sdf.synthesis.quality import structural_quality_check
 from sdf.synthesis.warehouse import GenerationSpec, WarehouseGenerator
+
+DEFAULT_CSV = os.path.join("data", "sample_online_retail_ii.csv")
 
 
 def build_registry(spec: GenerationSpec) -> tuple:
@@ -293,35 +287,101 @@ def cmd_privacy(path: str) -> int:
     return 0
 
 
-def main(argv=None) -> int:
-    argv = list(sys.argv[1:] if argv is None else argv)
-    cmd = argv[0] if argv else "demo"
-    default_csv = os.path.join("data", "sample_online_retail_ii.csv")
-    if cmd == "demo":
-        return cmd_demo()
-    if cmd == "export":
-        return cmd_export(argv[1] if len(argv) > 1 else "out")
-    if cmd == "backtest":
-        return cmd_backtest(argv[1] if len(argv) > 1 else default_csv)
-    if cmd == "synth":
-        return cmd_synth(argv[1] if len(argv) > 1 else default_csv)
-    if cmd == "tstr":
-        return cmd_tstr(argv[1] if len(argv) > 1 else default_csv)
-    if cmd == "sdv":
-        return cmd_sdv(argv[1] if len(argv) > 1 else default_csv)
-    if cmd == "agent":
-        return cmd_agent(argv[1] if len(argv) > 1 else "what can you do?")
-    if cmd == "pipeline":
-        return cmd_pipeline()
-    if cmd == "impact":
-        return cmd_impact()
-    if cmd == "scenarios":
-        return cmd_scenarios()
-    if cmd == "privacy":
-        return cmd_privacy(argv[1] if len(argv) > 1 else default_csv)
-    print(__doc__)
-    return 1
+# -- click surface ------------------------------------------------------------
+
+_csv_argument = click.argument(
+    "csv_path",
+    metavar="[CSV]",
+    default=DEFAULT_CSV,
+    type=click.Path(exists=True, dir_okay=False),
+)
+
+
+@click.group(invoke_without_command=True, context_settings={"help_option_names": ["-h", "--help"]})
+@click.version_option(__version__, prog_name="sdf")
+@click.pass_context
+def main(ctx: click.Context) -> None:
+    """Synthetic Data Framework — AI warehouse demo. With no command, runs ``demo``.
+
+    CSV arguments default to the bundled sample, data/sample_online_retail_ii.csv.
+    """
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(demo)
+
+
+@main.command()
+def demo() -> None:
+    """Run the end-to-end pipeline and print the report."""
+    cmd_demo()
+
+
+@main.command()
+@click.argument("outdir", default="out", type=click.Path(file_okay=False))
+def export(outdir: str) -> None:
+    """Generate the synthetic world and write one CSV per entity to OUTDIR."""
+    cmd_export(outdir)
+
+
+@main.command()
+@_csv_argument
+def backtest(csv_path: str) -> None:
+    """Phase 2: walk-forward forecast backtest on real data."""
+    cmd_backtest(csv_path)
+
+
+@main.command()
+@_csv_argument
+def synth(csv_path: str) -> None:
+    """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
+    cmd_synth(csv_path)
+
+
+@main.command()
+@_csv_argument
+def tstr(csv_path: str) -> None:
+    """Phase 3: train on synthetic, test on real."""
+    cmd_tstr(csv_path)
+
+
+@main.command()
+@_csv_argument
+def sdv(csv_path: str) -> None:
+    """Phase 2.1 (full): Gaussian-copula synthesis scored by SDMetrics (needs the synthesis extra)."""
+    if cmd_sdv(csv_path):
+        raise click.exceptions.Exit(1)
+
+
+@main.command()
+@click.argument("query", default="what can you do?")
+def agent(query: str) -> None:
+    """Phase 4: tool-using agent with an audit trace, answering QUERY."""
+    cmd_agent(query)
+
+
+@main.command()
+def pipeline() -> None:
+    """Run the Data Intelligence Workflow DAG and print its run record."""
+    cmd_pipeline()
+
+
+@main.command()
+def impact() -> None:
+    """Business-outcome economics: counterfactual £ savings."""
+    cmd_impact()
+
+
+@main.command()
+def scenarios() -> None:
+    """What-if scenario simulation across a family of specs."""
+    cmd_scenarios()
+
+
+@main.command()
+@_csv_argument
+def privacy(csv_path: str) -> None:
+    """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
+    cmd_privacy(csv_path)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

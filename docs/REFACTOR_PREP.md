@@ -84,8 +84,8 @@ observability       ← application.agent, workflow.pipeline
 ### 2.1 CLI 子命令（`cli.main`）
 
 `demo | export [dir] | backtest [csv] | synth [csv] | tstr [csv] | sdv [csv] | agent "<q>" | pipeline | impact | scenarios | privacy [csv]`，
-`[csv]` 默认 `data/sample_online_retail_ii.csv`，`export` 默认 `out`，无参数默认 `demo`，未知命令打印 `__doc__` 返回 1。
-迁 `argparse` 时这些名字与默认值必须不变（文档、README、ONBOARDING 都引用）。**新增**子命令（第 7 步的 `validate`）不受此限制。
+`[csv]` 默认 `data/sample_online_retail_ii.csv`，`export` 默认 `out`，无参数默认 `demo`。
+已于 PR #3 迁到 click（`cli.py` 的 click 层 + `cli_test.py`）：名字与默认值不变；未知命令与不存在的 CSV 现在是 click 的用法错误（退出码 2，原为打印 `__doc__` 返回 1）；`sdv` 缺 extra 时仍退出 1。**新增**子命令（第 7 步的 `validate`）不受此限制。
 
 ### 2.2 HTTP 端点
 
@@ -249,12 +249,12 @@ src/sdf/
     state.py                  World 不可变快照 + 原子替换
     static/dashboard.html     不变
   cli/
-    __init__.py               argparse 子命令；每个子命令一个函数，只做参数解析与打印
+    __init__.py               click 子命令（已完成）；每个子命令一个函数，只做参数解析与打印
 tests/
   conftest.py                 安装包 / pythonpath 配置；默认世界 fixture
   test_golden.py              §2.5 的黄金数字（容差 ±0.5%）
   test_api_contract.py        `fastapi.testclient` 端点字段快照（`pytest.importorskip("fastapi")`）
-  test_cli.py                 每个子命令冒烟 + 退出码
+  （已有 `src/sdf/cli_test.py`）每个子命令冒烟 + 退出码
   test_layering.py            grep 导入图，断言不存在反向依赖
   test_hooks.py               grep `# ALGORITHM-HOOK[<id>]`，与 CHECKLIST.md 的 ID 集合对齐
   test_*（现有 18 项迁入按模块拆分）
@@ -280,7 +280,7 @@ tests/
 | 4 | 实现 | **拆上帝对象**：`application/` 按 §4 拆分，`WarehouseIntelligence` 变门面；`ReplenishmentPolicy` 接口；`knowledge`、`agent`、`scenarios` 显式选策略 | 端点契约测试不变；`insights` 与 `/scenarios` 的"需订 SKU 数"口径在文案里标明策略 |
 | 5 | 实现 | **API 状态模型**：`create_app()`、不可变 `World`、原子替换、`/generate` 参数上限收紧并记录耗时 | 并发 `POST /generate` + `GET` 压测无撕裂；单例仍导出为 `app` |
 | 6 | 实现 | **Agent 执行器**：`agent/` 子包；审批门在 `executor.call` 强制；`ToolResult`；`Planner` 接口 | 新测试：注册一个有副作用的审批工具，断言 `fn` 未被调用 |
-| 7 | 实现 | **CLI argparse**：现有子命令名、默认值、退出码不变；`--help` 可用；**新增** `validate` 子命令，输出 §2.5 全部黄金数字（JSON），供第 9 步与 `test_golden.py` 共用 | `test_cli.py` 不变通过；`sdf validate` 输出与 `test_golden.py` 一致 |
+| 7 | 实现 | **CLI**：~~迁 argparse~~ 已于 PR #3 迁到 click（子命令名与默认值不变，`--help`/`--version` 可用，`cli_test.py` 覆盖）；本步只剩**新增** `validate` 子命令，输出 §2.5 全部黄金数字（JSON），供第 9 步与 `test_golden.py` 共用 | `cli_test.py` 不变通过；`sdf validate` 输出与 `test_golden.py` 一致 |
 | 8 | 实现 | **HOOK 规范化**：统一标记 + `test_hooks.py`；`CHECKLIST.md` 每行加"代码位置"列（由测试生成） | `grep` 结果与 CHECKLIST ID 集合相等 |
 | 9 | 实现 | 收尾：删 `feature/repo-governance` 远端分支；`VALIDATION.md` 中"默认世界手工调用"类数字改由第 7 步的 `sdf validate` 重跑生成；`observability` 完整落盘 | — |
 

@@ -57,11 +57,9 @@ intent still applies.
   `__version__` by hand.
   The version decision and its `Version:` line are still required at the end of
   every PR description and refactor plan file. Shipped code is `src/sdf/`.
-- **Tests.** The existing suite is `tests/test_generators.py`, run with
-  `uv run pytest`. New tests follow the colocated
-  `<source>_test.py` rule. **Pending:** `pytest` currently collects only `tests/`
-  (`testpaths` in `pyproject.toml`); the first PR that adds a colocated test must
-  also add `src` to `testpaths` so CI runs it.
+- **Tests.** Run with `uv run pytest`; `testpaths` covers both `src` (colocated
+  `<source>_test.py` files, starting with `src/sdf/cli_test.py`) and the legacy
+  `tests/test_generators.py`. New tests follow the colocated rule.
 - **Configuration conventions.** There is no `models/model_config.py`. The
   established config object in this repository is `GenerationSpec` in
   `src/sdf/synthesis/warehouse.py`; new config dataclasses follow its shape and
@@ -92,7 +90,7 @@ intent still applies.
    points marked `# ALGORITHM-HOOK` and real data at `# DATA-HOOK`, catalogued in
    [`docs/ALGORITHM_AND_DATA_CHECKLIST.md`](docs/ALGORITHM_AND_DATA_CHECKLIST.md).
    Keep those markers when moving code and add one when introducing a new stand-in.
-2. **The core's runtime dependencies are numpy, scipy and scikit-learn**
+2. **The core's runtime dependencies are numpy, scipy, scikit-learn and click**
    (decided 2026-09-23; before that the core was standard-library only). Anything
    heavier (SDV/copulas, FastAPI, LightGBM, the pywhy causal stack) lives in the
    `pyproject.toml` extras, is imported lazily, and a test that needs it skips

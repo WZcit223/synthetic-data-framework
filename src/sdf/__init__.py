@@ -13,7 +13,7 @@ algorithm or real dataset must eventually plug in are marked with
 ``docs/ALGORITHM_AND_DATA_CHECKLIST.md``.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from sdf.application.warehouse_demo import WarehouseIntelligence
 from sdf.foundation.registry import DataSourceRegistry

@@ -26,7 +26,7 @@ uv run python demo/run_demo.py
 
 ## 3. The CLI
 
-All entry points go through the `sdf` console script (`uv run sdf ...`):
+All entry points go through the `sdf` console script (`uv run sdf ...`; `uv run sdf --help` lists them):
 
 ```bash
 uv run sdf demo                 # end-to-end demo report

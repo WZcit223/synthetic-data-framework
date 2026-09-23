@@ -7,7 +7,7 @@ module-name = "sdf"
 
 [project]
 name = "synthetic-data-framework"
-version = "0.1.0"
+version = "0.2.0"
 description = "Three-layer industrial-AI framework with synthetic-data-driven AI warehouse demo"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
@@ -16,6 +16,7 @@ dependencies = [
     "numpy>=2.5.3",
     "scipy>=1.18.1",
     "scikit-learn>=1.9.1",
+    "click>=8.5.0",
 ]
 
 [project.optional-dependencies]
@@ -42,7 +43,7 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "-q"
-testpaths = ["tests"]
+testpaths = ["src", "tests"]
 
 [tool.ruff]
 # Aligned with TsumiNa/sciloom's ruff configuration; only `src` (single package)
