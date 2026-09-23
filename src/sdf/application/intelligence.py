@@ -124,14 +124,16 @@ class WarehouseIntelligence:
     def demand_series(self, sku_id: str, forecast_days: int = 14) -> dict:
         """Daily demand history for one SKU + a naive trailing-average forecast.
 
+        ``history`` lists the days on which the SKU shipped (what the chart
+        plots). The forecast is the mean over the last 14 *calendar* days of the
+        table, zero days included, like every other daily rate in the package.
         ALGORITHM-HOOK: the forecast here is a trailing mean. Replace with a
         fitted model (DeepAR / TFT / LightGBM) to get real predictive intervals.
         """
         table = self.demand_table()
-        # Only the days on which this SKU actually shipped, as before the shared table.
-        points = [(d, q) for d, q in zip(table.days, table.series.get(sku_id, ())) if q > 0]
-        history = [{"date": d.isoformat(), "qty": int(q)} for d, q in points]
-        recent = [q for _, q in points[-14:]] or [0]
+        series = table.series.get(sku_id, ())
+        history = [{"date": d.isoformat(), "qty": int(q)} for d, q in zip(table.days, series) if q > 0]
+        recent = list(series[-14:]) or [0.0]
         forecast_avg = round(sum(recent) / len(recent), 2)
         return {
             "sku_id": sku_id,
@@ -188,7 +190,7 @@ class WarehouseIntelligence:
         return self._Z[key]
 
     def demand_profiles(self) -> dict[str, DemandProfile]:
-        """Per-SKU demand shape (mean, std, zero-day share) for safety-stock sizing."""
+        """Per-SKU demand shape (mean, std, zero-day share); safety stock uses ``variability``."""
         table = self.demand_table()
         return {sku: table.profile(sku) for sku in table.series}
 
@@ -197,7 +199,10 @@ class WarehouseIntelligence:
     ) -> dict:
         """Classic (s, S) policy sized from demand variability + a service level.
 
-        s (reorder point) = μ·(L+R) + z·σ·√(L+R);  S (order-up-to) = s.
+        s (reorder point) = μ·(L+R) + z·σ·√(L+R);  S (order-up-to) = s,
+        where μ is the SKU's mean daily demand over calendar days and σ is
+        ``DemandProfile.variability`` (the day-to-day std for smooth SKUs, at
+        least the average selling-day quantity for intermittent ones).
         ALGORITHM-HOOK: this uses a normal-demand approximation; a real system
         fits the lead-time demand distribution (incl. intermittent-demand models)
         and solves a cost-based newsvendor objective.
