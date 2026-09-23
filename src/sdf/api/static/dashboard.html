@@ -298,7 +298,7 @@
 
 <script>
 const $ = s => document.querySelector(s);
-const fmt = n => (typeof n==="number" ? n.toLocaleString(undefined,{maximumFractionDigits:2}) : n);
+const fmt = n => (typeof n==="number" ? n.toLocaleString(undefined,{maximumFractionDigits:2}) : (n==null ? "–" : n));
 
 const CAPS = [
   {h:"Data management", p:"Multi-source overlay via the DataSourceRegistry; canonical entities keep synthetic & real interchangeable.", t:"Foundation Layer"},

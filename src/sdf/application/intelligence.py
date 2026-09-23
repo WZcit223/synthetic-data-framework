@@ -10,10 +10,11 @@ its ``# ALGORITHM-HOOK``.
 
 from __future__ import annotations
 
+import statistics
 from collections import defaultdict
 from dataclasses import dataclass
 
-from sdf.analytics.anomaly import seasonal_residual_anomalies
+from sdf.analytics.anomaly import residual_scale, seasonal_residual_anomalies
 from sdf.analytics.demand import DemandTable
 from sdf.analytics.forecast import build_series
 from sdf.foundation.registry import DataSourceRegistry
@@ -336,13 +337,19 @@ class WarehouseIntelligence:
         orders = self.reg.stream("OutboundOrder")
         series, freq, period = build_series(orders)
         found = seasonal_residual_anomalies(series, period, k=k)
-        return {
+        out = {
             "granularity": freq,
             "seasonal_period": period,
             "series_len": len(series),
             "count": len(found),
             "anomalies": found[:20],
         }
+        if len(series) >= max(2 * period, 8):
+            profile = [statistics.median(series[j::period]) for j in range(period)]
+            _scale, method = residual_scale([v - profile[i % period] for i, v in enumerate(series)])
+            if method != "mad":
+                out["note"] = f"residual spread too small for MAD; scale from {method.replace('_', ' ')}"
+        return out
 
     # -- capability 4: knowledge organisation ------------------------------
 

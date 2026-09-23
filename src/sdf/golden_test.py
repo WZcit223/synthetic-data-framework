@@ -122,7 +122,8 @@ def test_backtest_on_default_world(world):
     assert [r["model"] for r in bt["results"]] == [e[0] for e in expected]
     for r, (_, e_mae, e_mape) in zip(bt["results"], expected):
         assert r["MAE"] == approx(e_mae)
-        assert r["MAPE_pct"] == approx(e_mape)
+        assert r["MAPE_pct"] == approx(e_mape)  # unchanged by the MAPE fix: no zero-demand day
+    assert [r["WAPE_pct"] for r in bt["results"]] == [approx(v) for v in (23.29, 26.88, 30.27, 37.08, 45.19)]
 
 
 def test_economics(world):
@@ -173,7 +174,8 @@ def test_sample_csv(full_snapshot):
     )
     assert [r["model"] for r in bt["results"]] == ["snaive7", "seas_linear7", "mean", "ma7", "naive"]
     assert bt["results"][0]["MAE"] == approx(32.786)
-    assert bt["results"][0]["MAPE_pct"] == approx(20.57)
+    assert bt["results"][0]["MAPE_pct"] == approx(24.0)  # 20.57 before the MAPE fix (correctness PR 3)
+    assert bt["results"][0]["WAPE_pct"] == approx(21.2)
     assert fidelity["ks_statistic"] == approx(0.0197)
     assert fidelity["profile_corr"] == approx(0.9732)
     assert fidelity["fidelity_score"] == approx(95.4)
@@ -198,7 +200,8 @@ def test_real_10k_csv(full_snapshot):
     )
     assert [r["model"] for r in bt["results"]] == ["naive", "ma11", "snaive11", "mean", "seas_linear11"]
     assert bt["results"][0]["MAE"] == approx(950.786)
-    assert bt["results"][0]["MAPE_pct"] == approx(99.04)
+    assert bt["results"][0]["MAPE_pct"] == approx(154.07)  # 99.04 before the MAPE fix (correctness PR 3)
+    assert bt["results"][0]["WAPE_pct"] == approx(74.01)
     assert fidelity["ks_statistic"] == approx(0.1364)
     assert fidelity["profile_corr"] == approx(0.9036)
     assert fidelity["fidelity_score"] == approx(78.0)

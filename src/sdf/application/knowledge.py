@@ -109,7 +109,7 @@ class KnowledgeQA:
             "intent": "forecast",
             "data": rep,
             "answer": f"On the current demand, the best model is "
-            f"'{best['model']}' (MAE {best['MAE']}, MAPE "
+            f"'{best['model']}' (MAE {best['MAE']}, WAPE {best['WAPE_pct']}%, MAPE "
             f"{best['MAPE_pct']}%) at {freq} granularity.",
         }
 

@@ -2,7 +2,8 @@
 
 This is the first place the framework produces a *real number*: given a daily demand
 series (from real or synthetic orders), it backtests several baseline models with
-a walk-forward split and reports error metrics (MAE / RMSE / MAPE / bias).
+a walk-forward split and reports error metrics (MAE / RMSE / MAPE / WAPE / bias;
+conventions in ``analytics/metrics.py``).
 
 These baselines (mean, naive, moving average, seasonal-naive) are honest,
 dependency-free reference points. ALGORITHM-HOOK: swap in DeepAR / TFT / LightGBM
@@ -11,11 +12,11 @@ to beat them — the backtest harness stays the same and gives you the compariso
 
 from __future__ import annotations
 
-import math
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 
 from sdf.foundation.schema import OutboundOrder
+from . import metrics
 from .demand import DemandTable
 from .models import seasonal_linear  # Phase 3
 
@@ -131,24 +132,16 @@ def backtest(values: list[float], model: Callable[[list[float]], float], *, test
         return {"error": f"series too short to backtest ({n} points, need >= {MIN_BACKTEST_POINTS})"}
     test_len = min(test_len, max(1, n // 3))
     start = n - test_len
-    abs_err, sq_err, ape, bias, cnt = 0.0, 0.0, 0.0, 0.0, 0
-    for t in range(start, n):
-        pred = model(values[:t])
-        actual = values[t]
-        err = pred - actual
-        abs_err += abs(err)
-        sq_err += err * err
-        bias += err
-        if actual > 0:
-            ape += abs(err) / actual
-        cnt += 1
+    actuals = values[start:]
+    preds = [model(values[:t]) for t in range(start, n)]
     return {
         "model": getattr(model, "__name__", "model"),
-        "test_days": cnt,
-        "MAE": round(abs_err / cnt, 3),
-        "RMSE": round(math.sqrt(sq_err / cnt), 3),
-        "MAPE_pct": round(100 * ape / cnt, 2),
-        "bias": round(bias / cnt, 3),
+        "test_days": test_len,
+        "MAE": round(metrics.mae(actuals, preds), 3),
+        "RMSE": round(metrics.rmse(actuals, preds), 3),
+        "MAPE_pct": metrics.pct(metrics.mape(actuals, preds)),
+        "WAPE_pct": metrics.pct(metrics.wape(actuals, preds)),
+        "bias": round(metrics.bias(actuals, preds), 3),
     }
 
 

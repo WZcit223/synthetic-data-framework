@@ -1,5 +1,15 @@
 # PR 3 — Error metrics: one implementation, correct MAPE, WAPE, safe edge cases
 
+> Status: implemented (correctness sequence PR 3). Deviations found during
+> implementation: (1) the anomaly scale also has a floor (`min_scale`, 1 demand
+> unit), because the mean-absolute-deviation fallback alone still flags a single
+> unit sold on an otherwise empty series; (2) the rank flag is reported by
+> `tstr_report` (`rank_deficient`), since the forecaster callables have no place
+> for a note; (3) removing the old `1e-6` ridge term moves the hourly
+> `seas_linear11` MAE (1787.337 → 1787.347) and the hourly TSTR MAEs in the
+> fourth or fifth significant digit, with the TSTR ratio unchanged. Default-world
+> MAPE values did not move (no zero-demand day).
+
 ## Goal
 
 Forecast error is computed once, with a documented convention, and edge cases

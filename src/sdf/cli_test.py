@@ -138,7 +138,7 @@ def test_validate_prints_markdown():
         "### `online_retail_ii_2010_10k.csv` (hourly;",
     ):
         assert heading in result.output
-    assert "| model | MAE | RMSE | MAPE % | bias |" in result.output
+    assert "| model | MAE | RMSE | MAPE % | WAPE % | bias |" in result.output
 
 
 def test_date_format_option_is_passed_to_the_loader():

@@ -20,19 +20,16 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from sdf.analytics import metrics
 from sdf.analytics.forecast import build_series
-from sdf.analytics.models import fit_weights, predict_at
+from sdf.analytics.models import fit_weights_with_rank, predict_at
 from sdf.foundation.schema import OutboundOrder
 from sdf.synthesis.fit import FittedSeasonalDemand
 
 
 def _mae(weights, series, period, start) -> float:
-    err = cnt = 0.0
-    for i in range(start, len(series)):
-        pred = predict_at(weights, i, period, series[i - 1], series[i - period])
-        err += abs(pred - series[i])
-        cnt += 1
-    return err / cnt if cnt else 0.0
+    preds = [predict_at(weights, i, period, series[i - 1], series[i - period]) for i in range(start, len(series))]
+    return metrics.mae(series[start:], preds)
 
 
 def tstr_report(orders: Iterable[OutboundOrder], test_frac: float = 0.3) -> dict:
@@ -46,13 +43,13 @@ def tstr_report(orders: Iterable[OutboundOrder], test_frac: float = 0.3) -> dict
     real_train = series[:split]
 
     # TRTR — train the forecaster on the REAL train window.
-    w_real = fit_weights(real_train, period)
+    w_real, real_rank_deficient = fit_weights_with_rank(real_train, period)
 
     # TSTR — fit the synthesizer on the SAME real train (same granularity),
     # generate a synthetic series of equal length, train the forecaster on it.
     synth = FittedSeasonalDemand().fit(real_train, period)
     synth_series = synth.generate(max(len(real_train), 2 * period + 2))
-    w_synth = fit_weights(synth_series, period)
+    w_synth, synth_rank_deficient = fit_weights_with_rank(synth_series, period)
 
     trtr = _mae(w_real, series, period, split)
     tstr = _mae(w_synth, series, period, split)
@@ -65,4 +62,5 @@ def tstr_report(orders: Iterable[OutboundOrder], test_frac: float = 0.3) -> dict
         "TRTR_mae": round(trtr, 3),
         "TSTR_mae": round(tstr, 3),
         "ratio_tstr_over_trtr": round(tstr / trtr, 3) if trtr else None,
+        "rank_deficient": {"trtr": real_rank_deficient, "tstr": synth_rank_deficient},
     }
