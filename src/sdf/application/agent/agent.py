@@ -35,7 +35,7 @@ class WarehouseAgent:
         self.intel = intel
         self.qa = KnowledgeQA(intel)
         self.sink_path = sink_path
-        self.planner = planner or KeywordPlanner()
+        self.planner = planner if planner is not None else KeywordPlanner()
         self.executor = Executor()
         self._register_default_tools()
 
@@ -86,8 +86,12 @@ class WarehouseAgent:
         """Plan the query, execute the plan, propose any follow-up action; return answer + trace."""
         log = RunLogger("agent", sink_path=self.sink_path)
         calls = self.planner.plan(query)
-        results = {c.tool: self.executor.call(log, c.tool, **c.args) for c in calls}
-        proposed: list[dict] = []
+        executed = [(c, self.executor.call(log, c.tool, **c.args)) for c in calls]
+        results: dict[str, ToolResult] = {}
+        for c, r in executed:
+            results.setdefault(c.tool, r)  # the answer templates read the first call of each tool
+        # every planned call the executor held back is surfaced for approval
+        proposed = [_proposal(r) for _, r in executed if r.status == "pending_approval"]
 
         if "replenishment" in results:
             repl = results["replenishment"]
@@ -124,13 +128,17 @@ class WarehouseAgent:
                     f"95% service). {d['stockout_units_avoided']:,} stockout-units avoided "
                     f"over {d['horizon_days']} days."
                 )
-        else:
-            res = results.get("ask_knowledge")
+        elif "ask_knowledge" in results:
+            res = results["ask_knowledge"]
+            ans = res.data["answer"] if res.ok else f"Cannot answer: {res.error}."
+        elif proposed:
             ans = (
-                res.data["answer"]
-                if res is not None and res.ok
-                else f"Cannot answer: {res.error if res else 'no plan'}."
+                f"{len(proposed)} action(s) pending your approval: "
+                + ", ".join(p["proposed_action"] for p in proposed)
+                + "."
             )
+        else:
+            ans = "Cannot answer: the plan called " + (", ".join(c.tool for c in calls) or "no tool") + "."
 
         return {
             "query": query,

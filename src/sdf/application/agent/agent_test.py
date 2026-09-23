@@ -73,3 +73,41 @@ def test_a_custom_planner_is_used():
     _, reg = build_registry(GenerationSpec(n_skus=40, horizon_days=30))
     r = WarehouseAgent(WarehouseIntelligence(reg), planner=KpiPlanner()).handle("anything")
     assert r["plan"] == ["ask_knowledge"] and "inventory" in r["answer"].lower()
+
+
+def test_a_gated_call_from_any_planner_is_proposed_not_run():
+    from .planner import PlannedCall
+
+    class OrderPlanner:
+        def plan(self, query):
+            return [
+                PlannedCall("place_order", {"sku_id": "S1", "quantity": 4}),
+                PlannedCall("place_order", {"sku_id": "S2", "quantity": 1}),
+            ]
+
+    _, reg = build_registry(GenerationSpec(n_skus=40, horizon_days=30))
+    agent = WarehouseAgent(WarehouseIntelligence(reg), planner=OrderPlanner())
+    calls = []
+    agent.register(Tool("place_order", "spy", lambda **kw: calls.append(kw), read_only=False, requires_approval=True))
+    r = agent.handle("order two things")
+    assert calls == [] and r["requires_approval"] is True
+    assert r["proposed_actions"] == [
+        {"proposed_action": "place_order", "sku_id": "S1", "quantity": 4, "status": "PENDING_APPROVAL"},
+        {"proposed_action": "place_order", "sku_id": "S2", "quantity": 1, "status": "PENDING_APPROVAL"},
+    ]
+    assert r["answer"] == "2 action(s) pending your approval: place_order, place_order."
+
+
+def test_a_falsy_planner_is_still_used():
+    from .planner import PlannedCall
+
+    class EmptyButValid:
+        def __len__(self):
+            return 0
+
+        def plan(self, query):
+            return [PlannedCall("get_kpis")]
+
+    _, reg = build_registry(GenerationSpec(n_skus=40, horizon_days=30))
+    r = WarehouseAgent(WarehouseIntelligence(reg), planner=EmptyButValid()).handle("x")
+    assert r["plan"] == ["get_kpis"] and r["answer"] == "Cannot answer: the plan called get_kpis."
