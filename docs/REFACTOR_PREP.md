@@ -271,6 +271,8 @@ tests/
 
 ## 5. 施工顺序（每步一个 PR，前后不可调换）
 
+> 2026-09-23：第 1～4 步的详细计划已落在 [`docs/refactor/layout/`](refactor/layout/00-overview.md)（overview + 每个 PR 一个计划文件），并把第 7 步已完成的 click 迁移之外的"分类"工作（`analytics/`、`validation/` 拆分、`intelligence.py` 改名、统一需求聚合）提前到该序列的第 3 个 PR；本表其余步骤（4～9）在该序列完成后另开计划目录。
+
 | 步 | PR 类型（按 CONTRIBUTING） | 内容 | 完成判据 |
 |---|---|---|---|
 | 0 | 方向性（本文） | 项目负责人确认 §4 目标结构与 §3.2 的处理方向 | 本 PR 合并 |
