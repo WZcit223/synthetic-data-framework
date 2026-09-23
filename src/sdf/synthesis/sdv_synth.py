@@ -88,7 +88,9 @@ class GaussianCopulaTable:
         if n == 0:
             return []
         rng = np.random.default_rng(seed) if seed is not None else self._rng
-        correlation = self._model.correlation.to_numpy()
+        correlation = np.asarray(
+            self._model.correlation, dtype=float
+        )  # a DataFrame in copulas 0.14; an array elsewhere
         normal = rng.multivariate_normal(np.zeros(len(correlation)), correlation, size=n)
         cdf = stats.norm.cdf(normal)
         columns = [np.asarray(u.percent_point(cdf[:, j]), dtype=float) for j, u in enumerate(self._model.univariates)]
