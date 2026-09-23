@@ -122,19 +122,26 @@ class WarehouseAgent:
                     if top
                     else ""
                 )
-                + f"Estimated annualised saving from disciplined replenishment: "
-                f"≈ {impact.get('annualised_net_saving', 0):,} "
-                f"({impact.get('stockout_units_avoided', 0):,} stockout-units avoided)."
+                + (
+                    f"Cannot estimate the saving: {impact['error']}."
+                    if "error" in impact
+                    else f"Estimated annualised saving from disciplined replenishment: "
+                    f"≈ {impact['annualised_net_saving']:,} "
+                    f"({impact['stockout_units_avoided']:,} stockout-units avoided)."
+                )
             )
         elif wants_money:
             plan = ["financial_impact"]
             impact = self.call(log, "financial_impact")
-            ans = (
-                f"Estimated annualised net saving ≈ {impact.get('annualised_net_saving', 0):,} "
-                f"(assumptions: {impact['assumptions']['holding_cost_annual_rate']:.0%} holding, "
-                f"95% service). {impact.get('stockout_units_avoided', 0):,} stockout-units avoided "
-                f"over {impact.get('horizon_days', 0)} days."
-            )
+            if "error" in impact:
+                ans = f"Cannot estimate the saving: {impact['error']}."
+            else:
+                ans = (
+                    f"Estimated annualised net saving ≈ {impact['annualised_net_saving']:,} "
+                    f"(assumptions: {impact['assumptions']['holding_cost_annual_rate']:.0%} holding, "
+                    f"95% service). {impact['stockout_units_avoided']:,} stockout-units avoided "
+                    f"over {impact['horizon_days']} days."
+                )
         else:
             plan = ["ask_knowledge"]
             res = self.call(log, "ask_knowledge", q=query)

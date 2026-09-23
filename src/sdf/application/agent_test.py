@@ -20,3 +20,11 @@ def test_agent_trace_and_guardrail():
         assert r["requires_approval"] is True
     # a knowledge query still returns a grounded answer
     assert agent.handle("which SKUs are stockout?")["answer"]
+
+
+def test_cost_question_on_an_empty_registry_says_so():
+    from sdf.foundation.registry import DataSourceRegistry
+
+    agent = WarehouseAgent(WarehouseIntelligence(DataSourceRegistry()))
+    assert agent.handle("what is the cost?")["answer"] == "Cannot estimate the saving: no demand."
+    assert "Cannot estimate the saving: no demand." in agent.handle("should I reorder?")["answer"]

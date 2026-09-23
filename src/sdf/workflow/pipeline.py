@@ -90,7 +90,17 @@ class Pipeline:
         }
 
 
-def warehouse_pipeline(spec: GenerationSpec | None = None, real_csv: str | None = None) -> Pipeline:
+def _economics_summary(economics: dict) -> dict:
+    """Keep why economics was skipped (or failed); otherwise report the saving."""
+    for key in ("skipped", "error"):
+        if key in economics:
+            return {key: economics[key]}
+    return {"annual_saving": economics.get("annualised_net_saving")}
+
+
+def warehouse_pipeline(
+    spec: GenerationSpec | None = None, real_csv: str | None = None, *, date_format: str | None = None
+) -> Pipeline:
     """The warehouse Data Intelligence Workflow as an explicit DAG.
 
     ingest → validate → application → economics → report
@@ -100,10 +110,16 @@ def warehouse_pipeline(spec: GenerationSpec | None = None, real_csv: str | None 
     def ingest(ctx):
         if real_csv:
             reg = DataSourceRegistry()
-            n_sku, n_ord = register_online_retail(reg, real_csv)
+            load = register_online_retail(reg, real_csv, date_format=date_format)
             ctx["registry"] = reg
             ctx["_warehouse"] = None
-            return {"origin": "real", "source": real_csv, "skus": n_sku, "orders": n_ord}
+            return {
+                "origin": "real",
+                "source": real_csv,
+                "skus": load.skus,
+                "orders": load.orders,
+                "load": load.to_dict(),
+            }
         wh, reg = build_registry(spec or GenerationSpec())
         ctx["registry"] = reg
         ctx["_warehouse"] = wh
@@ -134,7 +150,7 @@ def warehouse_pipeline(spec: GenerationSpec | None = None, real_csv: str | None 
         return {
             "validate": ctx.get("validate"),
             "application": ctx.get("application"),
-            "economics_annual_saving": (ctx.get("economics") or {}).get("annualised_net_saving"),
+            "economics": _economics_summary(ctx.get("economics") or {}),
         }
 
     return Pipeline(

@@ -139,3 +139,12 @@ def test_validate_prints_markdown():
     ):
         assert heading in result.output
     assert "| model | MAE | RMSE | MAPE % | bias |" in result.output
+
+
+def test_date_format_option_is_passed_to_the_loader():
+    ok = run("backtest", SAMPLE_CSV, "--date-format", "%Y-%m-%d %H:%M:%S")
+    assert ok.exit_code == 0, ok.output
+    assert "best (lowest MAE)" in ok.output
+    wrong = run("backtest", SAMPLE_CSV, "--date-format", "%d/%m/%Y %H:%M")
+    assert wrong.exit_code == 0, wrong.output
+    assert "unparseable InvoiceDate" in wrong.output and "too short to backtest" in wrong.output

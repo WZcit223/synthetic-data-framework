@@ -24,9 +24,12 @@ def run_scenarios(
     """Generate each scenario world and compare KPIs + inventory stress."""
     base = base_spec or GenerationSpec()
     names = names or list(SCENARIOS)
+    unknown = [n for n in names if n not in SCENARIOS]
+    if unknown:
+        raise KeyError(f"unknown scenario(s) {unknown}; choose from {sorted(SCENARIOS)}")
     rows: list[dict] = []
     for name in names:
-        spec = apply_scenario(base, SCENARIOS.get(name, {}))
+        spec = apply_scenario(base, SCENARIOS[name])
         _wh, reg = build_registry(spec)
         intel = WarehouseIntelligence(reg)
         k = intel.kpis()

@@ -50,7 +50,7 @@ def _two_nearest(p: list[float], reals: list[list[float]]) -> tuple[float, float
     return d1, d2
 
 
-def privacy_report(real: list[Row], synth: list[Row], eps: float = 0.02, max_n: int = 800, seed: int = 7) -> dict:
+def privacy_report(real: list[Row], synth: list[Row], *, eps: float = 0.02, max_n: int = 800, seed: int = 7) -> dict:
     """Compute DCR / NNDR / clone-risk between synthetic and real tables."""
     if not real or not synth:
         return {"error": "empty input"}
@@ -83,7 +83,7 @@ def privacy_report(real: list[Row], synth: list[Row], eps: float = 0.02, max_n: 
     }
 
 
-def read_retail_feature_table(path: str, limit: int = 3000) -> list[Row]:
+def read_retail_feature_table(path: str, limit: int = 3000, *, date_format: str | None = None) -> list[Row]:
     """Continuous feature table [quantity, price, hour, weekday] from a real CSV.
 
     Price adds continuity so distances are meaningful (not all-ties).
@@ -98,7 +98,7 @@ def read_retail_feature_table(path: str, limit: int = 3000) -> list[Row]:
                 p = float(r.get("Price", 0) or 0)
                 if q <= 0 or p <= 0:
                     continue
-                dt = _parse_dt(r.get("InvoiceDate", ""))
+                dt = _parse_dt(r.get("InvoiceDate", ""), date_format)
             except (ValueError, KeyError):
                 continue
             rows.append((q, p, float(dt.hour), float(dt.weekday())))
@@ -107,7 +107,7 @@ def read_retail_feature_table(path: str, limit: int = 3000) -> list[Row]:
     return rows
 
 
-def bootstrap_synthesize(real: list[Row], n: int | None = None, jitter: float = 0.05, seed: int = 7) -> list[Row]:
+def bootstrap_synthesize(real: list[Row], *, n: int | None = None, jitter: float = 0.05, seed: int = 7) -> list[Row]:
     """A minimal stdlib synthesizer: per-column bootstrap + Gaussian jitter.
 
     Stands in for a fitted generator so privacy can be measured with no heavy

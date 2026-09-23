@@ -7,7 +7,7 @@ from .forecast import build_series, compare_models, daily_demand_series
 
 
 def test_phase2_adapter_and_backtest(sample_csv):
-    skus, orders = load_online_retail_csv(sample_csv)
+    skus, orders, _load = load_online_retail_csv(sample_csv)
     assert skus and orders
     assert all(o.quantity > 0 for o in orders)  # abs() applied
     series = daily_demand_series(orders)
@@ -20,8 +20,17 @@ def test_phase2_adapter_and_backtest(sample_csv):
 
 
 def test_build_series_accepts_a_generator(sample_csv):
-    _, orders = load_online_retail_csv(sample_csv)
+    _, orders, _load = load_online_retail_csv(sample_csv)
     from_list = build_series(orders)
     from_generator = build_series(o for o in orders)
     assert from_generator == from_list
     assert from_generator[0]
+
+
+def test_too_short_series_reports_an_error():
+    from .forecast import backtest, m_mean
+
+    assert "error" in backtest([], m_mean)
+    assert "error" in backtest([1.0, 2.0], m_mean)
+    rep = compare_models([5.0])
+    assert rep["results"] == [] and rep["best_model"] is None and "too short" in rep["error"]

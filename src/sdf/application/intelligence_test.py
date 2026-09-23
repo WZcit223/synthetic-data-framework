@@ -38,3 +38,13 @@ def test_phase3_ss_policy():
     assert hi["z"] > lo["z"]
     for r in lo["rows"]:
         assert r["reorder_point_s"] >= r["safety_stock"] >= 0
+
+
+def test_numeric_options_are_keyword_only(default_world):
+    import pytest
+
+    _, _, intel = default_world
+    with pytest.raises(TypeError):
+        intel.replenishment_ss_policy(0.95)  # would silently mean lead_time_days=0.95
+    with pytest.raises(TypeError):
+        intel.stocktake_discrepancies(0.3)

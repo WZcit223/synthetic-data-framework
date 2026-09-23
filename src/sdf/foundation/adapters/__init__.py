@@ -7,8 +7,9 @@ the same dataclasses the synthetic generator does, tagged with
 """
 
 from .retail_csv import (
+    LoadReport,
     load_online_retail_csv,
     register_online_retail,
 )
 
-__all__ = ["load_online_retail_csv", "register_online_retail"]
+__all__ = ["LoadReport", "load_online_retail_csv", "register_online_retail"]

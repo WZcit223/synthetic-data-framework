@@ -10,7 +10,7 @@ from .fidelity import fidelity_report, ks_2samp, pearson
 def test_phase2_fitted_synthesis_fidelity(sample_csv):
     assert ks_2samp([1, 2, 3], [1, 2, 3]) == 0.0
     assert pearson([1, 2, 3], [2, 4, 6]) == 1.0
-    _skus, orders = load_online_retail_csv(sample_csv)
+    _skus, orders, _load = load_online_retail_csv(sample_csv)
     model = FittedHourlyDemand().fit(orders)
     synth = model.generate()
     rep = fidelity_report(model.real_series, synth, model.ppd)
