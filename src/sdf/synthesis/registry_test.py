@@ -216,6 +216,13 @@ def test_metadata_is_validated(name, produces, message):
         SynthesizerRegistry().register(bad)
 
 
+def test_runtime_registration_checks_requires():
+    with pytest.raises(ValueError, match="needs no_such_parent_pkg.backend"):
+        SynthesizerRegistry().register(NeedsAbsentChild)
+    with pytest.raises(TypeError, match="tuple of module names"):
+        SynthesizerRegistry().register(RequiresIsAString)
+
+
 def test_a_class_without_fit_or_sample_is_rejected():
     class NoSample:
         info = SynthesizerInfo("no-sample", "series", True, "x")

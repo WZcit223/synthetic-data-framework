@@ -42,7 +42,11 @@ class SynthesizerRegistry:
         self._unavailable: dict[str, str] = {}
 
     def register(self, cls: type[Synthesizer], *, replace: bool = False, origin: Origin = "runtime") -> None:
-        """Add ``cls`` under ``cls.info.name``; a duplicate name raises unless ``replace``."""
+        """Add ``cls`` under ``cls.info.name``; a duplicate name raises unless ``replace``.
+
+        Raises ``TypeError``/``ValueError`` for malformed metadata or when a module in
+        ``info.requires`` cannot be imported, so nothing unusable is ever listed as mounted.
+        """
         info = getattr(cls, "info", None)
         if not isinstance(info, SynthesizerInfo):
             raise TypeError(f"{getattr(cls, '__name__', cls)!r} has no SynthesizerInfo `info` class attribute")
@@ -62,6 +66,11 @@ class SynthesizerRegistry:
             raise TypeError(
                 f"{info.name}: every constructor argument needs a default so create(name) works; missing {required}"
             )
+        if not isinstance(info.requires, tuple) or not all(isinstance(m, str) for m in info.requires):
+            raise TypeError("info.requires must be a tuple of module names")
+        missing = [m for m in info.requires if not _importable(m)]
+        if missing:
+            raise ValueError(f"needs {', '.join(missing)}")
         if info.name in self._entries and not replace:
             raise ValueError(f"synthesizer {info.name!r} is already registered; pass replace=True to override")
         self._entries[info.name] = Registration(cls, origin)
@@ -110,11 +119,6 @@ class SynthesizerRegistry:
             return f"{ep.value} has no SynthesizerInfo `info` class attribute"
         if info.name != ep.name:
             return f"entry point name differs from info.name {info.name!r}"
-        if not isinstance(info.requires, tuple) or not all(isinstance(m, str) for m in info.requires):
-            return "info.requires must be a tuple of module names"
-        missing = [m for m in info.requires if not _importable(m)]
-        if missing:
-            return f"needs {', '.join(missing)}"
         try:
             self.register(cls, origin=origin)
         except (TypeError, ValueError) as exc:
