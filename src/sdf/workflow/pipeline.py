@@ -90,7 +90,7 @@ class Pipeline:
         }
 
 
-def warehouse_pipeline(spec=None, real_csv: str = None) -> Pipeline:
+def warehouse_pipeline(spec: GenerationSpec | None = None, real_csv: str | None = None) -> Pipeline:
     """The warehouse Data Intelligence Workflow as an explicit DAG.
 
     ingest → validate → application → economics → report
