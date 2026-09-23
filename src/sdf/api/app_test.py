@@ -137,12 +137,34 @@ def test_other_endpoints_answer(client):
     assert "<html" in client.get("/").text.lower()
 
 
-def test_scenarios_and_workflow_use_the_current_world(client):
+def test_scenarios_and_workflow_use_the_current_world(client, monkeypatch):
     """Before structure PR 6 both endpoints regenerated their own world from the last spec."""
+    import sdf.simulation.world as world_module
+    import sdf.workflow.pipeline as pipeline_module
+
+    generated = []
+    real_generate = world_module.World.generate.__func__
+
+    def counting_generate(cls, spec, *, label=None):
+        generated.append(label)
+        return real_generate(cls, spec, label=label)
+
+    monkeypatch.setattr(world_module.World, "generate", classmethod(counting_generate))
+    monkeypatch.setattr(pipeline_module, "build_registry", lambda spec: pytest.fail("workflow regenerated the world"))
     store = client.app.state.store
+    wf = get(client, "/workflow/run")
+    assert wf["run"]["errors"] == 0 and [t["status"] for t in wf["trace"]] == ["ok"] * 5  # ingest never regenerated
     sc = get(client, "/scenarios")
     base = next(r for r in sc["scenarios"] if r["scenario"] == "baseline")
     assert base["outbound_lines"] == len(store.current.world.stream("OutboundOrder"))
+    assert "baseline" not in generated and len(generated) == len(sc["scenarios"]) - 1  # only the what-if worlds
+
+
+def test_limits_endpoint(client):
+    assert get(client, "/generate/limits") == {
+        "n_skus": {"min": 10, "max": 500},
+        "horizon_days": {"min": 14, "max": 180},
+    }
 
 
 # -- /generate ----------------------------------------------------------------------------
@@ -179,6 +201,15 @@ def test_limits_are_configurable():
     client = TestClient(create_app(limits=GenerateLimits(max_skus=50, max_horizon_days=40)))
     assert client.post("/generate?n_skus=60").status_code == 422
     assert client.post("/generate?n_skus=50&horizon_days=40").status_code == 200
+    assert get(client, "/generate/limits")["n_skus"]["max"] == 50
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"), [({"max_skus": 5}, "max_skus"), ({"max_horizon_days": 7}, "max_horizon_days")]
+)
+def test_limits_below_the_minimum_are_rejected(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        GenerateLimits(**kwargs)
 
 
 def test_a_second_generation_is_refused_while_one_runs(client):

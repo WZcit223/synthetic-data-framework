@@ -16,13 +16,23 @@ from sdf.application.intelligence import WarehouseIntelligence
 from sdf.simulation.world import World
 from sdf.synthesis.spec import GenerationSpec
 
+MIN_SKUS = 10
+MIN_HORIZON_DAYS = 14
+
 
 @dataclass(frozen=True)
 class GenerateLimits:
-    """Upper bounds for ``/generate`` (project lead, 2026-09-23)."""
+    """Upper bounds for ``/generate`` (project lead, 2026-09-23); the lower bounds are fixed."""
 
     max_skus: int = 500
     max_horizon_days: int = 180
+
+    def __post_init__(self) -> None:
+        # A maximum below the fixed minimum would make /generate reject every request.
+        if self.max_skus < MIN_SKUS:
+            raise ValueError(f"max_skus must be at least {MIN_SKUS}, got {self.max_skus}")
+        if self.max_horizon_days < MIN_HORIZON_DAYS:
+            raise ValueError(f"max_horizon_days must be at least {MIN_HORIZON_DAYS}, got {self.max_horizon_days}")
 
 
 @dataclass(frozen=True)

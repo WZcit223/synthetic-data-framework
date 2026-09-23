@@ -554,6 +554,16 @@ async function refreshAll(){
     loadImpact(),loadWorkflow(),loadScenarios()]);
 }
 
+async function loadLimits(){
+  // Size the generation sliders to what this backend accepts.
+  const l = await (await fetch("/generate/limits")).json();
+  for (const [id, key] of [["skus","n_skus"],["days","horizon_days"]]) {
+    const el = $("#"+id);
+    el.max = l[key].max;  // the browser clamps a value above the new max
+    el.dispatchEvent(new Event("input"));  // keep the label in step with the (possibly clamped) value
+  }
+}
+
 async function regen(){
   $("#status").textContent="regenerating…";
   const q=new URLSearchParams({n_skus:$("#skus").value,horizon_days:$("#days").value,
@@ -571,6 +581,7 @@ async function regen(){
   setTimeout(()=>$("#status").textContent="",1500);
 }
 
+loadLimits();
 refreshAll();
 </script>
 </body>

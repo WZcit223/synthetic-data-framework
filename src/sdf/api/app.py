@@ -33,7 +33,7 @@ from sdf.application.scenarios import run_scenarios
 from sdf.synthesis.spec import GenerationSpec
 from sdf.validation.quality import structural_quality_check
 from sdf.workflow import warehouse_pipeline
-from .state import GenerateLimits, GenerationBusy, WorldStore
+from .state import MIN_HORIZON_DAYS, MIN_SKUS, GenerateLimits, GenerationBusy, WorldStore
 
 _STATIC = os.path.join(os.path.dirname(__file__), "static", "dashboard.html")
 _EXPORT_TABLES = ("skus", "locations", "inventory", "inbound", "outbound", "sensors")
@@ -57,8 +57,8 @@ def create_app(*, limits: GenerateLimits = GenerateLimits()) -> FastAPI:
 
     @app.post("/generate")
     def generate(
-        n_skus: int = Query(200, ge=10, le=limits.max_skus),
-        horizon_days: int = Query(90, ge=14, le=limits.max_horizon_days),
+        n_skus: int = Query(200, ge=MIN_SKUS, le=limits.max_skus),
+        horizon_days: int = Query(90, ge=MIN_HORIZON_DAYS, le=limits.max_horizon_days),
         daily_orders_per_a_sku: float = Query(6.0, ge=0.5, le=20.0),
         stockout_pressure: float = Query(0.08, ge=0.0, le=0.5),
         seed: int = 42,
@@ -84,6 +84,14 @@ def create_app(*, limits: GenerateLimits = GenerateLimits()) -> FastAPI:
                 "seed": spec.seed,
             },
             "generated_ms": snap.generated_ms,
+        }
+
+    @app.get("/generate/limits")
+    def generate_limits():
+        """The accepted ranges of the /generate parameters, so a UI can size its controls."""
+        return {
+            "n_skus": {"min": MIN_SKUS, "max": limits.max_skus},
+            "horizon_days": {"min": MIN_HORIZON_DAYS, "max": limits.max_horizon_days},
         }
 
     @app.get("/foundation/summary")
