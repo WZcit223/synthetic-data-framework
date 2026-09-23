@@ -76,7 +76,7 @@ class SynthesizerRegistry:
             if info.name != ep.name:
                 self._unavailable[ep.name] = f"entry point name differs from info.name {info.name!r}"
                 continue
-            missing = [m for m in info.requires if find_spec(m) is None]
+            missing = [m for m in info.requires if not _importable(m)]
             if missing:
                 self._unavailable[ep.name] = f"needs {', '.join(missing)}"
                 continue
@@ -110,6 +110,14 @@ class SynthesizerRegistry:
             hint = f" ({self._unavailable[name]})" if name in self._unavailable else ""
             raise KeyError(f"unknown synthesizer {name!r}{hint}; choose from {self.names()}")
         return self._entries[name]
+
+
+def _importable(module: str) -> bool:
+    """Whether ``module`` can be imported; a missing parent package counts as missing, not as an error."""
+    try:
+        return find_spec(module) is not None
+    except (ImportError, ValueError):  # find_spec("absent.child") raises ModuleNotFoundError
+        return False
 
 
 def default_registry() -> SynthesizerRegistry:

@@ -273,6 +273,7 @@ class SynthesizerInfo:
     produces: Produces
     needs_fit: bool    # False: configured entirely by constructor arguments
     description: str
+    requires: tuple[str, ...] = ()   # importable modules it needs; missing ones make it unavailable
 
 
 @dataclass(frozen=True)

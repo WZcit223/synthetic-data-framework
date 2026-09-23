@@ -68,6 +68,20 @@ def test_a_packaged_plug_in_mounts_like_a_built_in(monkeypatch):
     assert sorted(reg.create("shuffle-series").fit(SeriesData(values=[1.0, 2.0], period=1)).sample()) == [1.0, 2.0]
 
 
+class NeedsAbsentChild(ShuffleSeries):
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo(
+        "needs-absent-child", "series", True, "x", requires=("no_such_parent_pkg.backend",)
+    )
+
+
+def test_a_missing_dotted_requirement_is_listed_not_raised(monkeypatch):
+    monkeypatch.setattr(
+        registry_module, "entry_points", _fake_entry_points(("needs-absent-child", f"{__name__}:NeedsAbsentChild"))
+    )
+    reg = default_registry()
+    assert reg.names() == [] and reg.unavailable() == {"needs-absent-child": "needs no_such_parent_pkg.backend"}
+
+
 def test_a_broken_plug_in_is_listed_not_raised(monkeypatch):
     monkeypatch.setattr(
         registry_module,
