@@ -77,12 +77,19 @@ class SynthesizerRegistry:
         mounted: list[str] = []
         # Built-ins first, then plug-ins by distribution name: a plug-in reusing a
         # built-in's name never replaces it, and equal-name plug-ins resolve the same way on every run.
-        for ep in sorted(entry_points(group=group), key=lambda e: (_origin(e) != "builtin", _dist_name(e), e.name)):
+        # Built-in names stay reserved even when the built-in itself is unavailable (e.g. a missing extra).
+        declared = sorted(entry_points(group=group), key=lambda e: (_origin(e) != "builtin", _dist_name(e), e.name))
+        reserved = {e.name for e in declared if _origin(e) == "builtin"}
+        for ep in declared:
             origin = _origin(ep)
-            if ep.name in self._entries:
-                holder = self._entries[ep.name]
+            if ep.name in self._entries or (origin != "builtin" and ep.name in reserved):
+                holder = (
+                    f"a {self._entries[ep.name].origin} synthesizer ({self._entries[ep.name].cls.__module__})"
+                    if ep.name in self._entries
+                    else "an unavailable built-in"
+                )
                 self._unavailable[f"{ep.name} ({_dist_name(ep)})"] = (
-                    f"name already provided by a {holder.origin} synthesizer ({holder.cls.__module__}); {ep.value} not mounted"
+                    f"name already provided by {holder}; {ep.value} not mounted"
                 )
                 continue
             try:

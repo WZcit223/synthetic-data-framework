@@ -137,6 +137,15 @@ def test_a_plug_in_cannot_take_a_built_in_name(monkeypatch):
         assert "seasonal-profile" not in reg.unavailable()
         assert "already provided by a builtin" in reg.unavailable()["seasonal-profile (vendor-pkg)"]
 
+    # A built-in that cannot be mounted still reserves its name.
+    unavailable_builtin = ep("needs-absent-child", f"{__name__}:NeedsAbsentChild", registry_module.DISTRIBUTION)
+    squatter = ep("needs-absent-child", f"{__name__}:ShuffleSeries", "vendor-pkg")
+    monkeypatch.setattr(registry_module, "entry_points", lambda group: [squatter, unavailable_builtin])
+    reg = default_registry()
+    assert reg.names() == []
+    assert reg.unavailable()["needs-absent-child"] == "needs no_such_parent_pkg.backend"
+    assert "an unavailable built-in" in reg.unavailable()["needs-absent-child (vendor-pkg)"]
+
 
 def test_a_broken_plug_in_is_listed_not_raised(monkeypatch):
     monkeypatch.setattr(
