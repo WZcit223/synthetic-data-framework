@@ -25,7 +25,7 @@ web dashboard (`sdf.api.app`) or the CLI.
 | Demand forecast | baseline **+ real-data backtest** + **AR/seasonal model** (C1) | DeepAR/TFT; full dataset to beat `snaive` |
 | Synthesis fidelity (B1) | **measured**: baseline 78/100 **+ Gaussian-copula/SDMetrics 0.92** | CTGAN/TVAE for complex joints; DCR + detection (B3–B4) |
 | Synthetic utility (B2) | **measured** TSTR ratio 0.90–1.00 (as useful as real) | rerun on full dataset + learned models |
-| Replenishment (C2) | **(s,S) policy** + service-level selector + rule-based sim | cost-based newsvendor + fitted lead-time demand |
+| Replenishment (C2) | **(s,S) policy** + service-level selector + replayed comparison with a no-safety-stock policy | cost-based newsvendor + fitted lead-time demand |
 | Vision stocktake | synthetic shelf-occupancy heatmap + vision-vs-book discrepancy | C5 counting/detection model; labelled shelf images |
 | Anomaly detection (C3) | **seasonal-residual + robust-z** on demand, live | Isolation Forest / autoencoder over multivariate state |
 | Knowledge Q&A (C6) | **grounded NL Q&A** over computed facts, live | LLM + knowledge graph (same grounding contract) |
@@ -68,7 +68,7 @@ web dashboard (`sdf.api.app`) or the CLI.
 | # | Function | Framework stand-in (now) | Algorithm needed | Data needed |
 |---|----------|----------------------|------------------|-------------|
 | C1 | Demand forecast | avg daily demand | **DeepAR / Temporal Fusion Transformer / LightGBM** | dated order history + calendar/promo features |
-| C2 | Replenishment | fixed safety-stock rule | **(s,S) / newsvendor optimisation** on forecast + lead-time dist. | supplier lead times, holding/stockout costs |
+| C2 | Replenishment | (s,S) service-level policy, normal approximation | **cost-based (s,S) / newsvendor optimisation** on forecast + lead-time dist. | supplier lead times, holding/stockout costs |
 | C3 | Anomaly detection | threshold rules | **Isolation Forest / autoencoder** over multivariate series | historical normal-operations data |
 | C4 | Slotting / layout | random location assign | **assignment / bin-packing optimisation**, RL | pick paths, location geometry, order affinity |
 | C5 | Vision (shelf/defect) | `vision_occupancy` stub | **CV detection/segmentation** (reuse fabric-defect pipeline) | labelled shelf/product images |

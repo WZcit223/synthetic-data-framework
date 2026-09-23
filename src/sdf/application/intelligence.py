@@ -43,11 +43,8 @@ class WarehouseIntelligence:
     def demand_profiles(self) -> dict[str, DemandProfile]:
         return replenishment.demand_profiles(self.reg)
 
-    def replenishment_suggestions(self, top_n: int = 10) -> list[dict]:
-        return replenishment.rule_suggestions(self.reg, top_n)
-
-    def replenishment_simulation(self) -> dict:
-        return replenishment.rule_simulation(self.reg)
+    def replenishment_comparison(self, *, service_level: float = 0.95) -> dict:
+        return replenishment.policy_comparison(self.reg, service_level=service_level)
 
     def replenishment_ss_policy(
         self, *, lead_time_days: int = 7, review_days: int = 7, service_level: float = 0.95, top_n: int = 12

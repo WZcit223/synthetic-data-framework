@@ -1,5 +1,16 @@
 # PR 3 — Remove the fixed replenishment rule; the (s,S) policy is the only one
 
+> Status: implemented (structure sequence PR 3). Removed: the rule's 7 flagged
+> SKUs and its "closed loop" (stockouts 2 → 0, service 0.965 → 1). Moved: the
+> agent now proposes SKU-00028 × 119 (was SKU-00176 × 66); the insight line, the
+> knowledge answer and the workflow's `replenishment_flagged` report 62 SKUs
+> (was 7); the `sdf demo` replenishment lines list the five largest (s,S)
+> orders. Added: `policy_comparison` (`WarehouseIntelligence.replenishment_comparison`)
+> behind `GET /application/replenishment/comparison`, and its golden row
+> (naive 5 269 unmet units, fill rate 0.9128; service-level-95 0 and 1.0). The
+> agent's `replenishment` tool now returns the (s,S) result; PR 5 reshapes the
+> tools. The (s,S) numbers themselves did not move.
+
 Interface contract: [`interfaces.md` §1](interfaces.md#1-simulation-layer-sdfsimulation--f2)
 (`ServiceLevelPolicy`, `plan_orders`, `Experiment`).
 

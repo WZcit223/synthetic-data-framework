@@ -121,14 +121,9 @@ def application_overview():
     }
 
 
-@app.get("/application/replenishment")
-def application_replenishment(top_n: int = 10):
-    return _state.intel.replenishment_suggestions(top_n=top_n)
-
-
-@app.get("/application/replenishment/simulate")
-def application_replenishment_sim():
-    return _state.intel.replenishment_simulation()
+@app.get("/application/replenishment/comparison")
+def application_replenishment_comparison(service_level: float = 0.95):
+    return _state.intel.replenishment_comparison(service_level=service_level)
 
 
 @app.get("/application/replenishment/ss")

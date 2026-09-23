@@ -13,4 +13,4 @@ algorithm or real dataset must eventually plug in are marked with
 ``docs/ALGORITHM_AND_DATA_CHECKLIST.md``.
 """
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"

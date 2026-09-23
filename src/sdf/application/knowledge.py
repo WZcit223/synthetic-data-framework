@@ -92,12 +92,13 @@ class KnowledgeQA:
         }
 
     def _replenish(self) -> dict:
-        s = self.intel.replenishment_suggestions(999)
-        top = s[0] if s else None
-        msg = f"{len(s)} SKUs are at or below their reorder point."
+        p = self.intel.replenishment_ss_policy(service_level=0.95, top_n=1)
+        n = p["skus_needing_order"]
+        top = p["rows"][0] if n else None
+        msg = f"{n} SKUs need an order under the 95% service-level (s,S) policy."
         if top:
-            msg += f" Most urgent: {top['sku_id']} — order {top['suggested_order_qty']} units."
-        return {"intent": "replenishment", "data": {"count": len(s)}, "answer": msg}
+            msg += f" Largest order: {top['sku_id']} — order {top['order_qty']} units."
+        return {"intent": "replenishment", "data": {"count": n, "policy": "service-level-95"}, "answer": msg}
 
     def _forecast(self) -> dict:
         orders = self.intel.reg.stream("OutboundOrder")

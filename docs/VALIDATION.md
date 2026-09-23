@@ -86,9 +86,6 @@ MAPE % averages |error| / actual over the test points whose actual is positive; 
 | cancel rate | 0.0298 |
 | express rate | 0.2525 |
 | ABC mix (A / B / C) | 39 / 55 / 106 |
-| rule-based: SKUs at/below reorder point | 7 |
-| rule-based simulation: stockouts before → after | 2 → 0 |
-| rule-based simulation: service level before → after | 0.965 → 1 |
 | rule anomalies: stockout / dead stock | 2 / 0 |
 | demand anomalies (robust-z ≥ 3.5) | 3 |
 | largest demand anomaly: day, value, expected, robust-z | 37, 2,416, 739, 35.35 |
@@ -113,6 +110,13 @@ Backtest (daily, seasonal period 7, 90 points; ranked by MAE):
 | 0.95 | 1.645 | 62 | 40 | 4,541 |
 | 0.99 | 2.326 | 73 | 49 | 6,421 |
 
+Policy comparison (demand replayed over 90 days, default `CostModel`, 95 % service level):
+
+| policy | SKUs needing an order | safety stock (units) | unmet units | fill rate | holding cost | order cost |
+|---|---|---|---|---|---|---|
+| naive | 2 | 0 | 5,269 | 0.9128 | 41,509 | 40,600 |
+| service-level-95 | 62 | 4,541 | 0 | 1 | 122,435 | 229,125 |
+
 Economics (counterfactual, default `CostModel`):
 
 | metric | value |
@@ -132,7 +136,7 @@ Scenarios (95 % service level):
 | seasonal_downturn | 48 | 4,029 | -11.3 |
 | high_variability | 72 | 5,143 | 13.3 |
 
-Agent, "should I reorder and what is the money impact?": plan `replenishment → financial_impact`, 3 logged steps, proposed SKU-00176 × 66 (PENDING_APPROVAL).
+Agent, "should I reorder and what is the money impact?": plan `replenishment → financial_impact`, 3 logged steps, proposed SKU-00028 × 119 (PENDING_APPROVAL).
 
 ### `sample_online_retail_ii.csv` (daily; 12 SKUs, 3,428 orders)
 

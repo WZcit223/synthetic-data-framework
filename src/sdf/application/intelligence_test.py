@@ -12,7 +12,7 @@ def test_application_layer_runs():
     intel = WarehouseIntelligence(reg)
     k = intel.kpis()
     assert k.total_skus == 60
-    assert isinstance(intel.replenishment_suggestions(5), list)
+    assert [p["policy"] for p in intel.replenishment_comparison()["policies"]] == ["naive", "service-level-95"]
     assert len(intel.insights()) >= 3
 
 
@@ -48,6 +48,8 @@ def test_numeric_options_are_keyword_only(default_world):
         intel.replenishment_ss_policy(0.95)  # would silently mean lead_time_days=0.95
     with pytest.raises(TypeError):
         intel.stocktake_discrepancies(0.3)
+    with pytest.raises(TypeError):
+        intel.replenishment_comparison(0.95)
 
 
 def test_demand_series_forecast_is_a_calendar_day_rate():

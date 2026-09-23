@@ -53,11 +53,10 @@ def cmd_demo() -> int:
 
     print("\n[Application] ABC distribution:", intel.abc_distribution())
 
-    print("\n[Application] top replenishment suggestions:")
-    for s in intel.replenishment_suggestions(top_n=5):
-        print(
-            f"  {s['sku_id']}  order {s['suggested_order_qty']:>4}  (avail {s['available']}, ROP {s['reorder_point']})"
-        )
+    print("\n[Application] top replenishment orders (95% service-level (s,S) policy):")
+    for s in intel.replenishment_ss_policy(service_level=0.95, top_n=5)["rows"]:
+        if s["order_qty"] > 0:
+            print(f"  {s['sku_id']}  order {s['order_qty']:>4}  (avail {s['available']}, s {s['reorder_point_s']})")
 
     print("\n[Application] insights:")
     for line in intel.insights():
