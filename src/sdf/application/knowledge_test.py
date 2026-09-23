@@ -25,3 +25,9 @@ def test_forecast_question_on_an_empty_registry_says_so():
     res = KnowledgeQA(WarehouseIntelligence(DataSourceRegistry())).ask("forecast accuracy?")
     assert res["intent"] == "forecast"
     assert "not enough demand history" in res["answer"]
+
+
+def test_undefined_percentages_read_as_not_available():
+    from .knowledge import _pct_text
+
+    assert _pct_text(None) == "n/a" and _pct_text(21.2) == "21.2%"

@@ -184,10 +184,11 @@
     <div id="btMeta" class="note" style="margin:0 0 10px"></div>
     <table><thead><tr>
       <th>model</th><th class="num">MAE</th><th class="num">RMSE</th>
-      <th class="num">MAPE %</th><th class="num">bias</th>
+      <th class="num">MAPE %</th><th class="num">WAPE %</th><th class="num">bias</th>
     </tr></thead><tbody id="btRows"></tbody></table>
     <div class="note">Backtested on the current synthetic world's demand. Same harness
-      runs on real data via <code>python -m sdf.cli backtest &lt;csv&gt;</code>.
+      runs on real data via <code>uv run sdf backtest &lt;csv&gt;</code>. MAPE averages |error|/actual over
+      buckets with sales; WAPE = Σ|error| / Σactual.
       ALGORITHM-HOOK: beat the winning baseline with DeepAR/TFT/LightGBM.</div>
   </div>
 
@@ -463,7 +464,8 @@ async function loadBacktest(){
   $("#btRows").innerHTML = r.results.map((m,i)=>`<tr>
     <td>${i===0?'🏆 ':''}${m.model}</td>
     <td class="num"><b>${fmt(m.MAE)}</b></td><td class="num">${fmt(m.RMSE)}</td>
-    <td class="num">${fmt(m.MAPE_pct)}</td><td class="num">${fmt(m.bias)}</td></tr>`).join("");
+    <td class="num">${fmt(m.MAPE_pct)}</td><td class="num">${fmt(m.WAPE_pct)}</td>
+    <td class="num">${fmt(m.bias)}</td></tr>`).join("");
 }
 
 async function loadSS(){

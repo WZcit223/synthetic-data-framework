@@ -2,7 +2,8 @@
 
 > Status: implemented (correctness sequence PR 1, #9). The snapshot records a
 > CSV's file name rather than its path so the output does not depend on the
-> working directory; CSV headings are derived from the input.
+> working directory; CSV headings are derived from the input. Since correctness
+> PR 3 every backtest row also carries `WAPE_pct` (JSON and markdown).
 
 ## Goal
 
