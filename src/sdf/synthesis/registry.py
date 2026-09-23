@@ -1,63 +1,123 @@
-"""Choose a synthesizer by name.
+"""Mount synthesizers as plug-ins and choose one by name.
 
-``default_registry()`` holds the built-ins; ``register`` adds a user-written
-one (any class that satisfies ``sdf.synthesis.api.Synthesizer``).
-Later (F1): ``load_entry_points()`` will mount third-party plug-ins declared in
-the ``sdf.synthesizers`` entry-point group.
+Every synthesis algorithm, ours included, is a plug-in: a class that satisfies
+``sdf.synthesis.api.Synthesizer``, declared in the ``sdf.synthesizers``
+entry-point group. The ones this package declares in its own ``pyproject.toml``
+are the built-ins; any other installed package can declare more the same way:
+
+    [project.entry-points."sdf.synthesizers"]
+    my-synth = "my_package.synth:MySynth"
+
+``default_registry()`` mounts the whole group. ``register`` adds a class at
+runtime (for example from a notebook) without packaging it.
 """
 
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
+from importlib.metadata import entry_points
 from importlib.util import find_spec
-from typing import Any
+from typing import Any, Literal, get_args
 
-from .api import Synthesizer, SynthesizerInfo
-from .bootstrap import BootstrapTable
-from .fit import FittedSeasonalDemand
-from .warehouse import WarehouseSpecSynthesizer
+from .api import Produces, Synthesizer, SynthesizerInfo
 
 ENTRY_POINT_GROUP = "sdf.synthesizers"
+DISTRIBUTION = "synthetic-data-framework"  # entry points declared by this package are the built-ins
+_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+
+Origin = Literal["builtin", "plugin", "runtime"]
+
+
+@dataclass(frozen=True)
+class Registration:
+    cls: type[Synthesizer]
+    origin: Origin  # builtin: declared by this package; plugin: another package; runtime: register() call
 
 
 class SynthesizerRegistry:
     def __init__(self) -> None:
-        self._classes: dict[str, type[Synthesizer]] = {}
+        self._entries: dict[str, Registration] = {}
+        self._unavailable: dict[str, str] = {}
 
-    def register(self, cls: type[Synthesizer], *, replace: bool = False) -> None:
+    def register(self, cls: type[Synthesizer], *, replace: bool = False, origin: Origin = "runtime") -> None:
         """Add ``cls`` under ``cls.info.name``; a duplicate name raises unless ``replace``."""
         info = getattr(cls, "info", None)
         if not isinstance(info, SynthesizerInfo):
-            raise TypeError(f"{cls.__name__} has no SynthesizerInfo `info` class attribute")
-        if info.name in self._classes and not replace:
+            raise TypeError(f"{getattr(cls, '__name__', cls)!r} has no SynthesizerInfo `info` class attribute")
+        if not _NAME.match(info.name):
+            raise ValueError(f"synthesizer name {info.name!r} must be lower-case words joined by dashes")
+        if info.produces not in get_args(Produces):
+            raise ValueError(f"{info.name}: produces must be one of {list(get_args(Produces))}, got {info.produces!r}")
+        for method in ("fit", "sample"):
+            if not callable(getattr(cls, method, None)):
+                raise TypeError(f"{info.name}: a synthesizer needs a {method}() method")
+        if info.name in self._entries and not replace:
             raise ValueError(f"synthesizer {info.name!r} is already registered; pass replace=True to override")
-        self._classes[info.name] = cls
+        self._entries[info.name] = Registration(cls, origin)
+        self._unavailable.pop(info.name, None)
+
+    def load_entry_points(self, group: str = ENTRY_POINT_GROUP) -> list[str]:
+        """Mount every synthesizer declared in ``group``; return the names mounted.
+
+        A plug-in whose ``info.requires`` modules are not installed, or that fails
+        to load, is skipped and listed by ``unavailable()`` instead of breaking
+        the registry.
+        """
+        mounted: list[str] = []
+        for ep in sorted(entry_points(group=group), key=lambda e: e.name):
+            origin: Origin = "builtin" if ep.dist is not None and ep.dist.name == DISTRIBUTION else "plugin"
+            try:
+                cls = ep.load()
+                info = cls.info
+            except Exception as exc:  # a broken third-party plug-in must not break the CLI
+                self._unavailable[ep.name] = f"failed to load {ep.value}: {exc}"
+                continue
+            if info.name != ep.name:
+                self._unavailable[ep.name] = f"entry point name differs from info.name {info.name!r}"
+                continue
+            missing = [m for m in info.requires if find_spec(m) is None]
+            if missing:
+                self._unavailable[ep.name] = f"needs {', '.join(missing)}"
+                continue
+            try:
+                self.register(cls, origin=origin)
+            except (TypeError, ValueError) as exc:
+                self._unavailable[ep.name] = str(exc)
+                continue
+            mounted.append(info.name)
+        return mounted
 
     def create(self, name: str, **config: Any) -> Synthesizer:
         """A new instance of the synthesizer registered as ``name``, configured by ``config``."""
-        if name not in self._classes:
-            raise KeyError(f"unknown synthesizer {name!r}; choose from {self.names()}")
-        return self._classes[name](**config)
+        return self._entry(name).cls(**config)
 
-    def names(self) -> list[str]:
-        return sorted(self._classes)
+    def names(self, *, origin: Origin | None = None) -> list[str]:
+        return sorted(n for n, e in self._entries.items() if origin is None or e.origin == origin)
 
     def info(self, name: str) -> SynthesizerInfo:
-        if name not in self._classes:
-            raise KeyError(f"unknown synthesizer {name!r}; choose from {self.names()}")
-        return self._classes[name].info
+        return self._entry(name).cls.info
+
+    def origin(self, name: str) -> Origin:
+        return self._entry(name).origin
+
+    def unavailable(self) -> dict[str, str]:
+        """Declared synthesizers that could not be mounted, with the reason."""
+        return dict(self._unavailable)
+
+    def _entry(self, name: str) -> Registration:
+        if name not in self._entries:
+            hint = f" ({self._unavailable[name]})" if name in self._unavailable else ""
+            raise KeyError(f"unknown synthesizer {name!r}{hint}; choose from {self.names()}")
+        return self._entries[name]
 
 
 def default_registry() -> SynthesizerRegistry:
-    """A fresh registry with the built-in synthesizers.
+    """A fresh registry with every installed synthesizer plug-in, the built-ins included.
 
-    ``gaussian-copula`` is added only when the optional ``synthesis`` extra
-    (``copulas``) is installed.
+    ``gaussian-copula`` is declared like the other built-ins but is only
+    available when the optional ``synthesis`` extra is installed.
     """
     reg = SynthesizerRegistry()
-    for cls in (BootstrapTable, FittedSeasonalDemand, WarehouseSpecSynthesizer):
-        reg.register(cls)
-    if find_spec("copulas") is not None:
-        from .sdv_synth import GaussianCopulaTable
-
-        reg.register(GaussianCopulaTable)
+    reg.load_entry_points()
     return reg

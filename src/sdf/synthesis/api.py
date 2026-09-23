@@ -1,8 +1,9 @@
 """The synthesizer contract: one way to fit, sample and describe any synthesis algorithm.
 
 A synthesizer is any class with an ``info`` class attribute (``SynthesizerInfo``)
-and ``fit`` / ``sample`` methods. ``sdf.synthesis.registry`` lists the built-ins
-and lets callers choose one by name. See ``docs/refactor/structure/interfaces.md`` §2.
+and ``fit`` / ``sample`` methods. Every synthesizer, the built-ins included, is a
+plug-in mounted by ``sdf.synthesis.registry`` from the ``sdf.synthesizers``
+entry-point group, and callers choose one by name. See ``docs/refactor/structure/interfaces.md`` §2.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ class SynthesizerInfo:
     produces: Produces
     needs_fit: bool  # False: configured entirely by constructor arguments
     description: str
+    requires: tuple[str, ...] = ()  # importable modules it needs; missing ones make it unavailable
 
 
 @dataclass(frozen=True)

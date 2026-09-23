@@ -53,9 +53,11 @@ without another restructuring:
 
 - **F1. Pluggable synthesis.** All synthesis algorithms will be plug-ins that
   users can choose, add or write themselves. This sequence defines the
-  `Synthesizer` contract and a registry, and moves the four existing algorithms
-  behind it. Loading third-party plug-ins through package entry points is the
-  follow-up; the contract already names the entry-point group.
+  `Synthesizer` contract and a registry that mounts every algorithm as a
+  plug-in through the `sdf.synthesizers` entry-point group. Our own four
+  algorithms are declared there as built-ins, exactly like a third-party
+  plug-in would be (project lead, 2026-09-23). Choosing plug-ins from the UI is
+  the follow-up.
 - **F2. Composable policy simulation, ready for causal modelling.** One dataset
   must support many simulations, freely combined. This sequence adds a
   `simulation/` layer with four parts: a `World`, `Intervention`s (changes to
@@ -145,7 +147,7 @@ space.
 
 ## Non-goals
 
-- No new synthesis algorithm, no entry-point plug-in loading (F1 follow-up).
+- No new synthesis algorithm (F1 follow-up).
 - No causal estimator, no new intervention type beyond the existing scenarios
   and a plain policy comparison (F2 follow-up).
 - No pivot table or other new UI feature (F3 follow-up).

@@ -294,9 +294,29 @@ class Synthesizer(Protocol):
     def sample(self, n: int | None = None, *, seed: int | None = None) -> Any: ...
 ```
 
-`SynthesizerRegistry` methods: `register(cls, *, replace=False)` (raises on a
-duplicate name), `create(name, **config)` (raises `KeyError` listing the valid
-names), `names()`, `info(name)`.
+`SynthesizerRegistry` methods: `register(cls, *, replace=False)` (validates the
+metadata and raises on a duplicate name), `load_entry_points(group="sdf.synthesizers")`,
+`create(name, **config)` (raises `KeyError` listing the valid names),
+`names(*, origin=None)`, `info(name)`, `origin(name)` (`"builtin"`, `"plugin"` or
+`"runtime"`) and `unavailable()` (declared but not mounted, with the reason).
+`SynthesizerInfo` also carries `requires: tuple[str, ...] = ()`, the importable
+modules a synthesizer needs.
+
+**Every synthesizer is a plug-in, ours included** (project lead, 2026-09-23).
+The built-ins are declared in this package's own `pyproject.toml`, in the same
+entry-point group a third-party package uses, and `default_registry()` mounts the
+whole group. "Built-in" only means "declared by `synthetic-data-framework`":
+
+```toml
+[project.entry-points."sdf.synthesizers"]
+bootstrap-table = "sdf.synthesis.bootstrap:BootstrapTable"
+gaussian-copula = "sdf.synthesis.sdv_synth:GaussianCopulaTable"   # needs the synthesis extra
+seasonal-profile = "sdf.synthesis.fit:FittedSeasonalDemand"
+warehouse-spec = "sdf.synthesis.warehouse:WarehouseSpecSynthesizer"
+```
+
+A declared synthesizer whose `requires` are missing, or that fails to load, is
+skipped and reported by `unavailable()`; it never breaks the registry or the CLI.
 
 Minimal plug-in (runnable after PR 4):
 
@@ -354,13 +374,15 @@ uv run sdf synth data/sample_online_retail_ii.csv --synthesizer seasonal-profile
 uv run sdf privacy data/sample_online_retail_ii.csv --synthesizer bootstrap-table
 ```
 
-**Later (F1).** Third-party packages declare plug-ins through an entry-point
-group, and `reg.load_entry_points()` mounts them:
+A third-party package mounts its own synthesizer the same way (after PR 4):
 
 ```toml
 [project.entry-points."sdf.synthesizers"]
 shuffle-series = "my_package.synth:ShuffleSeries"
 ```
+
+**Later (F1).** Choosing and configuring plug-ins from the UI, and documented
+guidance for writing one, build on this without changing the contract.
 
 ---
 

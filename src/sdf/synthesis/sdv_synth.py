@@ -60,6 +60,7 @@ class GaussianCopulaTable:
         produces="table",
         needs_fit=True,
         description="Gaussian copula with fitted marginals (copulas.GaussianMultivariate)",
+        requires=("copulas", "pandas", "numpy"),
     )
 
     def __init__(self, *, seed: int | None = None) -> None:

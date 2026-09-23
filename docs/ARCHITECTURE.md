@@ -58,12 +58,14 @@ TimeGAN) or an LLM code-generation step, plus a real quality/validation stage.
 
 Every synthesis algorithm satisfies one contract (`synthesis/api.py`): a
 `SynthesizerInfo` class attribute plus `fit(data)` and `sample(n, *, seed)`.
-`synthesis/registry.py` lists them by name: `warehouse-spec` (the spec-driven
-world generator), `seasonal-profile` (a series fitted on real demand),
-`bootstrap-table` (a per-column table bootstrap) and, with the `synthesis`
-extra, `gaussian-copula`. Callers choose one by name, for example
-`uv run sdf tstr --synthesizer seasonal-profile`. A user-written algorithm is
-one registered class; the contract is in
+Every algorithm is a plug-in, ours included: `synthesis/registry.py` mounts
+the `sdf.synthesizers` entry-point group, where this package declares its
+built-ins — `warehouse-spec` (the spec-driven world generator),
+`seasonal-profile` (a series fitted on real demand), `bootstrap-table` (a
+per-column table bootstrap) and, with the `synthesis` extra, `gaussian-copula`.
+Another installed package adds its own algorithm by declaring it in the same
+group. Callers choose one by name, for example
+`uv run sdf tstr --synthesizer seasonal-profile`; the contract is in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §2.
 
 ### Application Layer

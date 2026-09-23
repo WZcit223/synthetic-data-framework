@@ -8,6 +8,7 @@ from typing import ClassVar
 
 import pytest
 
+from . import registry as registry_module
 from .api import SeriesData, SynthesizerInfo, TableData
 from .registry import SynthesizerRegistry, default_registry
 from .spec import GenerationSpec
@@ -40,10 +41,48 @@ class ShuffleSeries:
         return values if n is None else values[:n]
 
 
-def test_default_names():
-    names = default_registry().names()
+def test_built_ins_are_mounted_from_our_entry_points():
+    reg = default_registry()
     has_copula = importlib.util.find_spec("copulas") is not None
-    assert names == sorted(BUILT_INS + (["gaussian-copula"] if has_copula else []))
+    assert reg.names(origin="builtin") == sorted(BUILT_INS + (["gaussian-copula"] if has_copula else []))
+    assert all(reg.origin(n) == "builtin" for n in BUILT_INS)
+    if not has_copula:
+        assert reg.unavailable()["gaussian-copula"].startswith("needs copulas")
+        with pytest.raises(KeyError, match=r"'gaussian-copula' \(needs copulas"):
+            reg.create("gaussian-copula")
+
+
+def _fake_entry_points(*specs):
+    from importlib.metadata import EntryPoint
+
+    eps = [EntryPoint(name=name, value=value, group=registry_module.ENTRY_POINT_GROUP) for name, value in specs]
+    return lambda group: [ep for ep in eps if ep.group == group]
+
+
+def test_a_packaged_plug_in_mounts_like_a_built_in(monkeypatch):
+    monkeypatch.setattr(
+        registry_module, "entry_points", _fake_entry_points(("shuffle-series", f"{__name__}:ShuffleSeries"))
+    )
+    reg = default_registry()
+    assert reg.names() == ["shuffle-series"] and reg.origin("shuffle-series") == "plugin"
+    assert sorted(reg.create("shuffle-series").fit(SeriesData(values=[1.0, 2.0], period=1)).sample()) == [1.0, 2.0]
+
+
+def test_a_broken_plug_in_is_listed_not_raised(monkeypatch):
+    monkeypatch.setattr(
+        registry_module,
+        "entry_points",
+        _fake_entry_points(
+            ("missing-module", "no_such_package.synth:Nope"),
+            ("wrong-name", f"{__name__}:ShuffleSeries"),
+            ("shuffle-series", f"{__name__}:ShuffleSeries"),
+        ),
+    )
+    reg = default_registry()
+    assert reg.names() == ["shuffle-series"]
+    problems = reg.unavailable()
+    assert problems["missing-module"].startswith("failed to load no_such_package.synth:Nope")
+    assert "differs from info.name 'shuffle-series'" in problems["wrong-name"]
 
 
 def test_info_describes_each_built_in():
@@ -77,7 +116,7 @@ def test_a_plug_in_registers_and_runs():
     reg.register(ShuffleSeries)
     out = reg.create("shuffle-series", seed=3).fit(SeriesData(values=[1.0, 2.0, 3.0], period=1)).sample()
     assert sorted(out) == [1.0, 2.0, 3.0]
-    assert "shuffle-series" in reg.names() and "shuffle-series" not in default_registry().names()
+    assert reg.origin("shuffle-series") == "runtime" and "shuffle-series" not in default_registry().names()
 
 
 def test_duplicate_name_needs_replace():
@@ -86,6 +125,27 @@ def test_duplicate_name_needs_replace():
     with pytest.raises(ValueError, match="already registered"):
         reg.register(ShuffleSeries)
     reg.register(ShuffleSeries, replace=True)
+
+
+@pytest.mark.parametrize(
+    ("name", "produces", "message"),
+    [("Bad Name", "series", "lower-case words joined by dashes"), ("ok-name", "image", "produces must be one of")],
+)
+def test_metadata_is_validated(name, produces, message):
+    bad = type("Bad", (ShuffleSeries,), {"info": SynthesizerInfo(name, produces, True, "x")})  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match=message):
+        SynthesizerRegistry().register(bad)
+
+
+def test_a_class_without_fit_or_sample_is_rejected():
+    class NoSample:
+        info = SynthesizerInfo("no-sample", "series", True, "x")
+
+        def fit(self, data):
+            return self
+
+    with pytest.raises(TypeError, match="sample"):
+        SynthesizerRegistry().register(NoSample)  # type: ignore[arg-type]
 
 
 def test_a_class_without_info_is_rejected():
