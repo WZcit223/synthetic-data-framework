@@ -49,7 +49,11 @@ def _edges():
         importer = _module_name(path)
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith("sdf."):
+                        yield importer, alias.name
+            elif isinstance(node, ast.ImportFrom):
                 target = _resolve(importer, node, path.name == "__init__.py")
                 if target and target != "sdf":
                     yield importer, target

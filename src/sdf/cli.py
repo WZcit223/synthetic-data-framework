@@ -24,7 +24,6 @@ from .synthesis.forecast import build_series, compare_models, models_for
 from .synthesis.materialise import build_registry
 from .synthesis.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
 from .synthesis.quality import structural_quality_check
-from .synthesis.sdv_synth import gaussian_copula_fidelity
 from .synthesis.spec import GenerationSpec
 from .synthesis.tstr import tstr_report
 from .workflow import warehouse_pipeline
@@ -164,6 +163,8 @@ def cmd_tstr(path: str) -> int:
 def cmd_sdv(path: str) -> int:
     """Phase 2.1 (full): Gaussian-copula synthesis scored by SDMetrics."""
     try:
+        from .synthesis.sdv_synth import gaussian_copula_fidelity
+
         rep = gaussian_copula_fidelity(path)
     except ImportError:
         print("This command needs: uv sync --extra synthesis")
