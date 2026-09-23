@@ -268,6 +268,8 @@ src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
 ## 5. 施工顺序（每步一个 PR，前后不可调换）
 
 > 2026-09-23：第 1～4 步的详细计划已落在 [`docs/refactor/layout/`](refactor/layout/00-overview.md)（overview + 每个 PR 一个计划文件；**该序列的 4 个 PR 已全部合入 main**，黄金数字未变），并把第 7 步已完成的 click 迁移之外的"分类"工作（`analytics/`、`validation/` 拆分、`intelligence.py` 改名、统一需求聚合）提前到该序列的第 3 个 PR；本表其余步骤（4～9）在该序列完成后另开计划目录。
+>
+> 2026-09-23：第 3 步（数值修复）与第 7 步的 `sdf validate` 部分合并为第二个序列，计划在 [`docs/refactor/correctness/`](refactor/correctness/00-overview.md)（4 个 PR：`sdf validate` 单一数字来源 → 错误显式化 → 误差指标 → 需求形态与安全库存）。第 3 步原列出的 C4、C6、I1、I2、S3、S4、S5 放在其 PR 2，C1、C2、C3、C7 在 PR 3，C5 在 PR 4。
 
 | 步 | PR 类型（按 CONTRIBUTING） | 内容 | 完成判据 |
 |---|---|---|---|
