@@ -33,10 +33,19 @@ class ScenarioKPIs:
 
 
 def run_scenarios(
-    base_spec: GenerationSpec | None = None, names: list[str] | None = None, service_level: float = 0.95
+    base_spec: GenerationSpec | None = None,
+    names: list[str] | None = None,
+    service_level: float = 0.95,
+    *,
+    world: World | None = None,
 ) -> dict:
-    """Generate each scenario world and compare KPIs + inventory stress."""
-    base = base_spec or GenerationSpec()
+    """Generate each scenario world and compare KPIs + inventory stress.
+
+    ``world`` reuses an already generated base world (it must carry its
+    ``GenerationSpec``); otherwise the base world is generated from ``base_spec``.
+    """
+    if world is not None and world.spec is None:
+        raise ValueError("run_scenarios needs a world generated from a GenerationSpec")
     names = names or list(SCENARIOS)
     unknown = [n for n in names if n not in SCENARIOS]
     if unknown:
@@ -44,7 +53,7 @@ def run_scenarios(
     # "baseline" has no tweaks, so it reuses the base world instead of regenerating it.
     interventions: list[Intervention] = [Baseline() if n == "baseline" else SpecIntervention.named(n) for n in names]
     result = Experiment(
-        world=World.generate(base),
+        world=world if world is not None else World.generate(base_spec or GenerationSpec()),
         interventions=interventions,
         policies=[ServiceLevelPolicy(service_level=service_level)],
         outcomes=[ScenarioKPIs(), ReplenishmentNeed(), ActiveStockouts()],

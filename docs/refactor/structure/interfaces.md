@@ -474,7 +474,7 @@ the dashboard fetches unversioned paths such as `/application/overview`.
 from sdf.api.app import create_app
 from sdf.api.state import GenerateLimits, Snapshot, WorldStore
 
-app = create_app(limits=GenerateLimits(max_skus=500, max_horizon_days=180))
+app = create_app(limits=GenerateLimits(max_skus=500, max_horizon_days=180))   # ui_dir= is added in PR 7
 store: WorldStore = app.state.store
 snap: Snapshot = store.current          # Snapshot(world=World(...), intel=WarehouseIntelligence(...), generated_ms=…)
 store.regenerate(GenerationSpec(n_skus=80))   # builds a new Snapshot, then replaces `current` in one assignment
@@ -485,8 +485,11 @@ store.regenerate(GenerationSpec(n_skus=80))   # builds a new Snapshot, then repl
 once and use only that snapshot. `regenerate` takes the store's lock without
 waiting (`lock.acquire(blocking=False)`) and raises `GenerationBusy` when another
 generation holds it. `/generate` maps that to HTTP 409, and answers 422 when a
-parameter exceeds `GenerateLimits`. Endpoint paths are
-unchanged in PR 6.
+parameter is outside its bounds (at least 10 SKUs and 14 days, at most
+`GenerateLimits`; an unusable `GenerateLimits` below those minimums is rejected
+when it is built). `GET /generate/limits` reports the accepted ranges
+(`{"n_skus": {"min": 10, "max": 500}, "horizon_days": {"min": 14, "max": 180}}`)
+so a UI can size its controls. The existing endpoint paths are unchanged in PR 6.
 
 ### 4.3 Target (after PR 7): versioned JSON API and a separate UI
 

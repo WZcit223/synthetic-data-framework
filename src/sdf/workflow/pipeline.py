@@ -24,6 +24,7 @@ from sdf.application.intelligence import WarehouseIntelligence
 from sdf.foundation.adapters.retail_csv import register_online_retail
 from sdf.foundation.registry import DataSourceRegistry
 from sdf.observability import RunLogger
+from sdf.simulation.world import World
 from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.spec import GenerationSpec
 from sdf.validation.quality import structural_quality_check
@@ -99,12 +100,17 @@ def _economics_summary(economics: dict) -> dict:
 
 
 def warehouse_pipeline(
-    spec: GenerationSpec | None = None, real_csv: str | None = None, *, date_format: str | None = None
+    spec: GenerationSpec | None = None,
+    real_csv: str | None = None,
+    *,
+    date_format: str | None = None,
+    world: World | None = None,
 ) -> Pipeline:
     """The warehouse Data Intelligence Workflow as an explicit DAG.
 
     ingest → validate → application → economics → report
-    (ingest generates the synthetic world, or loads a real CSV via the adapter).
+    (ingest generates the synthetic world, loads a real CSV via the adapter, or
+    uses ``world`` when one is given, e.g. the API's current world).
     """
 
     def ingest(ctx):
@@ -120,6 +126,10 @@ def warehouse_pipeline(
                 "orders": load.orders,
                 "load": load.to_dict(),
             }
+        if world is not None:
+            ctx["registry"] = world.registry
+            ctx["_warehouse"] = world.warehouse
+            return {"origin": "synthetic" if world.warehouse is not None else "world", **world.registry.summary()}
         wh, reg = build_registry(spec or GenerationSpec())
         ctx["registry"] = reg
         ctx["_warehouse"] = wh
