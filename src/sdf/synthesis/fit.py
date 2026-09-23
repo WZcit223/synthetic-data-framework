@@ -23,6 +23,7 @@ class FittedSeasonalDemand:
 
     def __init__(self, seed: int = 7) -> None:
         self.seed = seed
+        self._rng = random.Random(seed)  # one stream: repeated generate() calls differ
         self.period = 1
         self.profile: list[float] = []
         self.resid: list[float] = []
@@ -42,8 +43,9 @@ class FittedSeasonalDemand:
         ] or [1.0]
         return self
 
-    def generate(self, n_points: int | None = None) -> list[float]:
-        rng = random.Random(self.seed)
+    def generate(self, n_points: int | None = None, *, seed: int | None = None) -> list[float]:
+        """Sample a series; each call continues the instance's random stream unless ``seed`` pins it."""
+        rng = random.Random(seed) if seed is not None else self._rng
         if n_points is None:
             n_points = len(self.reference)
         return [self.profile[i % self.period] * rng.choice(self.resid) for i in range(n_points)]
@@ -57,8 +59,8 @@ class FittedHourlyDemand:
         self.ppd = 0
         self.real_series: list[float] = []
 
-    def fit(self, orders, lo: int = 8, hi: int = 19) -> "FittedHourlyDemand":
-        series, ppd = hourly_business_series(orders, lo, hi)
+    def fit(self, orders, *, lo: int = 8, hi: int = 19) -> "FittedHourlyDemand":
+        series, ppd = hourly_business_series(orders, lo=lo, hi=hi)
         self.ppd = ppd or 1
         self.real_series = series
         self._m.fit(series, self.ppd)
@@ -68,6 +70,6 @@ class FittedHourlyDemand:
     def profile(self) -> list[float]:
         return self._m.profile
 
-    def generate(self, n_days: int | None = None) -> list[float]:
+    def generate(self, n_days: int | None = None, *, seed: int | None = None) -> list[float]:
         n_points = None if n_days is None else n_days * self.ppd
-        return self._m.generate(n_points)
+        return self._m.generate(n_points, seed=seed)

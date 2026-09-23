@@ -1,5 +1,9 @@
 # PR 1 — `sdf validate`: one source for every recorded number
 
+> Status: implemented (correctness sequence PR 1, #9). The snapshot records a
+> CSV's file name rather than its path so the output does not depend on the
+> working directory; CSV headings are derived from the input.
+
 ## Goal
 
 Every number the repository records (golden tests, `VALIDATION.md`) is

@@ -76,7 +76,7 @@ def _simulate(demand: list[float], s: float, S: float, lead: int, unit_cost: flo
     }
 
 
-def financial_impact(intel: WarehouseIntelligence, cost_model: CostModel | None = None, max_skus: int = 400) -> dict:
+def financial_impact(intel: WarehouseIntelligence, *, cost_model: CostModel | None = None, max_skus: int = 400) -> dict:
     """Counterfactual £: our (s,S) policy vs a naive no-safety-stock policy.
 
     ALGORITHM-HOOK: the naive baseline stands in for "current practice"; plug in

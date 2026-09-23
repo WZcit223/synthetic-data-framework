@@ -26,7 +26,8 @@ class QualityReport:
 
     @property
     def passed(self) -> bool:
-        return all(self.checks.values())
+        """True only when at least one check ran and every check passed."""
+        return bool(self.checks) and all(self.checks.values())
 
     def to_dict(self) -> dict:
         return {

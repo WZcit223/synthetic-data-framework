@@ -49,7 +49,12 @@ class DataSourceRegistry:
         entity_type: str,
         rows: Iterable[Any],
         origin: str = "synthetic",
+        *,
+        replace: bool = False,
     ) -> DataSource:
+        """Register a data source. An existing name raises unless ``replace=True``."""
+        if name in self._sources and not replace:
+            raise ValueError(f"data source {name!r} is already registered; pass replace=True to overwrite it")
         src = DataSource(name=name, entity_type=entity_type, origin=origin)
         src.add(rows)
         self._sources[name] = src

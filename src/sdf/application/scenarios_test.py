@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sdf.synthesis.spec import GenerationSpec
 from .scenarios import run_scenarios
 
@@ -11,3 +13,8 @@ def test_scenarios_whatif():
     by = {r["scenario"]: r for r in rep["scenarios"]}
     # a promo spike should not require less safety stock than baseline
     assert by["promo_spike"]["safety_stock_units"] >= by["baseline"]["safety_stock_units"]
+
+
+def test_unknown_scenario_name_raises_with_the_valid_names():
+    with pytest.raises(KeyError, match="promo_spike"):
+        run_scenarios(GenerationSpec(n_skus=20, horizon_days=20), names=["promo_spkie"])

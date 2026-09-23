@@ -39,7 +39,7 @@ def _load_line_table(path: str, max_rows: int = 2000, seed: int = 1):
     return real.reset_index(drop=True)
 
 
-def gaussian_copula_fidelity(path: str, max_rows: int = 2000, seed: int = 1) -> dict:
+def gaussian_copula_fidelity(path: str, *, max_rows: int = 2000, seed: int = 1) -> dict:
     """Fit a Gaussian copula on the real table and score it with SDMetrics."""
     from copulas.multivariate import GaussianMultivariate
     from sdmetrics.column_pairs import CorrelationSimilarity

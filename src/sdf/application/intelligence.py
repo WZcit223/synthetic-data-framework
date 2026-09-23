@@ -192,7 +192,7 @@ class WarehouseIntelligence:
         return {sku: (table.mean(sku), table.std(sku)) for sku in table.series}
 
     def replenishment_ss_policy(
-        self, lead_time_days: int = 7, review_days: int = 7, service_level: float = 0.95, top_n: int = 12
+        self, *, lead_time_days: int = 7, review_days: int = 7, service_level: float = 0.95, top_n: int = 12
     ) -> dict:
         """Classic (s, S) policy sized from demand variability + a service level.
 
@@ -287,7 +287,7 @@ class WarehouseIntelligence:
             out.append({"zone": zone, "aisles": aisles})
         return out
 
-    def stocktake_discrepancies(self, rel_threshold: float = 0.25, min_abs: int = 15) -> dict:
+    def stocktake_discrepancies(self, *, rel_threshold: float = 0.25, min_abs: int = 15) -> dict:
         """Compare vision-estimated units vs book-of-record; flag mismatches.
 
         This is the 'AI stocktake' story: the camera mostly confirms the books,

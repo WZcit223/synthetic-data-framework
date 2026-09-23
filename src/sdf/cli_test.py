@@ -139,3 +139,16 @@ def test_validate_prints_markdown():
     ):
         assert heading in result.output
     assert "| model | MAE | RMSE | MAPE % | bias |" in result.output
+
+
+def test_date_format_option_is_passed_to_the_loader():
+    ok = run("backtest", SAMPLE_CSV, "--date-format", "%Y-%m-%d %H:%M:%S")
+    assert ok.exit_code == 0, ok.output
+    assert "best (lowest MAE)" in ok.output
+
+
+@pytest.mark.parametrize("command", ["backtest", "synth", "tstr", "privacy"])
+def test_csv_commands_exit_1_when_no_row_is_usable(command):
+    result = run(command, SAMPLE_CSV, "--date-format", "%d/%m/%Y %H:%M")
+    assert result.exit_code == 1, result.output
+    assert "no usable rows" in result.output

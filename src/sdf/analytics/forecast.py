@@ -32,7 +32,7 @@ def daily_demand_series(orders: Iterable[OutboundOrder], sku_id: str | None = No
     return list(DemandTable.from_orders(orders).total())
 
 
-def hourly_business_series(orders: Iterable[OutboundOrder], lo: int = 8, hi: int = 19):
+def hourly_business_series(orders: Iterable[OutboundOrder], *, lo: int = 8, hi: int = 19):
     """Dense per-business-hour demand series. Returns (values, periods_per_day).
 
     Used when the data spans too few days for a daily model (e.g. a short
@@ -117,9 +117,18 @@ DEFAULT_MODELS = {
 # -- walk-forward backtest ---------------------------------------------------
 
 
-def backtest(values: list[float], model: Callable[[list[float]], float], test_len: int = 21) -> dict[str, float]:
-    """One-step-ahead walk-forward evaluation over the last ``test_len`` days."""
+MIN_BACKTEST_POINTS = 3
+
+
+def backtest(values: list[float], model: Callable[[list[float]], float], *, test_len: int = 21) -> dict:
+    """One-step-ahead walk-forward evaluation over the last ``test_len`` days.
+
+    A series shorter than ``MIN_BACKTEST_POINTS`` cannot be split into history
+    and test points; the result is then ``{"error": ...}`` instead of metrics.
+    """
     n = len(values)
+    if n < MIN_BACKTEST_POINTS:
+        return {"error": f"series too short to backtest ({n} points, need >= {MIN_BACKTEST_POINTS})"}
     test_len = min(test_len, max(1, n // 3))
     start = n - test_len
     abs_err, sq_err, ape, bias, cnt = 0.0, 0.0, 0.0, 0.0, 0
@@ -143,10 +152,22 @@ def backtest(values: list[float], model: Callable[[list[float]], float], test_le
     }
 
 
-def compare_models(values: list[float], test_len: int = 21, models: dict[str, Callable] | None = None) -> dict:
-    """Backtest every model; return per-model metrics and the MAE winner."""
+def compare_models(values: list[float], *, test_len: int = 21, models: dict[str, Callable] | None = None) -> dict:
+    """Backtest every model; return per-model metrics and the MAE winner.
+
+    On a series too short to backtest, ``results`` is empty, ``best_model`` is
+    ``None`` and ``error`` says why.
+    """
     models = models or DEFAULT_MODELS
-    results = [backtest(values, fn, test_len) for fn in models.values()]
+    if len(values) < MIN_BACKTEST_POINTS:
+        return {
+            "series_len": len(values),
+            "series_mean": round(sum(values) / len(values), 3) if values else 0.0,
+            "results": [],
+            "best_model": None,
+            "error": f"series too short to backtest ({len(values)} points, need >= {MIN_BACKTEST_POINTS})",
+        }
+    results = [backtest(values, fn, test_len=test_len) for fn in models.values()]
     for r, name in zip(results, models):
         r["model"] = name
     results.sort(key=lambda r: r["MAE"])

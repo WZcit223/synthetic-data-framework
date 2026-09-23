@@ -114,13 +114,14 @@ def default_world_snapshot(spec: GenerationSpec | None = None) -> dict:
 
 def csv_snapshot(path: str) -> dict:
     """Every recorded number for one retail CSV (backtest, fidelity, TSTR, privacy)."""
-    skus, orders = load_online_retail_csv(path)
+    skus, orders, load = load_online_retail_csv(path)
     model = FittedHourlyDemand().fit(orders)
     real = read_retail_feature_table(path)
     return {
         "file": Path(path).name,
         "skus": len(skus),
         "orders": len(orders),
+        "load": {k: v for k, v in load.to_dict().items() if k != "path"},
         "backtest": _backtest(orders),
         "fidelity": fidelity_report(model.real_series, model.generate(), model.ppd),
         "tstr": tstr_report(orders),
@@ -260,6 +261,7 @@ def _csv_markdown(c: dict) -> list[str]:
     lines += _table(
         ["metric", "value"],
         [
+            ["CSV rows kept / read", f"{c['load']['rows_kept']:,} / {c['load']['rows_read']:,}"],
             ["fidelity: KS statistic (0 = identical)", fid["ks_statistic"]],
             ["fidelity: profile correlation (1 = identical)", fid["profile_corr"]],
             ["fidelity: mean / std delta %", f"{_fmt(fid['mean_delta_pct'])} / {_fmt(fid['std_delta_pct'])}"],

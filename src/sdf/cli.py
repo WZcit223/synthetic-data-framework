@@ -97,10 +97,25 @@ def cmd_export(outdir: str) -> int:
     return 0
 
 
-def cmd_backtest(path: str) -> int:
+def _print_load(load) -> None:
+    if load.skipped:
+        print(f"  load          : {load.summary()}")
+
+
+def _no_usable_rows(path: str, load) -> bool:
+    """Report a CSV that yielded no usable order; the caller then exits 1."""
+    if load.rows_kept:
+        return False
+    print(f"  {path}: no usable rows ({load.summary()}); check the file and --date-format\n")
+    return True
+
+
+def cmd_backtest(path: str, date_format: str | None = None) -> int:
     """Phase 2: forecast backtest on a real/open dataset (Online Retail II)."""
 
-    skus, orders = load_online_retail_csv(path)
+    skus, orders, load = load_online_retail_csv(path, date_format=date_format)
+    if _no_usable_rows(path, load):
+        return 1
     series, freq, period = build_series(orders)
     report = compare_models(series, test_len=2 * period, models=models_for(period))
 
@@ -109,7 +124,11 @@ def cmd_backtest(path: str) -> int:
     print("=" * 60)
     print(f"  source        : {path}")
     print(f"  SKUs / orders : {len(skus)} / {len(orders)}")
+    _print_load(load)
     print(f"  granularity   : {freq} (seasonal period {period})")
+    if "error" in report:
+        print(f"  {report['error']}\n")
+        return 0
     print(f"  series        : {report['series_len']} points, mean {report['series_mean']:.1f} units/bucket")
     print(f"  {'model':<10}{'MAE':>9}{'RMSE':>9}{'MAPE%':>9}{'bias':>9}")
     for r in report["results"]:
@@ -119,10 +138,12 @@ def cmd_backtest(path: str) -> int:
     return 0
 
 
-def cmd_synth(path: str) -> int:
+def cmd_synth(path: str, date_format: str | None = None) -> int:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
 
-    _skus, orders = load_online_retail_csv(path)
+    _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
+    if _no_usable_rows(path, load):
+        return 1
     model = FittedHourlyDemand().fit(orders)
     synth = model.generate()
     rep = fidelity_report(model.real_series, synth, model.ppd)
@@ -131,6 +152,7 @@ def cmd_synth(path: str) -> int:
     print("  Fitted synthesis + fidelity — real-data-conditioned (Phase 2.1)")
     print("=" * 60)
     print(f"  source          : {path}")
+    _print_load(load)
     print(f"  real / synth pts : {len(model.real_series)} / {len(synth)}")
     print(f"  KS statistic     : {rep['ks_statistic']}   (0 = identical dist.)")
     print(f"  profile corr     : {rep['profile_corr']}   (1 = identical seasonality)")
@@ -141,15 +163,18 @@ def cmd_synth(path: str) -> int:
     return 0
 
 
-def cmd_tstr(path: str) -> int:
+def cmd_tstr(path: str, date_format: str | None = None) -> int:
     """Phase 3: TSTR — train on synthetic, test on real (checklist B2)."""
 
-    _skus, orders = load_online_retail_csv(path)
+    _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
+    if _no_usable_rows(path, load):
+        return 1
     r = tstr_report(orders)
     print("=" * 60)
     print("  TSTR — train on synthetic, test on real (Phase 3, B2)")
     print("=" * 60)
     print(f"  source        : {path}")
+    _print_load(load)
     if "error" in r:
         print(f"  {r['error']} (series_len={r['series_len']})\n")
         return 0
@@ -217,8 +242,9 @@ def cmd_pipeline() -> int:
     print(f"  order: {' → '.join(result['order'])}")
     for e in result["trace"]:
         print(f"    {e['seq']}. {e['name']:<14} {e['status']:<5} {e['duration_ms']}ms")
-    econ = result["artifacts"].get("report", {}).get("economics_annual_saving")
-    print(f"  run: {result['run']['run_id']}  total={result['run']['total_ms']}ms  annual_saving≈{econ}\n")
+    econ = result["artifacts"].get("report", {}).get("economics", {})
+    econ_text = f"annual_saving≈{econ['annual_saving']}" if "annual_saving" in econ else f"economics: {econ}"
+    print(f"  run: {result['run']['run_id']}  total={result['run']['total_ms']}ms  {econ_text}\n")
     return 0
 
 
@@ -259,15 +285,18 @@ def cmd_scenarios() -> int:
     return 0
 
 
-def cmd_privacy(path: str) -> int:
+def cmd_privacy(path: str, date_format: str | None = None) -> int:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
 
-    real = read_retail_feature_table(path)
+    real = read_retail_feature_table(path, date_format=date_format)
     synth = bootstrap_synthesize(real)
     rep = privacy_report(real, synth)
     print("=" * 60)
     print("  Synthetic-data privacy (B3)")
     print("=" * 60)
+    if "error" in rep:
+        print(f"  {path}: {rep['error']} — no usable rows; check the file and --date-format\n")
+        return 1
     for k in ("n_real", "n_synth", "dcr_median", "dcr_p05", "nndr_median", "clone_risk_pct", "verdict"):
         print(f"  {k:<16}: {rep.get(k)}")
     print("  ALGORITHM-HOOK: full membership-inference + differential privacy.\n")
@@ -275,6 +304,14 @@ def cmd_privacy(path: str) -> int:
 
 
 # -- click surface ------------------------------------------------------------
+
+_date_format_option = click.option(
+    "--date-format",
+    default=None,
+    metavar="FORMAT",
+    help="strptime format of InvoiceDate, e.g. '%d/%m/%Y %H:%M' for day-first sources. "
+    "Default: try the known formats, month-first first (right for the UCI export).",
+)
 
 _csv_argument = click.argument(
     "csv_path",
@@ -311,23 +348,29 @@ def export(outdir: str) -> None:
 
 @main.command()
 @_csv_argument
-def backtest(csv_path: str) -> None:
+@_date_format_option
+def backtest(csv_path: str, date_format: str | None) -> None:
     """Phase 2: walk-forward forecast backtest on real data."""
-    cmd_backtest(csv_path)
+    if cmd_backtest(csv_path, date_format):
+        raise click.exceptions.Exit(1)
 
 
 @main.command()
 @_csv_argument
-def synth(csv_path: str) -> None:
+@_date_format_option
+def synth(csv_path: str, date_format: str | None) -> None:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
-    cmd_synth(csv_path)
+    if cmd_synth(csv_path, date_format):
+        raise click.exceptions.Exit(1)
 
 
 @main.command()
 @_csv_argument
-def tstr(csv_path: str) -> None:
+@_date_format_option
+def tstr(csv_path: str, date_format: str | None) -> None:
     """Phase 3: train on synthetic, test on real."""
-    cmd_tstr(csv_path)
+    if cmd_tstr(csv_path, date_format):
+        raise click.exceptions.Exit(1)
 
 
 @main.command()
@@ -365,9 +408,11 @@ def scenarios() -> None:
 
 @main.command()
 @_csv_argument
-def privacy(csv_path: str) -> None:
+@_date_format_option
+def privacy(csv_path: str, date_format: str | None) -> None:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
-    cmd_privacy(csv_path)
+    if cmd_privacy(csv_path, date_format):
+        raise click.exceptions.Exit(1)
 
 
 @main.command()

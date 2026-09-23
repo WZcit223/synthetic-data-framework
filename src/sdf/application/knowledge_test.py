@@ -17,3 +17,11 @@ def test_phase4_knowledge_qa_c6():
     assert qa.ask("how good is the forecast?")["intent"] == "forecast"
     # Unknown question falls back to help, still grounded (no crash).
     assert "answer" in qa.ask("tell me a joke")
+
+
+def test_forecast_question_on_an_empty_registry_says_so():
+    from sdf.foundation.registry import DataSourceRegistry
+
+    res = KnowledgeQA(WarehouseIntelligence(DataSourceRegistry())).ask("forecast accuracy?")
+    assert res["intent"] == "forecast"
+    assert "not enough demand history" in res["answer"]

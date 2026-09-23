@@ -17,13 +17,23 @@ pipeline runs with no download.
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from sdf.foundation.registry import DataSourceRegistry
 from sdf.foundation.schema import SKU, OutboundOrder
 
 
-def _parse_dt(s: str) -> datetime:
+def _parse_dt(s: str, date_format: str | None = None) -> datetime:
+    """Parse an InvoiceDate. With ``date_format`` only that format is accepted.
+
+    Without it the known formats are tried in order, month-first before
+    day-first, which is right for the UCI export; a day-first source must pass
+    its format explicitly or ``03/04/2011`` is read as 4 March.
+    """
+    s = (s or "").strip()  # a truncated CSV row yields None
+    if date_format is not None:
+        return datetime.strptime(s, date_format)
     for fmt in (
         "%Y-%m-%d %H:%M:%S",
         "%Y-%m-%d %H:%M",
@@ -36,37 +46,79 @@ def _parse_dt(s: str) -> datetime:
         "%Y-%m-%d",
     ):
         try:
-            return datetime.strptime(s.strip(), fmt)
+            return datetime.strptime(s, fmt)
         except ValueError:
             continue
     raise ValueError(f"unrecognised InvoiceDate format: {s!r}")
 
 
-def load_online_retail_csv(path: str) -> tuple[list[SKU], list[OutboundOrder]]:
-    """Read the CSV and return canonical (skus, outbound_orders).
+@dataclass
+class LoadReport:
+    """What a CSV load kept and what it skipped, by reason."""
+
+    path: str
+    rows_read: int = 0
+    rows_kept: int = 0
+    skipped: dict[str, int] = field(default_factory=dict)
+    skus: int = 0
+    orders: int = 0
+
+    def skip(self, reason: str) -> None:
+        self.skipped[reason] = self.skipped.get(reason, 0) + 1
+
+    def summary(self) -> str:
+        text = f"kept {self.rows_kept:,} of {self.rows_read:,} rows"
+        if self.skipped:
+            text += "; skipped " + ", ".join(f"{n:,} {reason}" for reason, n in sorted(self.skipped.items()))
+        return text
+
+    def to_dict(self) -> dict:
+        return {
+            "path": self.path,
+            "rows_read": self.rows_read,
+            "rows_kept": self.rows_kept,
+            "skipped": dict(sorted(self.skipped.items())),
+            "skus": self.skus,
+            "orders": self.orders,
+        }
+
+
+def load_online_retail_csv(
+    path: str, *, date_format: str | None = None
+) -> tuple[list[SKU], list[OutboundOrder], LoadReport]:
+    """Read the CSV and return canonical ``(skus, outbound_orders, report)``.
+
+    Rows that cannot be used are skipped and counted by reason in ``report``.
 
     Negative quantities (returns) become ``status="cancelled"`` orders so demand
     logic that already filters cancelled lines stays correct.
     """
     skus: dict = {}
     orders: list[OutboundOrder] = []
+    report = LoadReport(path=path)
     with open(path, newline="", encoding="utf-8-sig") as fh:
         reader = csv.DictReader(fh)
         for i, row in enumerate(reader):
+            report.rows_read += 1
             code = (row.get("StockCode") or "").strip()
             if not code:
+                report.skip("missing StockCode")
                 continue
             try:
-                qty = int(float(row.get("Quantity", "0")))
+                qty = int(float(row.get("Quantity")))  # None (truncated row) -> TypeError
                 price = float(row.get("Price", row.get("UnitPrice", "0")) or 0)
-            except ValueError:
+            except (TypeError, ValueError):
+                report.skip("non-numeric Quantity or Price")
                 continue
             if qty == 0:
+                report.skip("zero Quantity")
                 continue
             try:
-                ts = _parse_dt(row.get("InvoiceDate", ""))
+                ts = _parse_dt(row.get("InvoiceDate", ""), date_format)
             except ValueError:
+                report.skip("unparseable InvoiceDate")
                 continue
+            report.rows_kept += 1
 
             if code not in skus:
                 skus[code] = SKU(
@@ -90,12 +142,13 @@ def load_online_retail_csv(path: str) -> tuple[list[SKU], list[OutboundOrder]]:
                     status="shipped" if qty > 0 else "cancelled",
                 )
             )
-    return list(skus.values()), orders
+    report.skus, report.orders = len(skus), len(orders)
+    return list(skus.values()), orders, report
 
 
-def register_online_retail(reg: DataSourceRegistry, path: str) -> tuple[int, int]:
-    """Load the CSV and register both entity streams as an open dataset."""
-    skus, orders = load_online_retail_csv(path)
+def register_online_retail(reg: DataSourceRegistry, path: str, *, date_format: str | None = None) -> LoadReport:
+    """Load the CSV, register both entity streams as an open dataset, return the load report."""
+    skus, orders, report = load_online_retail_csv(path, date_format=date_format)
     reg.register("retail_skus", "SKU", skus, origin="external-open-dataset")
     reg.register("retail_outbound", "OutboundOrder", orders, origin="external-open-dataset")
-    return len(skus), len(orders)
+    return report

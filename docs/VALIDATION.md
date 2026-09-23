@@ -118,6 +118,7 @@ Backtest (daily, seasonal period 7, 139 points; ranked by MAE):
 
 | metric | value |
 |---|---|
+| CSV rows kept / read | 3,428 / 3,428 |
 | fidelity: KS statistic (0 = identical) | 0.0197 |
 | fidelity: profile correlation (1 = identical) | 0.9732 |
 | fidelity: mean / std delta % | -0.61 / -0.88 |
@@ -143,6 +144,7 @@ Backtest (hourly, seasonal period 11, 44 points; ranked by MAE):
 
 | metric | value |
 |---|---|
+| CSV rows kept / read | 10,000 / 10,000 |
 | fidelity: KS statistic (0 = identical) | 0.1364 |
 | fidelity: profile correlation (1 = identical) | 0.9036 |
 | fidelity: mean / std delta % | -4.98 / -14.49 |

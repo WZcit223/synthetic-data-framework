@@ -22,7 +22,8 @@ and type hints use the Python 3.12 built-in generics.
 - `CostModel.__post_init__`: rates in `[0, 1]`, days `>= 1`, `service_z > 0`.
 - `Step.__post_init__`: `name` non-empty and no self-dependency.
 - Type the six duck-typed public parameters: `structural_quality_check(warehouse: SyntheticWarehouse)`,
-  `financial_impact(intel: WarehouseIntelligence, cost_model: CostModel | None = None, ...)`,
+  `financial_impact(intel: WarehouseIntelligence, *, cost_model: CostModel | None = None, ...)`
+  (keyword-only since correctness PR 2),
   `daily_demand_series(orders: Iterable[OutboundOrder], ...)`,
   `hourly_business_series(orders: Iterable[OutboundOrder], ...)`,
   `build_series(orders: Iterable[OutboundOrder], ...)`,

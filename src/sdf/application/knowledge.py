@@ -98,6 +98,12 @@ class KnowledgeQA:
         orders = self.intel.reg.stream("OutboundOrder")
         series, freq, period = build_series(orders)
         rep = compare_models(series, test_len=2 * period, models=models_for(period))
+        if not rep["results"]:
+            return {
+                "intent": "forecast",
+                "data": rep,
+                "answer": f"There is not enough demand history to measure forecast accuracy ({rep['error']}).",
+            }
         best = rep["results"][0]
         return {
             "intent": "forecast",

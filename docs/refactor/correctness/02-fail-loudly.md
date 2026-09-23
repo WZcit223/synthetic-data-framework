@@ -1,5 +1,10 @@
 # PR 2 — Fail loudly: wrong or empty input is reported, never absorbed
 
+> Status: implemented (correctness sequence PR 2). Golden numbers and `sdf demo`
+> output unchanged. The CSV sections of the `sdf validate` block gained a
+> "rows kept / read" row. `--date-format` is also offered on `privacy`, which
+> reads the same InvoiceDate column; `sdv` keeps its own reader (optional extra).
+
 ## Goal
 
 When input is empty, malformed or ambiguous, the code either raises an error
