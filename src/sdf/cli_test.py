@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,20 @@ from .cli import main
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_CSV = str(ROOT / "data" / "sample_online_retail_ii.csv")
-COMMANDS = ["demo", "export", "backtest", "synth", "tstr", "sdv", "agent", "pipeline", "impact", "scenarios", "privacy"]
+COMMANDS = [
+    "demo",
+    "export",
+    "backtest",
+    "synth",
+    "tstr",
+    "sdv",
+    "agent",
+    "pipeline",
+    "impact",
+    "scenarios",
+    "privacy",
+    "validate",
+]
 
 
 def run(*args: str):
@@ -93,3 +107,22 @@ def test_sdv_without_optional_extra_exits_1():
     result = run("sdv", SAMPLE_CSV)
     assert result.exit_code == 1
     assert "uv sync --extra synthesis" in result.output
+
+
+def test_validate_prints_the_snapshot_as_json():
+    result = run("validate")
+    assert result.exit_code == 0, result.output
+    snap = json.loads(result.output)
+    assert set(snap) == {"default_world", "sample_csv", "retail_csv"}
+    assert snap["default_world"]["abc"] == {"A": 39, "B": 55, "C": 106}
+
+
+def test_validate_update_doc_rewrites_only_the_block(tmp_path):
+    doc = tmp_path / "doc.md"
+    doc.write_text("# Doc\n<!-- sdf-validate:begin -->\nstale\n<!-- sdf-validate:end -->\ntail\n")
+    result = run("validate", "--update-doc", str(doc))
+    assert result.exit_code == 0, result.output
+    text = doc.read_text()
+    assert "stale" not in text and "### Default world" in text
+    assert text.startswith("# Doc\n") and text.endswith("<!-- sdf-validate:end -->\ntail\n")
+    assert "already up to date" in run("validate", "--update-doc", str(doc)).output
