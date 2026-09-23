@@ -43,7 +43,7 @@ dev = [
 
 [tool.pytest.ini_options]
 addopts = "-q"
-testpaths = ["src", "tests"]
+testpaths = ["src"]
 
 [tool.ruff]
 # Aligned with TsumiNa/sciloom's ruff configuration; only `src` (single package)

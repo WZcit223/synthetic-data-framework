@@ -74,7 +74,7 @@ observability       ← application.agent, workflow.pipeline
 ### 1.3 工具链现状
 
 - Python 3.12 ~ 3.14（`.python-version` 固定 3.14，CI 矩阵 3.12 / 3.13 / 3.14）；核心依赖 numpy / scipy / scikit-learn；`ruff` 配置已与 sciloom 对齐（`F/E/W/I/TID252` + `ruff format`），紧凑单行风格已于 PR #3 统一重排。
-- 项目改为仅由 uv 管理（`uv_build` 后端、`uv.lock`、`[dependency-groups] dev`，2026-09-23）；文档命令统一为 `uv run sdf ...`。`tests/` 与 `demo/` 仍保留 `sys.path.insert`，重构第 1 步随 `conftest.py` 一并移除。
+- 项目改为仅由 uv 管理（`uv_build` 后端、`uv.lock`、`[dependency-groups] dev`，2026-09-23）；文档命令统一为 `uv run sdf ...`。`tests/` 与 `demo/` 已在 layout 序列 PR 1 中移除（测试迁到同目录 `_test.py`，demo 只保留 `sdf demo` 命令）。
 - 远端分支：`main`、`system-v1/synthetic-data-generation`（v1 冻结）、`feature/repo-governance`（PR #1 已合并，**分支未删**，可清理）。
 
 ---
@@ -127,8 +127,8 @@ observability       ← application.agent, workflow.pipeline
 | 来源 | 涉及的数字 | 现有复现路径 | 重构要求 |
 |---|---|---|---|
 | CLI 命令 | Phase 2.0 回测表、Phase 2.1 fidelity、Copula/SDMetrics、B2 TSTR、B3 隐私、Phase 4 经济与情景 | `backtest / synth / sdv / tstr / privacy / impact / scenarios` | 同一输入上结果不变（容差 ±0.5%） |
-| 测试内联序列 | C1 "受控序列"表（趋势+季节 / 纯季节高噪） | `tests/test_generators.py::test_phase3_model_and_tstr` 只断言"模型赢"，**没有记录数值** | 第 1 步把序列与数值写进 `test_golden.py` |
-| 默认世界手工调用 | C2 (s,S) 表、C3 异常示例、Phase 4 agent 轨迹 | **无 CLI 路径**，是当时在 REPL/仪表盘上读出的 | 第 1 步以 §2.5 快照锁定；第 9 步补 `sdf validate` 子命令统一生成 |
+| 测试内联序列 | C1 "受控序列"表（趋势+季节 / 纯季节高噪） | `src/sdf/synthesis/models_test.py` 只断言"模型赢"，**没有记录数值** | 第 3 步数值 PR 把序列与数值写进 `golden_test.py` |
+| 默认世界手工调用 | C2 (s,S) 表、C3 异常示例、Phase 4 agent 轨迹 | **无 CLI 路径**，是当时在 REPL/仪表盘上读出的 | 已以 `src/sdf/golden_test.py` 锁定 §2.5 快照；第 9 步补 `sdf validate` 子命令统一生成 |
 
 因此"每个数字都能一键复现"是本次重构要**达成**的状态，不是当前状态。
 
@@ -302,7 +302,7 @@ tests/
 
 ## 7. 重构期间的操作纪律
 
-- 每个 PR 开始前重跑 `tests/test_golden.py`，结束后再跑一次；数字变动必须在 PR 描述里逐项列出原因。
+- 每个 PR 开始前重跑 `src/sdf/golden_test.py`，结束后再跑一次；数字变动必须在 PR 描述里逐项列出原因。
 - 不在同一个 PR 里同时"搬家"和"改行为"。
 - 不改 `WarehouseGenerator` 内 `self._rng` 的调用次数与顺序。
 - 不改 `dashboard.html`，除非端点契约测试先改。

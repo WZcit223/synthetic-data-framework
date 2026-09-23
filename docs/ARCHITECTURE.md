@@ -72,4 +72,4 @@ produces four capability families that generalise to other industrial domains:
 ## 4. Data flow (one call)
 `GenerationSpec` → `WarehouseGenerator.generate()` → `SyntheticWarehouse`
 → registered into `DataSourceRegistry` → `WarehouseIntelligence` reads streams →
-KPIs / suggestions / insights. See `demo/run_demo.py`.
+KPIs / suggestions / insights. See `cmd_demo` in `src/sdf/cli.py` (`uv run sdf demo`).
