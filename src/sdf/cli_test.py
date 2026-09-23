@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from sdf import __version__
-from sdf.cli import main
+from . import __version__
+from .cli import main
 
 ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_CSV = str(ROOT / "data" / "sample_online_retail_ii.csv")

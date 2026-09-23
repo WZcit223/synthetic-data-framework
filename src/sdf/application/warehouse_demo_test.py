@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from sdf.application.warehouse_demo import WarehouseIntelligence
-from sdf.cli import build_registry
-from sdf.synthesis.warehouse import GenerationSpec
+from sdf.synthesis.materialise import build_registry
+from sdf.synthesis.spec import GenerationSpec
+from .warehouse_demo import WarehouseIntelligence
 
 
 def test_application_layer_runs():

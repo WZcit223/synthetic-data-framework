@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from sdf.synthesis.warehouse import GenerationSpec
-from sdf.workflow import warehouse_pipeline
+from sdf.synthesis.spec import GenerationSpec
+from . import warehouse_pipeline
 
 
 def test_pipeline_dag():

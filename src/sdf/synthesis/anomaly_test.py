@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from sdf.application.warehouse_demo import WarehouseIntelligence
-from sdf.cli import build_registry
-from sdf.synthesis.anomaly import seasonal_residual_anomalies
-from sdf.synthesis.warehouse import GenerationSpec
+from .anomaly import seasonal_residual_anomalies
+from .materialise import build_registry
+from .spec import GenerationSpec
 
 
 def test_phase3_anomaly_c3():

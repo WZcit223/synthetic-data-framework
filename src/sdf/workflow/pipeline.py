@@ -18,7 +18,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List
 
+from sdf.application.economics import financial_impact
+from sdf.application.warehouse_demo import WarehouseIntelligence
+from sdf.foundation.adapters.retail_csv import register_online_retail
+from sdf.foundation.registry import DataSourceRegistry
 from sdf.observability import RunLogger
+from sdf.synthesis.materialise import build_registry
+from sdf.synthesis.quality import structural_quality_check
+from sdf.synthesis.spec import GenerationSpec
 
 
 @dataclass
@@ -82,18 +89,9 @@ def warehouse_pipeline(spec=None, real_csv: str = None) -> Pipeline:
     ingest → validate → application → economics → report
     (ingest generates the synthetic world, or loads a real CSV via the adapter).
     """
-    from sdf.application.economics import financial_impact
-    from sdf.application.warehouse_demo import WarehouseIntelligence
-    from sdf.synthesis.quality import structural_quality_check
-    from sdf.synthesis.warehouse import GenerationSpec
 
     def ingest(ctx):
-        from sdf.cli import build_registry
-
         if real_csv:
-            from sdf.foundation.adapters.retail_csv import register_online_retail
-            from sdf.foundation.registry import DataSourceRegistry
-
             reg = DataSourceRegistry()
             n_sku, n_ord = register_online_retail(reg, real_csv)
             ctx["registry"] = reg

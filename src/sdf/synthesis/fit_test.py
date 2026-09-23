@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-from sdf.synthesis.fit import FittedHourlyDemand
+from .fit import FittedHourlyDemand
 
 
 def test_fitted_hourly_demand_reproduces_series_length(sample_csv):

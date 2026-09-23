@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from sdf.application.agent import WarehouseAgent
-from sdf.application.warehouse_demo import WarehouseIntelligence
-from sdf.cli import build_registry
-from sdf.synthesis.warehouse import GenerationSpec
+from sdf.synthesis.materialise import build_registry
+from sdf.synthesis.spec import GenerationSpec
+from .agent import WarehouseAgent
+from .warehouse_demo import WarehouseIntelligence
 
 
 def test_agent_trace_and_guardrail():

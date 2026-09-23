@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-from sdf.synthesis.tstr import tstr_report
+from .tstr import tstr_report
 
 
 def test_tstr_ratio_is_finite_and_reasonable(sample_csv):

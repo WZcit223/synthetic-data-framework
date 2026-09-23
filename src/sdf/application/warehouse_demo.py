@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from sdf.foundation.registry import DataSourceRegistry
+from sdf.synthesis.anomaly import seasonal_residual_anomalies
+from sdf.synthesis.forecast import build_series
 
 
 @dataclass
@@ -189,7 +191,7 @@ class WarehouseIntelligence:
         key = min(self._Z, key=lambda k: abs(k - service_level))
         return self._Z[key]
 
-    def _sku_daily_stats(self) -> Dict:
+    def sku_daily_stats(self) -> Dict:
         """Per-SKU mean and std of daily demand (for safety-stock sizing)."""
         out = self.reg.stream("OutboundOrder", where=lambda o: o.status != "cancelled")
         per_sku_day: Dict = defaultdict(lambda: defaultdict(float))
@@ -217,7 +219,7 @@ class WarehouseIntelligence:
         and solves a cost-based newsvendor objective.
         """
         z = self._z_for(service_level)
-        stats = self._sku_daily_stats()
+        stats = self.sku_daily_stats()
         skus = {s.sku_id: s for s in self.reg.stream("SKU")}
         avail = {}
         for snap in self.reg.stream("InventorySnapshot"):
@@ -347,8 +349,6 @@ class WarehouseIntelligence:
 
     def demand_anomalies(self, k: float = 3.5) -> Dict:
         """Seasonal-residual + robust-z anomalies on the demand series (C3)."""
-        from sdf.synthesis.anomaly import seasonal_residual_anomalies
-        from sdf.synthesis.forecast import build_series
 
         orders = self.reg.stream("OutboundOrder")
         series, freq, period = build_series(orders)

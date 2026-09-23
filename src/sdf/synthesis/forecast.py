@@ -16,6 +16,8 @@ from collections import defaultdict
 from datetime import date
 from typing import Callable, Dict, List, Optional
 
+from .models import seasonal_linear  # Phase 3
+
 # -- build a daily series from canonical OutboundOrders ---------------------
 
 
@@ -81,8 +83,6 @@ def models_for(period: int, include_model: bool = True) -> Dict:
         f"snaive{period}": seasonal_naive(period),
     }
     if include_model:
-        from sdf.synthesis.models import seasonal_linear  # Phase 3
-
         models[f"seas_linear{period}"] = seasonal_linear(period)
     return models
 

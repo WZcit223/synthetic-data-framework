@@ -12,25 +12,23 @@ from typing import List
 
 import click
 
-from sdf import __version__
-from sdf.application.warehouse_demo import WarehouseIntelligence
-from sdf.foundation.registry import DataSourceRegistry
-from sdf.synthesis.quality import structural_quality_check
-from sdf.synthesis.warehouse import GenerationSpec, WarehouseGenerator
+from . import __version__
+from .application.agent import WarehouseAgent
+from .application.economics import financial_impact
+from .application.scenarios import run_scenarios
+from .application.warehouse_demo import WarehouseIntelligence
+from .foundation.adapters.retail_csv import load_online_retail_csv
+from .synthesis.fidelity import fidelity_report
+from .synthesis.fit import FittedHourlyDemand
+from .synthesis.forecast import build_series, compare_models, models_for
+from .synthesis.materialise import build_registry
+from .synthesis.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
+from .synthesis.quality import structural_quality_check
+from .synthesis.spec import GenerationSpec
+from .synthesis.tstr import tstr_report
+from .workflow import warehouse_pipeline
 
 DEFAULT_CSV = os.path.join("data", "sample_online_retail_ii.csv")
-
-
-def build_registry(spec: GenerationSpec) -> tuple:
-    wh = WarehouseGenerator(spec).generate()
-    reg = DataSourceRegistry()
-    reg.register("syn_skus", "SKU", wh.skus)
-    reg.register("syn_locations", "Location", wh.locations)
-    reg.register("syn_inventory", "InventorySnapshot", wh.inventory)
-    reg.register("syn_inbound", "InboundOrder", wh.inbound)
-    reg.register("syn_outbound", "OutboundOrder", wh.outbound)
-    reg.register("syn_sensors", "SensorReading", wh.sensors)
-    return wh, reg
 
 
 def cmd_demo() -> int:
@@ -100,8 +98,6 @@ def cmd_export(outdir: str) -> int:
 
 def cmd_backtest(path: str) -> int:
     """Phase 2: forecast backtest on a real/open dataset (Online Retail II)."""
-    from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-    from sdf.synthesis.forecast import build_series, compare_models, models_for
 
     skus, orders = load_online_retail_csv(path)
     series, freq, period = build_series(orders)
@@ -124,9 +120,6 @@ def cmd_backtest(path: str) -> int:
 
 def cmd_synth(path: str) -> int:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
-    from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-    from sdf.synthesis.fidelity import fidelity_report
-    from sdf.synthesis.fit import FittedHourlyDemand
 
     _skus, orders = load_online_retail_csv(path)
     model = FittedHourlyDemand().fit(orders)
@@ -149,8 +142,6 @@ def cmd_synth(path: str) -> int:
 
 def cmd_tstr(path: str) -> int:
     """Phase 3: TSTR — train on synthetic, test on real (checklist B2)."""
-    from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-    from sdf.synthesis.tstr import tstr_report
 
     _skus, orders = load_online_retail_csv(path)
     r = tstr_report(orders)
@@ -172,7 +163,7 @@ def cmd_tstr(path: str) -> int:
 def cmd_sdv(path: str) -> int:
     """Phase 2.1 (full): Gaussian-copula synthesis scored by SDMetrics."""
     try:
-        from sdf.synthesis.sdv_synth import gaussian_copula_fidelity
+        from .synthesis.sdv_synth import gaussian_copula_fidelity
 
         rep = gaussian_copula_fidelity(path)
     except ImportError:
@@ -193,7 +184,6 @@ def cmd_sdv(path: str) -> int:
 
 def cmd_agent(query: str) -> int:
     """Phase 4: tool-using warehouse agent with an audit trace."""
-    from sdf.application.agent import WarehouseAgent
 
     _wh, reg = build_registry(GenerationSpec())
     agent = WarehouseAgent(WarehouseIntelligence(reg))
@@ -218,7 +208,6 @@ def cmd_agent(query: str) -> int:
 
 def cmd_pipeline() -> int:
     """Run the Data Intelligence Workflow (DAG) and print its run record."""
-    from sdf.workflow import warehouse_pipeline
 
     result = warehouse_pipeline(GenerationSpec()).run()
     print("=" * 64)
@@ -234,7 +223,6 @@ def cmd_pipeline() -> int:
 
 def cmd_impact() -> int:
     """Business-outcome economics: counterfactual £ savings."""
-    from sdf.application.economics import financial_impact
 
     _wh, reg = build_registry(GenerationSpec())
     rep = financial_impact(WarehouseIntelligence(reg))
@@ -255,7 +243,6 @@ def cmd_impact() -> int:
 
 def cmd_scenarios() -> int:
     """What-if scenario simulation across a family of specs."""
-    from sdf.synthesis.scenarios import run_scenarios
 
     rep = run_scenarios(GenerationSpec())
     print("=" * 72)
@@ -273,7 +260,6 @@ def cmd_scenarios() -> int:
 
 def cmd_privacy(path: str) -> int:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
-    from sdf.synthesis.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
 
     real = read_retail_feature_table(path)
     synth = bootstrap_synthesize(real)

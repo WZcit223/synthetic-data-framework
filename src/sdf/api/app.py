@@ -20,14 +20,21 @@ try:
     from fastapi import FastAPI, Response
     from fastapi.responses import HTMLResponse
 except ImportError as exc:  # pragma: no cover
-    raise SystemExit("FastAPI is optional. Install it with: uv sync --extra api") from exc
+    raise ImportError("FastAPI is optional. Install it with: uv sync --extra api") from exc
 
+from sdf import __version__
+from sdf.application.agent import WarehouseAgent
+from sdf.application.economics import financial_impact
+from sdf.application.knowledge import KnowledgeQA
+from sdf.application.scenarios import run_scenarios
 from sdf.application.warehouse_demo import WarehouseIntelligence
-from sdf.cli import build_registry
+from sdf.synthesis.forecast import build_series, compare_models, models_for
+from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.quality import structural_quality_check
-from sdf.synthesis.warehouse import GenerationSpec
+from sdf.synthesis.spec import GenerationSpec
+from sdf.workflow import warehouse_pipeline
 
-app = FastAPI(title="Synthetic Data Framework — AI Warehouse", version="0.2.0")
+app = FastAPI(title="Synthetic Data Framework — AI Warehouse", version=__version__)
 
 _STATIC = os.path.join(os.path.dirname(__file__), "static", "dashboard.html")
 
@@ -146,44 +153,32 @@ def application_demand_anomalies():
 
 @app.get("/application/ask")
 def application_ask(q: str = ""):
-    from sdf.application.knowledge import KnowledgeQA
-
     return KnowledgeQA(_state.intel).ask(q)
 
 
 @app.get("/agent/ask")
 def agent_ask(q: str = ""):
-    from sdf.application.agent import WarehouseAgent
-
     return WarehouseAgent(_state.intel).handle(q)
 
 
 @app.get("/agent/tools")
 def agent_tools():
-    from sdf.application.agent import WarehouseAgent
-
     return {"tools": WarehouseAgent(_state.intel).list_tools()}
 
 
 @app.get("/economics/impact")
 def economics_impact():
-    from sdf.application.economics import financial_impact
-
     return financial_impact(_state.intel)
 
 
 @app.get("/workflow/run")
 def workflow_run():
-    from sdf.workflow import warehouse_pipeline
-
     res = warehouse_pipeline(_state.spec).run()
     return {"pipeline": res["pipeline"], "order": res["order"], "run": res["run"], "trace": res["trace"]}
 
 
 @app.get("/scenarios")
 def scenarios():
-    from sdf.synthesis.scenarios import run_scenarios
-
     return run_scenarios(_state.spec)
 
 
@@ -200,7 +195,6 @@ def application_stocktake():
 @app.get("/validation/backtest")
 def validation_backtest():
     """Measured forecast backtest on the current world's demand (real number)."""
-    from sdf.synthesis.forecast import build_series, compare_models, models_for
 
     orders = _state.reg.stream("OutboundOrder")
     series, freq, period = build_series(orders)

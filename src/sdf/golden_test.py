@@ -10,17 +10,17 @@ from __future__ import annotations
 
 import pytest
 
-from sdf.application.agent import WarehouseAgent
-from sdf.application.economics import financial_impact
-from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-from sdf.synthesis.fidelity import fidelity_report
-from sdf.synthesis.fit import FittedHourlyDemand
-from sdf.synthesis.forecast import build_series, compare_models, models_for
-from sdf.synthesis.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
-from sdf.synthesis.quality import structural_quality_check
-from sdf.synthesis.scenarios import run_scenarios
-from sdf.synthesis.tstr import tstr_report
-from sdf.synthesis.warehouse import GenerationSpec
+from .application.agent import WarehouseAgent
+from .application.economics import financial_impact
+from .application.scenarios import run_scenarios
+from .foundation.adapters.retail_csv import load_online_retail_csv
+from .synthesis.fidelity import fidelity_report
+from .synthesis.fit import FittedHourlyDemand
+from .synthesis.forecast import build_series, compare_models, models_for
+from .synthesis.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
+from .synthesis.quality import structural_quality_check
+from .synthesis.spec import GenerationSpec
+from .synthesis.tstr import tstr_report
 
 REL = 5e-3
 
