@@ -16,9 +16,12 @@ fidelity on complex joint distributions; the SDMetrics scoring is identical.
 
 from __future__ import annotations
 
+import threading
 from typing import ClassVar
 
 from .api import SynthesizerInfo, TableData
+
+_GLOBAL_NUMPY_RNG = threading.Lock()  # serialises the swap of NumPy's global generator
 
 _COLS = ["Quantity", "Price", "hour", "weekday"]
 _PAIRS = [("Quantity", "Price"), ("Quantity", "hour"), ("Price", "weekday")]
@@ -46,8 +49,10 @@ def _load_line_table(path: str, max_rows: int = 2000, seed: int = 1):
 class GaussianCopulaTable:
     """Gaussian copula over a numeric table (``gaussian-copula``; needs the ``synthesis`` extra).
 
-    ``seed`` seeds numpy's global generator before each draw, which is where
-    ``copulas`` samples from; without a seed a draw uses whatever state numpy has.
+    ``copulas`` samples from NumPy's global generator, so each draw swaps in this
+    model's own generator under a lock and restores the global state afterwards:
+    other NumPy users are unaffected, repeated ``sample()`` calls continue the
+    model's stream, and ``seed`` pins one draw.
     """
 
     info: ClassVar[SynthesizerInfo] = SynthesizerInfo(
@@ -58,7 +63,9 @@ class GaussianCopulaTable:
     )
 
     def __init__(self, *, seed: int | None = None) -> None:
-        self.seed = seed
+        import numpy as np
+
+        self._rng = np.random.RandomState(seed)
         self._columns: tuple[str, ...] = ()
         self._n_rows = 0
         self._model = None
@@ -77,13 +84,18 @@ class GaussianCopulaTable:
 
         if self._model is None:
             raise RuntimeError("gaussian-copula: call fit() before sample()")
-        pinned = seed if seed is not None else self.seed
-        if pinned is not None:
-            np.random.seed(pinned)
         n = self._n_rows if n is None else n
         if n == 0:
             return []
-        frame = self._model.sample(n)
+        rng = np.random.RandomState(seed) if seed is not None else self._rng
+        with _GLOBAL_NUMPY_RNG:
+            saved = np.random.get_state()
+            np.random.set_state(rng.get_state())
+            try:
+                frame = self._model.sample(n)
+                rng.set_state(np.random.get_state())
+            finally:
+                np.random.set_state(saved)
         return [tuple(float(v) for v in row) for row in frame[list(self._columns)].itertuples(index=False)]
 
 

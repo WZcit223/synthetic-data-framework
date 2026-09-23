@@ -131,3 +131,17 @@ def test_gaussian_copula_samples_a_table():
     rows = model.sample(10)
     assert len(rows) == 10 and all(len(r) == 4 for r in rows)
     assert model.sample(10, seed=4) == model.sample(10, seed=4)
+    assert model.sample(10) != model.sample(10)  # the model's own stream continues
+
+
+@pytest.mark.skipif(importlib.util.find_spec("copulas") is None, reason="needs the synthesis extra")
+def test_gaussian_copula_leaves_numpy_global_state_alone():
+    import numpy as np
+
+    model = default_registry().create("gaussian-copula", seed=3).fit(TableData(rows=ROWS, columns=("a", "b", "c", "d")))
+    np.random.seed(123)
+    expected = np.random.random_sample(3)
+    np.random.seed(123)
+    model.sample(10, seed=9)
+    model.sample(10)
+    assert (np.random.random_sample(3) == expected).all()
