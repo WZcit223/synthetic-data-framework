@@ -1,7 +1,7 @@
 # Structure refactor — overview
 
-Status: proposed 2026-09-23, waiting for the project lead's approval on the plan
-PR. Third sequence after [`docs/refactor/layout/`](../layout/00-overview.md) and
+Status: approved by the project lead on 2026-09-23, including the version plan
+below. Third sequence after [`docs/refactor/layout/`](../layout/00-overview.md) and
 [`docs/refactor/correctness/`](../correctness/00-overview.md). It covers steps 4–6
 of [`docs/REFACTOR_PREP.md`](../../REFACTOR_PREP.md) §5 and prepares three
 extension points the project lead asked for.
@@ -156,9 +156,8 @@ space.
 ## Version
 
 Per the branch-and-PR workflow, MAJOR needs explicit approval. PRs 3 and 7
-change documented contracts (CLI `demo` output and HTTP endpoints). The plan
-proposes the following, for the project lead to confirm or override on the plan
-PR:
+change documented contracts (CLI `demo` output and HTTP endpoints). The project
+lead approved this scheme on 2026-09-23:
 
 - **Stay on 0.x during the sequence.** PRs 1–6 are MINOR, including PR 3,
   whose breaking changes are listed in its description.

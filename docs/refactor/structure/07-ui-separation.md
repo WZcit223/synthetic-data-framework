@@ -43,6 +43,6 @@ SDF_UI_DIR=ui uv run --extra api uvicorn sdf.api.app:app   # manual: dashboard l
 
 ## Version
 
-`Version: MAJOR 0.14.0 → 1.0.0` (needs the project lead's approval, see the
+`Version: MAJOR 0.14.0 → 1.0.0` (approved by the project lead, see the
 overview): every HTTP path changes to the versioned `/api/v1` contract, which
 becomes the first stable API.

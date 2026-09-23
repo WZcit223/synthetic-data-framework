@@ -52,4 +52,4 @@ grep -rn "replenishment_suggestions\|replenishment_simulation" src docs --includ
 
 `Version: MINOR 0.10.0 → 0.11.0` — removes the rule-based policy, two HTTP
 endpoints and changes the `sdf demo` output; minor under the pre-1.0 policy
-proposed in the overview (project lead to confirm).
+approved in the overview.
