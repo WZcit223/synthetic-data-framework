@@ -143,7 +143,7 @@ async function loadVision(){
     for(const c of cells){
       const ring = flagged.has(c.location_id) ? "box-shadow:0 0 0 2px var(--bad)" : "";
       const tip = `${c.location_id}\noccupancy ${(c.occupancy*100).toFixed(0)}%\nbook ${c.book_units} · vision ${c.est_units}`;
-      html += `<div title="${esc(tip)}" style="width:16px;height:16px;border-radius:3px;
+      html += `<div role="img" aria-label="${esc(tip.replace(/\n/g, ", "))}" title="${esc(tip)}" style="width:16px;height:16px;border-radius:3px;
         background:${occColor(c.occupancy)};${ring}"></div>`;
     }
     html += `</div></div>`;
