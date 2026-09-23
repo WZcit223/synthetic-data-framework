@@ -15,10 +15,10 @@ are the next rung — same harness scores them.
 
 from __future__ import annotations
 
-from typing import Callable, List
+from collections.abc import Callable
 
 
-def _solve(A: List[List[float]], b: List[float]) -> List[float]:
+def _solve(A: list[list[float]], b: list[float]) -> list[float]:
     """Solve A x = b via Gaussian elimination with partial pivoting."""
     n = len(A)
     M = [row[:] + [b[i]] for i, row in enumerate(A)]
@@ -36,13 +36,13 @@ def _solve(A: List[List[float]], b: List[float]) -> List[float]:
     return [M[i][n] for i in range(n)]
 
 
-def _design_row(i: int, period: int, lag1: float, lagp: float) -> List[float]:
+def _design_row(i: int, period: int, lag1: float, lagp: float) -> list[float]:
     """Features: intercept, trend, day-of-cycle dummies, lag-1, lag-period."""
     d = i % period
     return [1.0, float(i)] + [1.0 if d == k else 0.0 for k in range(1, period)] + [lag1, lagp]
 
 
-def _fit(values: List[float], period: int) -> List[float]:
+def _fit(values: list[float], period: int) -> list[float]:
     p = period + 3  # intercept + trend + (period-1) dummies + 2 lags
     xtx = [[0.0] * p for _ in range(p)]
     xty = [0.0] * p
@@ -58,21 +58,21 @@ def _fit(values: List[float], period: int) -> List[float]:
     return _solve(xtx, xty)
 
 
-def fit_weights(values: List[float], period: int) -> List[float]:
+def fit_weights(values: list[float], period: int) -> list[float]:
     """Public: fit the AR+seasonal OLS weights on a series (for TSTR)."""
     return _fit(values, period)
 
 
-def predict_at(weights: List[float], i: int, period: int, lag1: float, lagp: float) -> float:
+def predict_at(weights: list[float], i: int, period: int, lag1: float, lagp: float) -> float:
     """Public: predict index ``i`` given fitted weights and the two lag values."""
     row = _design_row(i, period, lag1, lagp)
     return max(0.0, sum(a * b for a, b in zip(row, weights)))
 
 
-def seasonal_linear(period: int = 7) -> Callable[[List[float]], float]:
+def seasonal_linear(period: int = 7) -> Callable[[list[float]], float]:
     """History→next-value autoregressive-seasonal forecaster."""
 
-    def f(h: List[float]) -> float:
+    def f(h: list[float]) -> float:
         n = len(h)
         if n < 2 * period + 2:
             return h[-1] if h else 0.0

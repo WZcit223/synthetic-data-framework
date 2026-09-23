@@ -18,7 +18,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 def _now() -> str:
@@ -46,11 +46,11 @@ class LogEntry:
     name: str
     status: str  # "ok" | "error"
     duration_ms: int
-    inputs: Dict[str, Any] = field(default_factory=dict)
+    inputs: dict[str, Any] = field(default_factory=dict)
     output: Any = None
     note: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "seq": self.seq,
             "ts": self.ts,
@@ -67,18 +67,18 @@ class LogEntry:
 class RunLogger:
     """Collects an ordered, serialisable trace of a run."""
 
-    def __init__(self, run_kind: str = "run", sink_path: Optional[str] = None) -> None:
+    def __init__(self, run_kind: str = "run", sink_path: str | None = None) -> None:
         self.run_id = run_kind + "-" + uuid.uuid4().hex[:8]
         self.run_kind = run_kind
         self.started = _now()
-        self.entries: List[LogEntry] = []
+        self.entries: list[LogEntry] = []
         self._sink_path = sink_path
 
     def record(
         self,
         kind: str,
         name: str,
-        inputs: Dict[str, Any],
+        inputs: dict[str, Any],
         output: Any,
         status: str = "ok",
         duration_ms: int = 0,
@@ -102,10 +102,10 @@ class RunLogger:
         return e
 
     @contextmanager
-    def step(self, kind: str, name: str, inputs: Optional[Dict[str, Any]] = None):
+    def step(self, kind: str, name: str, inputs: dict[str, Any] | None = None):
         """Time a block; record ok/error automatically. Yields a dict you fill
         with the step's output under key 'output'."""
-        box: Dict[str, Any] = {"output": None, "note": ""}
+        box: dict[str, Any] = {"output": None, "note": ""}
         t0 = time.perf_counter()
         try:
             yield box
@@ -118,7 +118,7 @@ class RunLogger:
             self.record(kind, name, inputs or {}, {"error": str(exc)}, status="error", duration_ms=ms)
             raise
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         ok = sum(1 for e in self.entries if e.status == "ok")
         return {
             "run_id": self.run_id,
@@ -130,5 +130,5 @@ class RunLogger:
             "total_ms": sum(e.duration_ms for e in self.entries),
         }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {**self.summary(), "trace": [e.to_dict() for e in self.entries]}

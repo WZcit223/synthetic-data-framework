@@ -10,9 +10,9 @@ order at all, as the rule-of-thumb replenishment does) read ``active_days``.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Dict, Iterable, Tuple
 
 from sdf.foundation.schema import OutboundOrder
 
@@ -26,12 +26,12 @@ class DemandTable:
     in first-appearance order of the SKUs in the order stream.
     """
 
-    days: Tuple[date, ...]
-    series: Dict[str, Tuple[float, ...]]
+    days: tuple[date, ...]
+    series: dict[str, tuple[float, ...]]
 
     @classmethod
     def from_orders(cls, orders: Iterable[OutboundOrder], *, include_cancelled: bool = False) -> "DemandTable":
-        by_sku_day: Dict[str, Dict[date, float]] = defaultdict(lambda: defaultdict(float))
+        by_sku_day: dict[str, dict[date, float]] = defaultdict(lambda: defaultdict(float))
         for o in orders:
             if not include_cancelled and o.status == "cancelled":
                 continue
@@ -44,7 +44,7 @@ class DemandTable:
         series = {sku: tuple(float(by_day.get(d, 0.0)) for d in days) for sku, by_day in by_sku_day.items()}
         return cls(days=days, series=series)
 
-    def total(self) -> Tuple[float, ...]:
+    def total(self) -> tuple[float, ...]:
         """Sum over SKUs per day (the series the forecasters consume)."""
         return tuple(sum(col) for col in zip(*self.series.values())) if self.series else ()
 

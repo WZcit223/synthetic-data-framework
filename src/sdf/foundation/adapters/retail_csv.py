@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import csv
 from datetime import datetime
-from typing import List, Tuple
 
 from sdf.foundation.registry import DataSourceRegistry
 from sdf.foundation.schema import SKU, OutboundOrder
@@ -43,14 +42,14 @@ def _parse_dt(s: str) -> datetime:
     raise ValueError(f"unrecognised InvoiceDate format: {s!r}")
 
 
-def load_online_retail_csv(path: str) -> Tuple[List[SKU], List[OutboundOrder]]:
+def load_online_retail_csv(path: str) -> tuple[list[SKU], list[OutboundOrder]]:
     """Read the CSV and return canonical (skus, outbound_orders).
 
     Negative quantities (returns) become ``status="cancelled"`` orders so demand
     logic that already filters cancelled lines stays correct.
     """
     skus: dict = {}
-    orders: List[OutboundOrder] = []
+    orders: list[OutboundOrder] = []
     with open(path, newline="", encoding="utf-8-sig") as fh:
         reader = csv.DictReader(fh)
         for i, row in enumerate(reader):
@@ -94,7 +93,7 @@ def load_online_retail_csv(path: str) -> Tuple[List[SKU], List[OutboundOrder]]:
     return list(skus.values()), orders
 
 
-def register_online_retail(reg: DataSourceRegistry, path: str) -> Tuple[int, int]:
+def register_online_retail(reg: DataSourceRegistry, path: str) -> tuple[int, int]:
     """Load the CSV and register both entity streams as an open dataset."""
     skus, orders = load_online_retail_csv(path)
     reg.register("retail_skus", "SKU", skus, origin="external-open-dataset")

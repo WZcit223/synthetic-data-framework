@@ -13,7 +13,7 @@ same "answers must be grounded in computed facts" contract.
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Tuple
+from collections.abc import Callable
 
 from sdf.analytics.forecast import build_series, compare_models, models_for
 
@@ -24,7 +24,7 @@ class KnowledgeQA:
     def __init__(self, intel) -> None:
         self.intel = intel
         # (keywords, handler) — first keyword hit wins, so order by specificity.
-        self._routes: List[Tuple[List[str], Callable[[], Dict]]] = [
+        self._routes: list[tuple[list[str], Callable[[], dict]]] = [
             (["stockout", "out of stock", "缺货"], self._stockouts),
             (["dead stock", "slow moving", "呆滞", "dead"], self._dead_stock),
             (["safety stock", "service level", "s,s", "(s,s)", "安全库存"], self._safety),
@@ -38,7 +38,7 @@ class KnowledgeQA:
             (["help", "what can", "capabilities", "帮助"], self._help),
         ]
 
-    def ask(self, q: str) -> Dict:
+    def ask(self, q: str) -> dict:
         ql = (q or "").lower()
         for keys, handler in self._routes:
             if any(k in ql for k in keys):
@@ -57,7 +57,7 @@ class KnowledgeQA:
 
     # -- intent handlers ---------------------------------------------------
 
-    def _stockouts(self) -> Dict:
+    def _stockouts(self) -> dict:
         an = self.intel.anomalies()
         outs = [a for a in an if a["type"] == "stockout"]
         ex = ", ".join(a["sku_id"] for a in outs[:5])
@@ -67,7 +67,7 @@ class KnowledgeQA:
             "answer": f"There are {len(outs)} active stockouts" + (f" (e.g. {ex})." if ex else "."),
         }
 
-    def _dead_stock(self) -> Dict:
+    def _dead_stock(self) -> dict:
         an = self.intel.anomalies()
         dead = [a for a in an if a["type"] == "dead_stock"]
         return {
@@ -76,7 +76,7 @@ class KnowledgeQA:
             "answer": f"{len(dead)} SKUs look like dead stock (high on-hand, no recent demand).",
         }
 
-    def _safety(self) -> Dict:
+    def _safety(self) -> dict:
         p = self.intel.replenishment_ss_policy(service_level=0.95)
         return {
             "intent": "safety_stock",
@@ -86,7 +86,7 @@ class KnowledgeQA:
             f"{p['skus_needing_order']} SKUs need an order now.",
         }
 
-    def _replenish(self) -> Dict:
+    def _replenish(self) -> dict:
         s = self.intel.replenishment_suggestions(999)
         top = s[0] if s else None
         msg = f"{len(s)} SKUs are at or below their reorder point."
@@ -94,7 +94,7 @@ class KnowledgeQA:
             msg += f" Most urgent: {top['sku_id']} — order {top['suggested_order_qty']} units."
         return {"intent": "replenishment", "data": {"count": len(s)}, "answer": msg}
 
-    def _forecast(self) -> Dict:
+    def _forecast(self) -> dict:
         orders = self.intel.reg.stream("OutboundOrder")
         series, freq, period = build_series(orders)
         rep = compare_models(series, test_len=2 * period, models=models_for(period))
@@ -107,7 +107,7 @@ class KnowledgeQA:
             f"{best['MAPE_pct']}%) at {freq} granularity.",
         }
 
-    def _anomaly(self) -> Dict:
+    def _anomaly(self) -> dict:
         a = self.intel.demand_anomalies()
         return {
             "intent": "anomaly",
@@ -117,7 +117,7 @@ class KnowledgeQA:
             f"{a['granularity']} series.",
         }
 
-    def _stocktake(self) -> Dict:
+    def _stocktake(self) -> dict:
         s = self.intel.stocktake_discrepancies()
         return {
             "intent": "stocktake",
@@ -128,12 +128,12 @@ class KnowledgeQA:
             f"{s['net_unit_variance']} units).",
         }
 
-    def _abc(self) -> Dict:
+    def _abc(self) -> dict:
         d = self.intel.abc_distribution()
         parts = ", ".join(f"{k}:{v}" for k, v in d.items())
         return {"intent": "abc", "data": d, "answer": f"ABC distribution — {parts}."}
 
-    def _value(self) -> Dict:
+    def _value(self) -> dict:
         k = self.intel.kpis()
         return {
             "intent": "inventory_value",
@@ -142,7 +142,7 @@ class KnowledgeQA:
             f"across {k.total_skus} SKUs ({k.total_on_hand:,} units).",
         }
 
-    def _counts(self) -> Dict:
+    def _counts(self) -> dict:
         k = self.intel.kpis()
         return {
             "intent": "counts",
@@ -151,7 +151,7 @@ class KnowledgeQA:
             f"units on hand, {k.outbound_lines:,} outbound lines.",
         }
 
-    def _help(self) -> Dict:
+    def _help(self) -> dict:
         return {
             "intent": "help",
             "data": {},

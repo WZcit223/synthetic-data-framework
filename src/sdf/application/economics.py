@@ -12,11 +12,12 @@ estimate with stated assumptions, not a claim. # DATA-HOOK: real unit costs.
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List
 
 from sdf.analytics.demand import DemandTable
+from .intelligence import WarehouseIntelligence
 
 
 @dataclass
@@ -31,11 +32,26 @@ class CostModel:
     service_z: float = 1.645  # 95% service level for the "good" policy
     working_days_per_year: int = 313
 
+    def __post_init__(self) -> None:
+        """Reject cost assumptions the simulation cannot price; every message names the field."""
+        for name in ("holding_cost_annual_rate", "stockout_penalty_mult"):
+            v = getattr(self, name)
+            if not (math.isfinite(v) and 0.0 <= v <= 1.0):
+                raise ValueError(f"{name} must be a finite number in [0, 1], got {v!r}")
+        if not (math.isfinite(self.order_fixed_cost) and self.order_fixed_cost >= 0):
+            raise ValueError(f"order_fixed_cost must be a finite number >= 0, got {self.order_fixed_cost!r}")
+        for name in ("lead_time_days", "review_days", "working_days_per_year"):
+            v = getattr(self, name)
+            if not (math.isfinite(v) and v >= 1):
+                raise ValueError(f"{name} must be a finite number >= 1, got {v!r}")
+        if not (math.isfinite(self.service_z) and self.service_z > 0):
+            raise ValueError(f"service_z must be a finite number > 0, got {self.service_z!r}")
 
-def _simulate(demand: List[float], s: float, S: float, lead: int, unit_cost: float, cm: CostModel) -> Dict[str, float]:
+
+def _simulate(demand: list[float], s: float, S: float, lead: int, unit_cost: float, cm: CostModel) -> dict[str, float]:
     """One-SKU (s,S) simulation. Returns unmet units, holding £-days, #orders."""
     on_hand = S
-    pipeline: Dict[int, float] = defaultdict(float)  # day -> arriving qty
+    pipeline: dict[int, float] = defaultdict(float)  # day -> arriving qty
     unmet = 0.0
     holding_unit_days = 0.0
     orders = 0
@@ -60,7 +76,7 @@ def _simulate(demand: List[float], s: float, S: float, lead: int, unit_cost: flo
     }
 
 
-def financial_impact(intel, cost_model: CostModel = None, max_skus: int = 400) -> Dict:
+def financial_impact(intel: WarehouseIntelligence, cost_model: CostModel | None = None, max_skus: int = 400) -> dict:
     """Counterfactual £: our (s,S) policy vs a naive no-safety-stock policy.
 
     ALGORITHM-HOOK: the naive baseline stands in for "current practice"; plug in

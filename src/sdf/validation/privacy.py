@@ -20,26 +20,26 @@ from __future__ import annotations
 import math
 import random
 import statistics
-from typing import Dict, List, Sequence, Tuple
+from collections.abc import Sequence
 
 from sdf.foundation.adapters.retail_csv import _parse_dt
 
 Row = Sequence[float]
 
 
-def _normaliser(rows: List[Row]):
+def _normaliser(rows: list[Row]):
     cols = list(zip(*rows)) if rows else []
     lo = [min(c) for c in cols]
     hi = [max(c) for c in cols]
     span = [(h - l) or 1.0 for l, h in zip(lo, hi)]
 
-    def norm(r: Row) -> List[float]:
+    def norm(r: Row) -> list[float]:
         return [(v - l) / s for v, l, s in zip(r, lo, span)]
 
     return norm
 
 
-def _two_nearest(p: List[float], reals: List[List[float]]) -> Tuple[float, float]:
+def _two_nearest(p: list[float], reals: list[list[float]]) -> tuple[float, float]:
     d1 = d2 = float("inf")
     for q in reals:
         d = math.sqrt(sum((a - b) ** 2 for a, b in zip(p, q)))
@@ -50,7 +50,7 @@ def _two_nearest(p: List[float], reals: List[List[float]]) -> Tuple[float, float
     return d1, d2
 
 
-def privacy_report(real: List[Row], synth: List[Row], eps: float = 0.02, max_n: int = 800, seed: int = 7) -> Dict:
+def privacy_report(real: list[Row], synth: list[Row], eps: float = 0.02, max_n: int = 800, seed: int = 7) -> dict:
     """Compute DCR / NNDR / clone-risk between synthetic and real tables."""
     if not real or not synth:
         return {"error": "empty input"}
@@ -83,14 +83,14 @@ def privacy_report(real: List[Row], synth: List[Row], eps: float = 0.02, max_n: 
     }
 
 
-def read_retail_feature_table(path: str, limit: int = 3000) -> List[Row]:
+def read_retail_feature_table(path: str, limit: int = 3000) -> list[Row]:
     """Continuous feature table [quantity, price, hour, weekday] from a real CSV.
 
     Price adds continuity so distances are meaningful (not all-ties).
     """
     import csv
 
-    rows: List[Row] = []
+    rows: list[Row] = []
     with open(path, newline="", encoding="utf-8-sig") as fh:
         for r in csv.DictReader(fh):
             try:
@@ -107,7 +107,7 @@ def read_retail_feature_table(path: str, limit: int = 3000) -> List[Row]:
     return rows
 
 
-def bootstrap_synthesize(real: List[Row], n: int = None, jitter: float = 0.05, seed: int = 7) -> List[Row]:
+def bootstrap_synthesize(real: list[Row], n: int | None = None, jitter: float = 0.05, seed: int = 7) -> list[Row]:
     """A minimal stdlib synthesizer: per-column bootstrap + Gaussian jitter.
 
     Stands in for a fitted generator so privacy can be measured with no heavy
@@ -119,7 +119,7 @@ def bootstrap_synthesize(real: List[Row], n: int = None, jitter: float = 0.05, s
     n = n or len(real)
     cols = list(zip(*real))
     stds = [statistics.pstdev(c) or 1.0 for c in cols]
-    out: List[Row] = []
+    out: list[Row] = []
     for _ in range(n):
         out.append(tuple(rng.choice(cols[j]) + rng.gauss(0, jitter * stds[j]) for j in range(len(cols))))
     return out

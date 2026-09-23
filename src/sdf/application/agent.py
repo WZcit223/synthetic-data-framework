@@ -17,8 +17,9 @@ tool registry, guardrails, and audit log stay identical.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from sdf.observability import RunLogger
 from .economics import CostModel, financial_impact
@@ -37,11 +38,11 @@ class Tool:
 class WarehouseAgent:
     """A minimal, auditable tool-using assistant over WarehouseIntelligence."""
 
-    def __init__(self, intel, sink_path: Optional[str] = None) -> None:
+    def __init__(self, intel, sink_path: str | None = None) -> None:
         self.intel = intel
         self.qa = KnowledgeQA(intel)
         self.sink_path = sink_path
-        self.tools: Dict[str, Tool] = {}
+        self.tools: dict[str, Tool] = {}
         self._register_default_tools()
 
     # -- tool registry -----------------------------------------------------
@@ -77,7 +78,7 @@ class WarehouseAgent:
             )
         )
 
-    def _propose_order(self, sku_id: str = "", quantity: int = 0) -> Dict:
+    def _propose_order(self, sku_id: str = "", quantity: int = 0) -> dict:
         # Guardrail: do not execute; return a proposal for human approval.
         return {"proposed_action": "place_order", "sku_id": sku_id, "quantity": quantity, "status": "PENDING_APPROVAL"}
 
@@ -93,12 +94,12 @@ class WarehouseAgent:
 
     # -- planner -----------------------------------------------------------
 
-    def handle(self, query: str, cost_model: CostModel = None) -> Dict:
+    def handle(self, query: str, cost_model: CostModel | None = None) -> dict:
         """Route a query to a small plan of tool calls; return answer + trace."""
         log = RunLogger("agent", sink_path=self.sink_path)
         ql = (query or "").lower()
-        plan: List[str] = []
-        proposed: List[Dict] = []
+        plan: list[str] = []
+        proposed: list[dict] = []
 
         wants_order = any(k in ql for k in ("reorder", "replenish", "place order", "补货", "下单", "order"))
         wants_money = any(k in ql for k in ("impact", "save", "saving", "money", "roi", "cost", "钱", "节省", "价值"))
@@ -149,7 +150,7 @@ class WarehouseAgent:
             "trace": [e.to_dict() for e in log.entries],
         }
 
-    def list_tools(self) -> List[Dict]:
+    def list_tools(self) -> list[dict]:
         return [
             {
                 "name": t.name,

@@ -13,10 +13,9 @@ synthetic-vs-real detection AUC — see docs/ALGORITHM_AND_DATA_CHECKLIST.md (B1
 from __future__ import annotations
 
 import math
-from typing import Dict, List
 
 
-def ks_2samp(a: List[float], b: List[float]) -> float:
+def ks_2samp(a: list[float], b: list[float]) -> float:
     """Two-sample KS statistic = max |F_a(x) - F_b(x)| (ties handled)."""
     import bisect
 
@@ -32,7 +31,7 @@ def ks_2samp(a: List[float], b: List[float]) -> float:
     return round(d, 4)
 
 
-def pearson(a: List[float], b: List[float]) -> float:
+def pearson(a: list[float], b: list[float]) -> float:
     n = min(len(a), len(b))
     if n < 2:
         return 0.0
@@ -46,7 +45,7 @@ def pearson(a: List[float], b: List[float]) -> float:
     return round(cov / (va * vb), 4)
 
 
-def _profile(series: List[float], ppd: int) -> List[float]:
+def _profile(series: list[float], ppd: int) -> list[float]:
     prof = [0.0] * ppd
     cnt = [0] * ppd
     for i, v in enumerate(series):
@@ -55,7 +54,7 @@ def _profile(series: List[float], ppd: int) -> List[float]:
     return [prof[h] / c if c else 0.0 for h, c in enumerate(cnt)]
 
 
-def _std(x: List[float]) -> float:
+def _std(x: list[float]) -> float:
     n = len(x)
     if n < 2:
         return 0.0
@@ -63,7 +62,7 @@ def _std(x: List[float]) -> float:
     return math.sqrt(sum((v - m) ** 2 for v in x) / n)
 
 
-def fidelity_report(real: List[float], synth: List[float], ppd: int) -> Dict:
+def fidelity_report(real: list[float], synth: list[float], ppd: int) -> dict:
     """Compare a synthetic series to a real reference; higher = more faithful."""
     rmean = sum(real) / len(real) if real else 0.0
     smean = sum(synth) / len(synth) if synth else 0.0
