@@ -25,6 +25,7 @@ from collections.abc import Sequence
 from sdf.foundation.adapters.retail_csv import _parse_dt
 
 Row = Sequence[float]
+FEATURE_COLUMNS = ("qty", "price", "hour", "weekday")  # the columns read_retail_feature_table returns
 
 
 def _normaliser(rows: list[Row]):
@@ -105,21 +106,3 @@ def read_retail_feature_table(path: str, limit: int = 3000, *, date_format: str 
             if len(rows) >= limit:
                 break
     return rows
-
-
-def bootstrap_synthesize(real: list[Row], *, n: int | None = None, jitter: float = 0.05, seed: int = 7) -> list[Row]:
-    """A minimal stdlib synthesizer: per-column bootstrap + Gaussian jitter.
-
-    Stands in for a fitted generator so privacy can be measured with no heavy
-    deps. ALGORITHM-HOOK: use SDV CTGAN/copula output rows instead.
-    """
-    if not real:
-        return []
-    rng = random.Random(seed)
-    n = n or len(real)
-    cols = list(zip(*real))
-    stds = [statistics.pstdev(c) or 1.0 for c in cols]
-    out: list[Row] = []
-    for _ in range(n):
-        out.append(tuple(rng.choice(cols[j]) + rng.gauss(0, jitter * stds[j]) for j in range(len(cols))))
-    return out

@@ -7,7 +7,7 @@ module-name = "sdf"
 
 [project]
 name = "synthetic-data-framework"
-version = "0.11.0"
+version = "0.12.0"
 description = "Three-layer industrial-AI framework with synthetic-data-driven AI warehouse demo"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
@@ -34,6 +34,14 @@ causal = [
 
 [project.scripts]
 sdf = "sdf.cli:main"
+
+# Synthesis algorithms are plug-ins. The built-ins are declared here like any
+# third-party plug-in; sdf.synthesis.registry.default_registry() mounts the group.
+[project.entry-points."sdf.synthesizers"]
+bootstrap-table = "sdf.synthesis.bootstrap:BootstrapTable"
+gaussian-copula = "sdf.synthesis.sdv_synth:GaussianCopulaTable"
+seasonal-profile = "sdf.synthesis.fit:FittedSeasonalDemand"
+warehouse-spec = "sdf.synthesis.warehouse:WarehouseSpecSynthesizer"
 
 [dependency-groups]
 dev = [

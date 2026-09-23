@@ -14,24 +14,34 @@ for sequences); the fidelity/TSTR harness scores whichever generator you use.
 from __future__ import annotations
 
 import random
+from typing import ClassVar
 
 from sdf.analytics.forecast import hourly_business_series
+from .api import SeriesData, Synthesizer, SynthesizerInfo
 
 
 class FittedSeasonalDemand:
-    """Learns a per-cycle profile + residual pool from any numeric series."""
+    """Learns a per-cycle profile + residual pool from any numeric series (``seasonal-profile``)."""
 
-    def __init__(self, seed: int = 7) -> None:
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo(
+        name="seasonal-profile",
+        produces="series",
+        needs_fit=True,
+        description="Per-cycle mean profile × resampled multiplicative residuals",
+    )
+
+    def __init__(self, *, seed: int = 7) -> None:
         self.seed = seed
-        self._rng = random.Random(seed)  # one stream: repeated generate() calls differ
+        self._rng = random.Random(seed)  # one stream: repeated sample() calls differ
         self.period = 1
         self.profile: list[float] = []
         self.resid: list[float] = []
         self.reference: list[float] = []
 
-    def fit(self, series: list[float], period: int) -> "FittedSeasonalDemand":
-        self.period = max(1, period)
-        self.reference = list(series)
+    def fit(self, data: SeriesData) -> FittedSeasonalDemand:
+        series = list(data.values)
+        self.period = max(1, data.period)
+        self.reference = series
         prof = [0.0] * self.period
         cnt = [0] * self.period
         for i, v in enumerate(series):
@@ -43,33 +53,34 @@ class FittedSeasonalDemand:
         ] or [1.0]
         return self
 
-    def generate(self, n_points: int | None = None, *, seed: int | None = None) -> list[float]:
-        """Sample a series; each call continues the instance's random stream unless ``seed`` pins it."""
+    def sample(self, n: int | None = None, *, seed: int | None = None) -> list[float]:
+        """Sample ``n`` points (default: the fitted length); each call continues the stream unless ``seed`` pins it."""
         rng = random.Random(seed) if seed is not None else self._rng
-        if n_points is None:
-            n_points = len(self.reference)
-        return [self.profile[i % self.period] * rng.choice(self.resid) for i in range(n_points)]
+        if n is None:
+            n = len(self.reference)
+        return [self.profile[i % self.period] * rng.choice(self.resid) for i in range(n)]
 
 
 class FittedHourlyDemand:
-    """Convenience wrapper: derive an hourly series from orders, then fit."""
+    """Convenience wrapper: derive an hourly series from orders, then fit a series synthesizer.
 
-    def __init__(self, seed: int = 7) -> None:
-        self._m = FittedSeasonalDemand(seed)
+    ``model`` is any synthesizer that produces a series (default: ``seasonal-profile``).
+    """
+
+    def __init__(self, model: Synthesizer | None = None, *, seed: int = 7) -> None:
+        if model is not None and model.info.produces != "series":
+            raise ValueError(f"{model.info.name} produces {model.info.produces!r}, not a series")
+        self.model = model if model is not None else FittedSeasonalDemand(seed=seed)
         self.ppd = 0
         self.real_series: list[float] = []
 
-    def fit(self, orders, *, lo: int = 8, hi: int = 19) -> "FittedHourlyDemand":
+    def fit(self, orders, *, lo: int = 8, hi: int = 19) -> FittedHourlyDemand:
         series, ppd = hourly_business_series(orders, lo=lo, hi=hi)
         self.ppd = ppd or 1
         self.real_series = series
-        self._m.fit(series, self.ppd)
+        self.model.fit(SeriesData(values=series, period=self.ppd))
         return self
 
-    @property
-    def profile(self) -> list[float]:
-        return self._m.profile
-
     def generate(self, n_days: int | None = None, *, seed: int | None = None) -> list[float]:
-        n_points = None if n_days is None else n_days * self.ppd
-        return self._m.generate(n_points, seed=seed)
+        n_points = len(self.real_series) if n_days is None else n_days * self.ppd
+        return self.model.sample(n_points, seed=seed)

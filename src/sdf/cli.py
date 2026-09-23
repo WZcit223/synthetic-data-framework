@@ -19,11 +19,13 @@ from .application.intelligence import WarehouseIntelligence
 from .application.scenarios import run_scenarios
 from .application.snapshot import render_markdown, replace_doc_block, snapshot
 from .foundation.adapters.retail_csv import load_online_retail_csv
+from .synthesis.api import TableData
 from .synthesis.fit import FittedHourlyDemand
 from .synthesis.materialise import build_registry
+from .synthesis.registry import default_registry
 from .synthesis.spec import GenerationSpec
 from .validation.fidelity import fidelity_report
-from .validation.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
+from .validation.privacy import FEATURE_COLUMNS, privacy_report, read_retail_feature_table
 from .validation.quality import structural_quality_check
 from .validation.tstr import tstr_report
 from .workflow import warehouse_pipeline
@@ -139,13 +141,13 @@ def cmd_backtest(path: str, date_format: str | None = None) -> int:
     return 0
 
 
-def cmd_synth(path: str, date_format: str | None = None) -> int:
+def cmd_synth(path: str, date_format: str | None = None, synthesizer: str = "seasonal-profile") -> int:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
 
     _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
     if _no_usable_rows(path, load):
         return 1
-    model = FittedHourlyDemand().fit(orders)
+    model = FittedHourlyDemand(default_registry().create(synthesizer)).fit(orders)
     synth = model.generate()
     rep = fidelity_report(model.real_series, synth, model.ppd)
 
@@ -154,6 +156,7 @@ def cmd_synth(path: str, date_format: str | None = None) -> int:
     print("=" * 60)
     print(f"  source          : {path}")
     _print_load(load)
+    print(f"  synthesizer      : {synthesizer}")
     print(f"  real / synth pts : {len(model.real_series)} / {len(synth)}")
     print(f"  KS statistic     : {rep['ks_statistic']}   (0 = identical dist.)")
     print(f"  profile corr     : {rep['profile_corr']}   (1 = identical seasonality)")
@@ -164,18 +167,19 @@ def cmd_synth(path: str, date_format: str | None = None) -> int:
     return 0
 
 
-def cmd_tstr(path: str, date_format: str | None = None) -> int:
+def cmd_tstr(path: str, date_format: str | None = None, synthesizer: str = "seasonal-profile") -> int:
     """Phase 3: TSTR — train on synthetic, test on real (checklist B2)."""
 
     _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
     if _no_usable_rows(path, load):
         return 1
-    r = tstr_report(orders)
+    r = tstr_report(orders, synthesizer=synthesizer)
     print("=" * 60)
     print("  TSTR — train on synthetic, test on real (Phase 3, B2)")
     print("=" * 60)
     print(f"  source        : {path}")
     _print_load(load)
+    print(f"  synthesizer   : {synthesizer}")
     if "error" in r:
         print(f"  {r['error']} (series_len={r['series_len']})\n")
         return 0
@@ -286,11 +290,12 @@ def cmd_scenarios() -> int:
     return 0
 
 
-def cmd_privacy(path: str, date_format: str | None = None) -> int:
+def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "bootstrap-table") -> int:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
 
     real = read_retail_feature_table(path, date_format=date_format)
-    synth = bootstrap_synthesize(real)
+    model = default_registry().create(synthesizer)
+    synth = model.fit(TableData(rows=real, columns=FEATURE_COLUMNS)).sample() if real else []
     rep = privacy_report(real, synth)
     print("=" * 60)
     print("  Synthetic-data privacy (B3)")
@@ -298,6 +303,7 @@ def cmd_privacy(path: str, date_format: str | None = None) -> int:
     if "error" in rep:
         print(f"  {path}: {rep['error']} — no usable rows; check the file and --date-format\n")
         return 1
+    print(f"  {'synthesizer':<16}: {synthesizer}")
     for k in ("n_real", "n_synth", "dcr_median", "dcr_p05", "nndr_median", "clone_risk_pct", "verdict"):
         print(f"  {k:<16}: {rep.get(k)}")
     print("  ALGORITHM-HOOK: full membership-inference + differential privacy.\n")
@@ -313,6 +319,20 @@ _date_format_option = click.option(
     help="strptime format of InvoiceDate, e.g. '%d/%m/%Y %H:%M' for day-first sources. "
     "Default: try the known formats, month-first first (right for the UCI export).",
 )
+
+
+def _synthesizer_option(produces: str, default: str):
+    """``--synthesizer NAME``, limited to registered synthesizers that produce ``produces``."""
+    registry = default_registry()
+    names = [n for n in registry.names() if registry.info(n).produces == produces]
+    return click.option(
+        "--synthesizer",
+        type=click.Choice(names),
+        default=default,
+        show_default=True,
+        help=f"Registered synthesizer that produces a {produces}.",
+    )
+
 
 _csv_argument = click.argument(
     "csv_path",
@@ -359,18 +379,20 @@ def backtest(csv_path: str, date_format: str | None) -> None:
 @main.command()
 @_csv_argument
 @_date_format_option
-def synth(csv_path: str, date_format: str | None) -> None:
+@_synthesizer_option("series", "seasonal-profile")
+def synth(csv_path: str, date_format: str | None, synthesizer: str) -> None:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
-    if cmd_synth(csv_path, date_format):
+    if cmd_synth(csv_path, date_format, synthesizer):
         raise click.exceptions.Exit(1)
 
 
 @main.command()
 @_csv_argument
 @_date_format_option
-def tstr(csv_path: str, date_format: str | None) -> None:
+@_synthesizer_option("series", "seasonal-profile")
+def tstr(csv_path: str, date_format: str | None, synthesizer: str) -> None:
     """Phase 3: train on synthetic, test on real."""
-    if cmd_tstr(csv_path, date_format):
+    if cmd_tstr(csv_path, date_format, synthesizer):
         raise click.exceptions.Exit(1)
 
 
@@ -410,9 +432,10 @@ def scenarios() -> None:
 @main.command()
 @_csv_argument
 @_date_format_option
-def privacy(csv_path: str, date_format: str | None) -> None:
+@_synthesizer_option("table", "bootstrap-table")
+def privacy(csv_path: str, date_format: str | None, synthesizer: str) -> None:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
-    if cmd_privacy(csv_path, date_format):
+    if cmd_privacy(csv_path, date_format, synthesizer):
         raise click.exceptions.Exit(1)
 
 
