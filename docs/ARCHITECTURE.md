@@ -62,6 +62,11 @@ produces four capability families that generalise to other industrial domains:
 **data management, knowledge organisation, decision support, insight**. Each
 "AI" function is a transparent rule-based stand-in today.
 
+One module per concern: `kpi.py` (KPIs, ABC mix, top movers),
+`replenishment.py`, `anomaly_rules.py`, `vision.py` and `narrative.py`.
+`intelligence.py` is only a facade: `WarehouseIntelligence` holds the registry
+and delegates to those modules, so the API, CLI and agent keep one stable object.
+
 ## 3. Why warehouse management is the first validation scenario
 - Real internal business demand exists (fast feedback, real stakeholders).
 - It exercises all four core capabilities, so it is representative of the wider

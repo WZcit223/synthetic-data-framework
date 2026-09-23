@@ -1,5 +1,9 @@
 # PR 1 — Split the analysis class into one module per concern
 
+> Status: implemented (structure sequence PR 1). The one shared helper, calendar-day
+> demand rates, became `DemandTable.daily_rates()` in `analytics/demand.py`
+> instead of a private method, so the rule, anomaly and top-mover modules share it.
+
 Interface contract: [`interfaces.md`](interfaces.md) (this PR adds no new public
 interface; the facade keeps every public method).
 
