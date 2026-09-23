@@ -75,17 +75,19 @@ def policy_comparison(reg: DataSourceRegistry, *, service_level: float = 0.95) -
     """Replay the demand history under a no-safety-stock policy and the (s,S) policy.
 
     One ``Experiment`` with ``NaivePolicy`` and ``ServiceLevelPolicy`` measured by
-    ``ReplenishmentNeed`` and ``SimulatedCost`` (default ``CostModel``). Each
-    entry of ``policies`` holds one policy's metrics, so the dashboard can show
-    what the safety stock buys: fewer unmet units for more units held.
+    ``ReplenishmentNeed`` and ``SimulatedCost`` (default ``CostModel``), both over
+    every SKU with demand. Each entry of ``policies`` holds one policy's metrics,
+    so the dashboard can show what the safety stock buys: fewer unmet units for
+    more units held.
     """
     world = World(registry=reg, label="policy_comparison")
+    every_sku = len(world.demand().series)  # same scope as ReplenishmentNeed, unlike the economics cap
     policies = [NaivePolicy(), ServiceLevelPolicy(service_level=service_level)]
     rows = Experiment(
         world=world,
         interventions=[Baseline()],
         policies=policies,
-        outcomes=[ReplenishmentNeed(), SimulatedCost(CostModel())],
+        outcomes=[ReplenishmentNeed(), SimulatedCost(CostModel(), max_skus=every_sku)],
     ).run()
     by_policy: dict[str, dict] = {p.name: {"policy": p.name} for p in policies}
     for r in rows:

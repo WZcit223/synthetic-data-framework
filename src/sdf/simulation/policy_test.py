@@ -39,6 +39,11 @@ def test_service_level_policy_levels_and_name():
     assert lv.reorder_point == pytest.approx(140 + ss) and lv.order_up_to == lv.reorder_point
 
 
+def test_name_keeps_a_fractional_service_level():
+    assert ServiceLevelPolicy(service_level=0.975).name == "service-level-97.5"
+    assert ServiceLevelPolicy(service_level=0.9).name == "service-level-90"
+
+
 def test_explicit_z_overrides_the_table():
     p = ServiceLevelPolicy(z=2.0)
     assert (p.name, p.effective_z) == ("service-level-z2.0", 2.0)

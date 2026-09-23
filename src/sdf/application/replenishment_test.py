@@ -24,6 +24,26 @@ def test_policy_comparison_on_the_default_world(default_world):
     assert ours["holding_cost"] > naive["holding_cost"]
 
 
+def test_policy_comparison_simulates_every_sku():
+    from sdf.simulation.outcome import CostModel, SimulatedCost
+    from sdf.simulation.policy import NaivePolicy
+    from sdf.simulation.world import World
+    from sdf.synthesis.materialise import build_registry
+    from sdf.synthesis.spec import GenerationSpec
+
+    # More SKUs with demand than the economics cap of 400: the cost replay must cover all of them,
+    # like the replenishment need does.
+    _, reg = build_registry(GenerationSpec(n_skus=450, horizon_days=10))
+    world = World(registry=reg)
+    n_series = len(world.demand().series)
+    assert n_series > 400
+    full = SimulatedCost(CostModel(), max_skus=n_series).measure(world, NaivePolicy())
+    capped = SimulatedCost(CostModel()).measure(world, NaivePolicy())
+    assert full["holding_cost"] > capped["holding_cost"]
+    naive = policy_comparison(reg)["policies"][0]
+    assert naive["holding_cost"] == round(full["holding_cost"])
+
+
 def test_demand_series_shape(default_world):
     _, reg, intel = default_world
     sku = intel.top_movers(1)[0]["sku_id"]

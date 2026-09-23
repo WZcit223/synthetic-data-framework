@@ -52,7 +52,9 @@ class ServiceLevelPolicy:
 
     @property
     def name(self) -> str:
-        return f"service-level-z{self.z}" if self.z is not None else f"service-level-{round(self.service_level * 100)}"
+        if self.z is not None:
+            return f"service-level-z{self.z}"
+        return f"service-level-{round(self.service_level * 100, 2):g}"  # 0.95 -> 95, 0.975 -> 97.5
 
     @property
     def effective_z(self) -> float:

@@ -89,7 +89,7 @@ observability       ← application.agent, workflow.pipeline
 只需保证路径存在与返回可 JSON 化。
 
 > 2026-09-23（structure 序列 PR 3）：按项目负责人决定删除固定规则补货，`GET /application/replenishment`
-> 与 `GET /application/replenishment/simulate` 两个端点随之移除；仪表盘改用新增的
+> 与 `GET /application/replenishment/simulate` 两个端点随之移除（路由由 23 个变为 22 个，其中 15 个被仪表盘直接调用）；仪表盘改用新增的
 > `GET /application/replenishment/comparison?service_level`（字段 `service_level,horizon_days,
 > policies[].{policy,skus_needing_order,safety_stock_units,unmet_units,fill_rate,holding_cost,order_cost}`）。
 > 下表保留为改前记录。
