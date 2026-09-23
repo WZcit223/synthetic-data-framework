@@ -379,10 +379,12 @@ same "answers grounded in computed facts" contract.
 
 ## Phase 4 — agent, workflow, economics, privacy, scenarios
 
-**Trusted agent (C7)** — `application/agent.py` wraps capabilities as tools, runs a
-planner, and logs every call. A "reorder & impact" query produces a 3-call audit
-trace (`replenishment → financial_impact → place_order`), where `place_order` is
-returned as `PENDING_APPROVAL` (human-in-the-loop), never executed.
+**Trusted agent (C7)** — `application/agent/` wraps capabilities as tools, lets a
+planner choose the calls and runs every call through one executor that logs it. A
+"reorder & impact" query produces a 3-call audit trace
+(`replenishment → financial_impact → place_order`); the executor never runs
+`place_order` without an explicit approval, so it is returned as
+`PENDING_APPROVAL` (human-in-the-loop).
 
 **Data Intelligence Workflow** — `workflow/pipeline.py` runs the DAG
 `ingest → validate → application → economics → report` with a per-step logged run

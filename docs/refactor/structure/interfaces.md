@@ -419,8 +419,9 @@ agent.executor.call(log, "financial_impact")
       # ToolResult(ok=False, status='failed', error='no demand')  on an empty registry
 
 KeywordPlanner().plan("should I reorder and what is the money impact?")
-      # [PlannedCall(tool='replenishment', args={}), PlannedCall(tool='financial_impact', args={}),
-      #  PlannedCall(tool='place_order', args=…)]
+      # [PlannedCall(tool='replenishment', args={'top_n': 5}), PlannedCall(tool='financial_impact', args={})]
+      # The agent derives the place_order call from the replenishment result and sends it
+      # through the executor, which returns it as pending_approval.
 ```
 
 ```python
@@ -447,7 +448,15 @@ class Planner(Protocol):
 ```
 
 The executor enforces, for every caller: a tool with `requires_approval=True` or
-`read_only=False` is never run without `approved=True`.
+`read_only=False` is never run without `approved=True`. A tool reports a failure
+by raising (the application functions' `{"error": …}` results are converted by
+raising `ToolError`); the executor turns any exception, and an unknown tool name,
+into `ToolResult(ok=False, status="failed", error=…)` and logs the step as an
+error. `WarehouseAgent(intel, sink_path=None, planner=None)` takes any `Planner`
+(default `KeywordPlanner`) and runs its calls with `Executor.run_planned(log,
+call)`, which never approves and rejects a planned `approved` argument, so a plan
+cannot approve itself. Every planned call the executor holds back is reported in
+`proposed_actions`.
 
 ---
 
