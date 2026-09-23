@@ -72,6 +72,7 @@ uv sync                        # environment (Python 3.14) + pytest + ruff, lock
 uv run ruff check              # lint
 uv run ruff format --check     # formatting
 uv run pytest                  # tests
+uv run sdf validate --update-doc docs/VALIDATION.md   # after a change that moves a recorded number
 ```
 
 Enable the versioned pre-commit hook once per clone with

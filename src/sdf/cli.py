@@ -11,23 +11,25 @@ import os
 
 import click
 
-from sdf.analytics.forecast import build_series, compare_models, models_for
-from sdf.application.agent import WarehouseAgent
-from sdf.application.economics import financial_impact
-from sdf.application.intelligence import WarehouseIntelligence
-from sdf.application.scenarios import run_scenarios
-from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-from sdf.synthesis.fit import FittedHourlyDemand
-from sdf.synthesis.materialise import build_registry
-from sdf.synthesis.spec import GenerationSpec
-from sdf.validation.fidelity import fidelity_report
-from sdf.validation.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
-from sdf.validation.quality import structural_quality_check
-from sdf.validation.tstr import tstr_report
 from . import __version__
+from .analytics.forecast import build_series, compare_models, models_for
+from .application.agent import WarehouseAgent
+from .application.economics import financial_impact
+from .application.intelligence import WarehouseIntelligence
+from .application.scenarios import run_scenarios
+from .application.snapshot import render_markdown, replace_doc_block, snapshot
+from .foundation.adapters.retail_csv import load_online_retail_csv
+from .synthesis.fit import FittedHourlyDemand
+from .synthesis.materialise import build_registry
+from .synthesis.spec import GenerationSpec
+from .validation.fidelity import fidelity_report
+from .validation.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
+from .validation.quality import structural_quality_check
+from .validation.tstr import tstr_report
 from .workflow import warehouse_pipeline
 
 DEFAULT_CSV = os.path.join("data", "sample_online_retail_ii.csv")
+DEFAULT_RETAIL_CSV = os.path.join("data", "online_retail_ii_2010_10k.csv")
 
 
 def cmd_demo() -> int:
@@ -366,6 +368,39 @@ def scenarios() -> None:
 def privacy(csv_path: str) -> None:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
     cmd_privacy(csv_path)
+
+
+@main.command()
+@click.option("--format", "fmt", type=click.Choice(["json", "markdown"]), default="json", show_default=True)
+@click.option(
+    "--sample", "sample_csv", default=DEFAULT_CSV, show_default=True, type=click.Path(exists=True, dir_okay=False)
+)
+@click.option(
+    "--retail",
+    "retail_csv",
+    default=DEFAULT_RETAIL_CSV,
+    show_default=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option(
+    "--update-doc",
+    "doc_path",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Rewrite the block between the sdf-validate markers in this markdown file.",
+)
+def validate(fmt: str, sample_csv: str, retail_csv: str, doc_path: str | None) -> None:
+    """Print every recorded number (default world + bundled CSVs) as JSON or markdown."""
+    snap = snapshot(sample_csv, retail_csv)
+    if doc_path:
+        with open(doc_path, encoding="utf-8") as fh:
+            text = fh.read()
+        updated = replace_doc_block(text, render_markdown(snap))
+        if updated != text:
+            with open(doc_path, "w", encoding="utf-8") as fh:
+                fh.write(updated)
+        click.echo(f"{doc_path}: {'updated' if updated != text else 'already up to date'}")
+        return
+    click.echo(render_markdown(snap) if fmt == "markdown" else json.dumps(snap, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":

@@ -6,9 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from sdf.application.intelligence import WarehouseIntelligence
-from sdf.synthesis.materialise import build_registry
-from sdf.synthesis.spec import GenerationSpec
+from .application.intelligence import WarehouseIntelligence
+from .application.snapshot import snapshot
+from .synthesis.materialise import build_registry
+from .synthesis.spec import GenerationSpec
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
@@ -35,3 +36,9 @@ def sample_csv() -> str:
 def retail_10k_csv() -> str:
     """Bundled real UCI Online Retail II extract (10k rows, 4 days)."""
     return str(DATA_DIR / "online_retail_ii_2010_10k.csv")
+
+
+@pytest.fixture(scope="session")
+def full_snapshot(sample_csv, retail_10k_csv) -> dict:
+    """``sdf validate``'s snapshot of the default world and both bundled CSVs, computed once."""
+    return snapshot(sample_csv, retail_10k_csv)

@@ -280,7 +280,7 @@ src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
 | 4 | 实现 | **拆上帝对象**：`application/` 按 §4 拆分，`WarehouseIntelligence` 变门面；`ReplenishmentPolicy` 接口；`knowledge`、`agent`、`scenarios` 显式选策略 | 端点契约测试不变；`insights` 与 `/scenarios` 的"需订 SKU 数"口径在文案里标明策略 |
 | 5 | 实现 | **API 状态模型**：`create_app()`、不可变 `World`、原子替换、`/generate` 参数上限收紧并记录耗时 | 并发 `POST /generate` + `GET` 压测无撕裂；单例仍导出为 `app` |
 | 6 | 实现 | **Agent 执行器**：`agent/` 子包；审批门在 `executor.call` 强制；`ToolResult`；`Planner` 接口 | 新测试：注册一个有副作用的审批工具，断言 `fn` 未被调用 |
-| 7 | 实现 | **CLI**：~~迁 argparse~~ 已于 PR #3 迁到 click（子命令名与默认值不变，`--help`/`--version` 可用，`cli_test.py` 覆盖）；本步只剩**新增** `validate` 子命令，输出 §2.5 全部黄金数字（JSON），供第 9 步与 `test_golden.py` 共用 | `cli_test.py` 不变通过；`sdf validate` 输出与 `test_golden.py` 一致 |
+| 7 | 实现 | **CLI**：~~迁 argparse~~ 已于 PR #3 迁到 click（子命令名与默认值不变，`--help`/`--version` 可用，`cli_test.py` 覆盖）；~~本步只剩新增 `validate` 子命令~~ 已完成（correctness 序列 PR 1）：`sdf validate` 输出 §2.5 全部黄金数字（JSON / markdown），`golden_test.py` 与 `VALIDATION.md` 的生成块读同一份快照 | `cli_test.py` 不变通过；`sdf validate` 输出与 `test_golden.py` 一致 |
 | 8 | 实现 | **HOOK 规范化**：统一标记 + `test_hooks.py`；`CHECKLIST.md` 每行加"代码位置"列（由测试生成） | `grep` 结果与 CHECKLIST ID 集合相等 |
 | 9 | 实现 | 收尾：删 `feature/repo-governance` 远端分支；`VALIDATION.md` 中"默认世界手工调用"类数字改由第 7 步的 `sdf validate` 重跑生成；`observability` 完整落盘 | — |
 
