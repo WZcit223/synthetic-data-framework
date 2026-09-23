@@ -22,7 +22,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from sdf.observability import RunLogger
-from .economics import CostModel, financial_impact
+from sdf.simulation.outcome import CostModel
+from .economics import financial_impact
 from .knowledge import KnowledgeQA
 
 

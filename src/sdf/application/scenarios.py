@@ -1,21 +1,35 @@
 """Scenario / what-if simulation runner (Application Layer).
 
-A single dataset answers "what is"; industry planning needs "what if". This
-module generates one world per scenario (the spec transforms live in
-``sdf.synthesis.scenarios``) and compares the resulting KPIs and inventory
-stress so planners can see how the warehouse behaves under stress — before it
-happens.
-
-ALGORITHM-HOOK: for a true digital twin, replace the parametric spec transforms
-with a discrete-event simulator or an agent-based model of the facility.
+A single dataset answers "what is"; industry planning needs "what if". Each
+scenario is a ``SpecIntervention`` (the spec transforms live in
+``sdf.synthesis.scenarios``); one ``Experiment`` regenerates the world per
+scenario and compares the resulting KPIs and inventory stress so planners can
+see how the warehouse behaves under stress — before it happens.
 """
 
 from __future__ import annotations
 
-from sdf.synthesis.materialise import build_registry
-from sdf.synthesis.scenarios import SCENARIOS, apply_scenario
+from dataclasses import dataclass
+
+from sdf.simulation.experiment import Experiment
+from sdf.simulation.intervention import Baseline, Intervention, SpecIntervention
+from sdf.simulation.outcome import ActiveStockouts, ReplenishmentNeed
+from sdf.simulation.policy import Policy, ServiceLevelPolicy
+from sdf.simulation.world import World
+from sdf.synthesis.scenarios import SCENARIOS
 from sdf.synthesis.spec import GenerationSpec
-from .intelligence import WarehouseIntelligence
+from .kpi import kpis
+
+
+@dataclass(frozen=True)
+class ScenarioKPIs:
+    """Outbound volume and inventory value, measured with the dashboard's KPI definitions."""
+
+    name: str = "scenario_kpis"
+
+    def measure(self, world: World, policy: Policy) -> dict[str, float]:
+        k = kpis(world.registry)
+        return {"outbound_lines": k.outbound_lines, "inventory_value": k.inventory_value}
 
 
 def run_scenarios(
@@ -27,24 +41,29 @@ def run_scenarios(
     unknown = [n for n in names if n not in SCENARIOS]
     if unknown:
         raise KeyError(f"unknown scenario(s) {unknown}; choose from {sorted(SCENARIOS)}")
-    rows: list[dict] = []
-    for name in names:
-        spec = apply_scenario(base, SCENARIOS[name])
-        _wh, reg = build_registry(spec)
-        intel = WarehouseIntelligence(reg)
-        k = intel.kpis()
-        ss = intel.replenishment_ss_policy(service_level=service_level)
-        stockouts = sum(1 for a in intel.anomalies() if a["type"] == "stockout")
-        rows.append(
-            {
-                "scenario": name,
-                "outbound_lines": k.outbound_lines,
-                "inventory_value": k.inventory_value,
-                "skus_needing_order": ss["skus_needing_order"],
-                "safety_stock_units": ss["total_safety_stock_units"],
-                "active_stockouts": stockouts,
-            }
-        )
+    # "baseline" has no tweaks, so it reuses the base world instead of regenerating it.
+    interventions: list[Intervention] = [Baseline() if n == "baseline" else SpecIntervention.named(n) for n in names]
+    result = Experiment(
+        world=World.generate(base),
+        interventions=interventions,
+        policies=[ServiceLevelPolicy(service_level=service_level)],
+        outcomes=[ScenarioKPIs(), ReplenishmentNeed(), ActiveStockouts()],
+    ).run()
+    by_scenario: dict[str, dict[str, float]] = {}
+    for r in result:
+        by_scenario.setdefault(r.intervention, {})[r.metric] = r.value
+    rows = [
+        {
+            "scenario": name,
+            "outbound_lines": m["outbound_lines"],
+            "inventory_value": m["inventory_value"],
+            "skus_needing_order": m["skus_needing_order"],
+            "safety_stock_units": m["safety_stock_units"],
+            "active_stockouts": m["active_stockouts"],
+        }
+        for name in names
+        for m in [by_scenario[name]]
+    ]
     base_row = next((r for r in rows if r["scenario"] == "baseline"), rows[0])
     for r in rows:
         r["safety_stock_vs_baseline_pct"] = round(

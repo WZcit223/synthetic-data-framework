@@ -1,11 +1,14 @@
 """Layer-direction test: no module imports a module from a higher layer.
 
 Ranks (lower may not import higher):
-foundation 0 · analytics 1 · synthesis 2 · observability 2 · validation 3 · application 4 · workflow 5 · api 6 · cli 6.
+foundation 0 · analytics 1 · synthesis 2 · observability 2 · validation 3 · simulation 4 · application 5 ·
+workflow 6 · api 7 · cli 7.
 
 ``analytics`` sits below ``synthesis`` because fitting a synthesiser on real
 data (``synthesis.fit``) consumes the shared series aggregation; nothing in
 ``analytics`` needs a generator.
+``simulation`` sits below ``application`` so an experiment can run from a
+notebook, a workflow step or a future causal module without the facade.
 ``api`` and ``cli`` are peers that must not import each other. Re-export
 shims are not allowed, so every edge the parser sees is a real dependency.
 """
@@ -26,10 +29,11 @@ RANK = {
     "synthesis": 2,
     "observability": 2,
     "validation": 3,
-    "application": 4,
-    "workflow": 5,
-    "api": 6,
-    "cli": 6,
+    "simulation": 4,
+    "application": 5,
+    "workflow": 6,
+    "api": 7,
+    "cli": 7,
 }
 
 
@@ -94,6 +98,8 @@ def test_api_and_cli_do_not_import_each_other():
         ("sdf.synthesis.materialise", "sdf.application"),
         ("sdf.analytics.forecast", "sdf.synthesis"),
         ("sdf.validation.quality", "sdf.application"),
+        ("sdf.simulation.experiment", "sdf.application"),
+        ("sdf.simulation.outcome", "sdf.application"),
     ],
 )
 def test_importing_a_lower_layer_does_not_load_a_higher_one(module, must_not_load):

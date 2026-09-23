@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from .replenishment import demand_series, rule_simulation, rule_suggestions, ss_policy, z_for
-
-
-def test_z_lookup_uses_the_nearest_service_level():
-    assert z_for(0.95) == 1.645 and z_for(0.951) == 1.645 and z_for(0.99) == 2.326
+from .replenishment import demand_series, rule_simulation, rule_suggestions, ss_policy
 
 
 def test_policies_on_the_default_world(default_world):

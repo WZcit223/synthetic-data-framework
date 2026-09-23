@@ -1,5 +1,17 @@
 # PR 2 — Simulation layer: world, policies, interventions, outcomes, experiments
 
+> Status: implemented (structure sequence PR 2). Numbers unchanged: golden
+> tests, `VALIDATION.md` and `sdf demo` are identical to main, and so is the
+> full JSON of `replenishment_ss_policy`, `financial_impact` and `run_scenarios`
+> on two worlds with default and non-default settings. Deviations from the scope
+> below: `OutboundVolume` was not added to `sdf.simulation.outcome`. The scenario
+> table's outbound lines and inventory value come from `ScenarioKPIs`, an outcome
+> defined in `application/scenarios.py` that reuses the dashboard's `kpis()`,
+> so the KPI definitions exist once; it also shows that an outcome can live
+> outside the simulation layer. The contract gained `Levels.safety_stock`,
+> `ServiceLevelPolicy(z=…)` and `InventoryTrace.total_demand`/`fill_rate`
+> (recorded in `interfaces.md` §1).
+
 Interface contract: [`interfaces.md` §1](interfaces.md#1-simulation-layer-sdfsimulation--f2).
 
 ## Goal

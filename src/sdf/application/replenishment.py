@@ -8,14 +8,8 @@ from __future__ import annotations
 
 from sdf.analytics.demand import DemandProfile, DemandTable
 from sdf.foundation.registry import DataSourceRegistry
-
-Z_FOR_SERVICE_LEVEL = {0.80: 0.842, 0.85: 1.036, 0.90: 1.282, 0.95: 1.645, 0.975: 1.960, 0.99: 2.326}
-
-
-def z_for(service_level: float) -> float:
-    """Standard-normal z of the nearest tabulated service level."""
-    key = min(Z_FOR_SERVICE_LEVEL, key=lambda k: abs(k - service_level))
-    return Z_FOR_SERVICE_LEVEL[key]
+from sdf.simulation.policy import ServiceLevelPolicy, plan_orders
+from sdf.simulation.world import World
 
 
 def demand_table(reg: DataSourceRegistry) -> DemandTable:
@@ -98,64 +92,39 @@ def ss_policy(
     service_level: float = 0.95,
     top_n: int = 12,
 ) -> dict:
-    """Classic (s, S) policy sized from demand variability + a service level.
+    """The (s, S) service-level policy applied to every SKU with demand.
 
-    s (reorder point) = μ·(L+R) + z·σ·√(L+R);  S (order-up-to) = s,
-    where μ is the SKU's mean daily demand over calendar days and σ is
-    ``DemandProfile.variability`` (the day-to-day std for smooth SKUs, at
-    least the average selling-day quantity for intermittent ones).
-    ALGORITHM-HOOK: this uses a normal-demand approximation; a real system
-    fits the lead-time demand distribution (incl. intermittent-demand models)
-    and solves a cost-based newsvendor objective.
+    The sizing rule lives in ``sdf.simulation.policy.ServiceLevelPolicy``; this
+    function formats its plan for the dashboard, the agent and the reports.
     """
-    z = z_for(service_level)
-    profiles = demand_profiles(reg)
-    skus = {s.sku_id: s for s in reg.stream("SKU")}
-    avail = {}
-    for snap in reg.stream("InventorySnapshot"):
-        avail[snap.sku_id] = avail.get(snap.sku_id, 0) + snap.available
-
-    protect = lead_time_days + review_days
-    rows: list[dict] = []
-    total_ss_units = 0.0
-    intermittent_flagged = 0
-    for sku, prof in profiles.items():
-        mu = prof.mean
-        if mu <= 0:
-            continue  # no demand in the window: nothing to protect
-        ss = z * prof.variability * (protect**0.5)
-        s = mu * protect + ss
-        S = s  # order-up-to == reorder point for a single review cycle
-        on_hand = avail.get(sku, 0)
-        order = max(0, round(S - on_hand)) if on_hand <= s else 0
-        total_ss_units += ss
-        if order > 0 and prof.is_intermittent:
-            intermittent_flagged += 1
-        rows.append(
-            {
-                "sku_id": sku,
-                "name": skus[sku].name if sku in skus else "?",
-                "avg_daily_demand": round(mu, 2),
-                "demand_std": round(prof.std, 2),
-                "variability": round(prof.variability, 2),
-                "intermittent": prof.is_intermittent,
-                "safety_stock": round(ss, 1),
-                "reorder_point_s": round(s, 1),
-                "order_up_to_S": round(S, 1),
-                "available": on_hand,
-                "order_qty": order,
-            }
-        )
-    rows.sort(key=lambda r: r["order_qty"], reverse=True)
+    policy = ServiceLevelPolicy(service_level=service_level, lead_time_days=lead_time_days, review_days=review_days)
+    plan = plan_orders(World(registry=reg, label="ss_policy"), policy)
+    ordering = [r for r in plan if r.order_qty > 0]
+    rows = [
+        {
+            "sku_id": r.sku_id,
+            "name": r.name,
+            "avg_daily_demand": round(r.profile.mean, 2),
+            "demand_std": round(r.profile.std, 2),
+            "variability": round(r.profile.variability, 2),
+            "intermittent": r.profile.is_intermittent,
+            "safety_stock": round(r.safety_stock, 1),
+            "reorder_point_s": round(r.reorder_point, 1),
+            "order_up_to_S": round(r.order_up_to, 1),
+            "available": r.available,
+            "order_qty": r.order_qty,
+        }
+        for r in plan[:top_n]
+    ]
     return {
         "service_level": service_level,
-        "z": z,
+        "z": policy.effective_z,
         "lead_time_days": lead_time_days,
         "review_days": review_days,
-        "skus_needing_order": sum(1 for r in rows if r["order_qty"] > 0),
-        "intermittent_needing_order": intermittent_flagged,
-        "total_safety_stock_units": round(total_ss_units, 0),
-        "rows": rows[:top_n],
+        "skus_needing_order": len(ordering),
+        "intermittent_needing_order": sum(1 for r in ordering if r.profile.is_intermittent),
+        "total_safety_stock_units": round(sum(r.safety_stock for r in plan), 0),
+        "rows": rows,
     }
 
 

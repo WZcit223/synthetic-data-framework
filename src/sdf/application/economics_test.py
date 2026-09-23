@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from sdf.simulation.outcome import CostModel
 from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.spec import GenerationSpec
-from .economics import CostModel, financial_impact
+from .economics import financial_impact
 from .intelligence import WarehouseIntelligence
 
 
