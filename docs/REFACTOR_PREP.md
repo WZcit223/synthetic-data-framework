@@ -11,7 +11,7 @@
 
 ## 0. 一页结论
 
-- **仓库规模**：`src/sdf` 共 29 个 Python 文件（22 个实现模块 + 7 个 `__init__.py`）、约 3,100 行；1 个 581 行的零依赖前端；1 个测试文件 18 项测试（3.11 下 1.2 s 跑完，`ruff` 干净）。
+- **仓库规模**：`src/sdf` 共 29 个 Python 文件（22 个实现模块 + 7 个 `__init__.py`）、约 3,100 行；1 个 581 行的零依赖前端；1 个测试文件 18 项测试（3.14 下 1 s 内跑完，`ruff` 干净）。
 - **最大的结构问题不是某个 bug，而是三处"重心放错了地方"**：
   1. `build_registry()` 是所有入口（API、workflow、scenarios、tests）物化世界的唯一函数，却住在 `cli.py` 里，导致 `synthesis → cli`、`workflow → cli`、`api → cli` 三条反向依赖。
   2. "按 SKU 按天聚合需求"这件事在 `warehouse_demo._daily_demand`、`warehouse_demo._sku_daily_stats`、`warehouse_demo.demand_series`、`economics.financial_impact`、`forecast.daily_demand_series` 里各写了一遍，口径彼此不同。
@@ -73,7 +73,7 @@ observability       ← application.agent, workflow.pipeline
 
 ### 1.3 工具链现状
 
-- Python 3.12 ~ 3.14（`.python-version` 固定 3.14，CI 矩阵 3.12 / 3.13 / 3.14；2026-09-23 从 3.9 floor 提升）；核心依赖 numpy / scipy / scikit-learn；`ruff` 配置已与 sciloom 对齐（`F/E/W/I/TID252` + `ruff format`），紧凑单行风格已于 PR #3 统一重排。
+- Python 3.12 ~ 3.14（`.python-version` 固定 3.14，CI 矩阵 3.12 / 3.13 / 3.14）；核心依赖 numpy / scipy / scikit-learn；`ruff` 配置已与 sciloom 对齐（`F/E/W/I/TID252` + `ruff format`），紧凑单行风格已于 PR #3 统一重排。
 - 项目改为仅由 uv 管理（`uv_build` 后端、`uv.lock`、`[dependency-groups] dev`，2026-09-23）；文档命令统一为 `uv run sdf ...`。`tests/` 与 `demo/` 仍保留 `sys.path.insert`，重构第 1 步随 `conftest.py` 一并移除。
 - 远端分支：`main`、`system-v1/synthetic-data-generation`（v1 冻结）、`feature/repo-governance`（PR #1 已合并，**分支未删**，可清理）。
 
