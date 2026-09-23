@@ -15,7 +15,10 @@ async function api(path, options) {
 }
 
 const $ = s => document.querySelector(s);
-const fmt = n => (typeof n==="number" ? n.toLocaleString(undefined,{maximumFractionDigits:2}) : (n==null ? "–" : n));
+// Every string that came from the API is escaped before it goes into innerHTML:
+// product names, for one, come from imported files and may contain markup.
+const esc = v => String(v ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+const fmt = n => (typeof n==="number" ? n.toLocaleString(undefined,{maximumFractionDigits:2}) : (n==null ? "–" : esc(n)));
 
 const CAPS = [
   {h:"Data management", p:"Multi-source overlay via the DataSourceRegistry; canonical entities keep synthetic & real interchangeable.", t:"Foundation Layer"},
@@ -36,7 +39,7 @@ function bars(data, opts={}){
   let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}">`;
   data.forEach((d,i)=>{
     const y=i*rowH+6, bw=(w-pad-40)*(d.value/max);
-    s+=`<text x="0" y="${y+13}">${d.label}</text>`;
+    s+=`<text x="0" y="${y+13}">${esc(d.label)}</text>`;
     s+=`<rect x="${pad}" y="${y+3}" width="${Math.max(2,bw)}" height="15" rx="3" fill="${d.color||'var(--accent)'}"/>`;
     s+=`<text x="${pad+bw+6}" y="${y+15}" style="fill:var(--ink)">${fmt(d.value)}</text>`;
   });
@@ -79,7 +82,7 @@ async function loadOverview(){
   const abc=Object.entries(o.abc).map(([l,v])=>({label:"Class "+l,value:v,
     color:l==="A"?"var(--a)":l==="B"?"var(--b)":"var(--c)"}));
   $("#abc").innerHTML=bars(abc);
-  $("#insights").innerHTML=o.insights.map(x=>`<li>${x}</li>`).join("");
+  $("#insights").innerHTML=o.insights.map(x=>`<li>${esc(x)}</li>`).join("");
 }
 
 async function loadComparison(){
@@ -88,11 +91,11 @@ async function loadComparison(){
   const [naive, ours] = c.policies;
   $("#cmp").innerHTML = `
     <div style="display:flex;gap:24px;align-items:flex-end;margin-bottom:10px">
-      <div><div class="k muted">Fill rate — ${naive.policy}</div><div class="big badv">${(naive.fill_rate*100).toFixed(1)}%</div></div>
+      <div><div class="k muted">Fill rate — ${esc(naive.policy)}</div><div class="big badv">${(naive.fill_rate*100).toFixed(1)}%</div></div>
       <div style="font-size:22px;color:var(--muted)">→</div>
-      <div><div class="k muted">Fill rate — ${ours.policy}</div><div class="big good">${(ours.fill_rate*100).toFixed(1)}%</div></div>
+      <div><div class="k muted">Fill rate — ${esc(ours.policy)}</div><div class="big good">${(ours.fill_rate*100).toFixed(1)}%</div></div>
     </div>
-    <table><thead><tr><th>metric</th><th class="num">${naive.policy}</th><th class="num">${ours.policy}</th></tr></thead><tbody>
+    <table><thead><tr><th>metric</th><th class="num">${esc(naive.policy)}</th><th class="num">${esc(ours.policy)}</th></tr></thead><tbody>
       ${[["SKUs needing an order","skus_needing_order"],["Safety stock (units)","safety_stock_units"],
          ["Unmet units","unmet_units"],["Holding cost","holding_cost"],["Order cost","order_cost"]]
         .map(([l,k])=>`<tr><td>${l}</td><td class="num">${fmt(naive[k])}</td><td class="num">${fmt(ours[k])}</td></tr>`).join("")}
@@ -104,7 +107,7 @@ async function loadComparison(){
 
 async function loadMovers(){
   const m = await api("/top-movers?n=8");
-  $("#mover").innerHTML = m.map(x=>`<option value="${x.sku_id}">${x.sku_id} · ${x.name} (${x.abc_class})</option>`).join("");
+  $("#mover").innerHTML = m.map(x=>`<option value="${esc(x.sku_id)}">${esc(x.sku_id)} · ${esc(x.name)} (${esc(x.abc_class)})</option>`).join("");
   if(m.length) loadSeries();
 }
 
@@ -134,13 +137,13 @@ async function loadVision(){
   for(const z of grid){
     const cells = z.aisles.flatMap(a=>a.cells);
     html += `<div style="margin-bottom:10px">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${z.zone}
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${esc(z.zone)}
         <span style="opacity:.6">· ${cells.length} loc</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:3px">`;
     for(const c of cells){
       const ring = flagged.has(c.location_id) ? "box-shadow:0 0 0 2px var(--bad)" : "";
       const tip = `${c.location_id}\noccupancy ${(c.occupancy*100).toFixed(0)}%\nbook ${c.book_units} · vision ${c.est_units}`;
-      html += `<div title="${tip}" style="width:16px;height:16px;border-radius:3px;
+      html += `<div title="${esc(tip)}" style="width:16px;height:16px;border-radius:3px;
         background:${occColor(c.occupancy)};${ring}"></div>`;
     }
     html += `</div></div>`;
@@ -157,20 +160,20 @@ async function loadVision(){
     </div>`;
   document.querySelector("#stockRows").innerHTML = stock.discrepancies.length
     ? stock.discrepancies.map(d=>`<tr>
-        <td>${d.location_id}</td><td class="num">${d.book_units}</td>
+        <td>${esc(d.location_id)}</td><td class="num">${d.book_units}</td>
         <td class="num">${d.vision_units}</td>
         <td class="num" style="color:${d.diff<0?'var(--bad)':'var(--warn)'}">${d.diff>0?'+':''}${d.diff}</td>
-        <td><span class="pill" style="border-color:${d.direction==='shortage'?'var(--bad)':'var(--warn)'}">${d.direction}</span></td>
+        <td><span class="pill" style="border-color:${d.direction==='shortage'?'var(--bad)':'var(--warn)'}">${esc(d.direction)}</span></td>
       </tr>`).join("")
     : `<tr><td colspan="5" class="muted">Vision matches the books at these settings.</td></tr>`;
 }
 
 async function loadBacktest(){
   const r = await api("/backtest");
-  $("#btMeta").innerHTML = `${r.granularity} granularity · ${r.series_len} points ·
-    mean ${fmt(r.series_mean)}/bucket · winner <b style="color:var(--accent2)">${r.best_model}</b>`;
+  $("#btMeta").innerHTML = `${esc(r.granularity)} granularity · ${r.series_len} points ·
+    mean ${fmt(r.series_mean)}/bucket · winner <b style="color:var(--accent2)">${esc(r.best_model)}</b>`;
   $("#btRows").innerHTML = r.results.map((m,i)=>`<tr>
-    <td>${i===0?'🏆 ':''}${m.model}</td>
+    <td>${i===0?'🏆 ':''}${esc(m.model)}</td>
     <td class="num"><b>${fmt(m.MAE)}</b></td><td class="num">${fmt(m.RMSE)}</td>
     <td class="num">${fmt(m.MAPE_pct)}</td><td class="num">${fmt(m.WAPE_pct)}</td>
     <td class="num">${fmt(m.bias)}</td></tr>`).join("");
@@ -183,7 +186,7 @@ async function loadSS(){
     <b>${r.skus_needing_order}</b> SKUs need an order · total safety stock
     <b>${fmt(r.total_safety_stock_units)}</b> units`;
   $("#ssRows").innerHTML = r.rows.map(x=>`<tr>
-    <td>${x.sku_id}</td><td class="num">${fmt(x.avg_daily_demand)}</td>
+    <td>${esc(x.sku_id)}</td><td class="num">${fmt(x.avg_daily_demand)}</td>
     <td class="num">${fmt(x.demand_std)}</td><td class="num">${fmt(x.safety_stock)}</td>
     <td class="num">${fmt(x.reorder_point_s)}</td><td class="num">${fmt(x.order_up_to_S)}</td>
     <td class="num"><b>${x.order_qty}</b></td></tr>`).join("");
@@ -198,7 +201,7 @@ async function ask(q){
   $("#q").value = q;
   $("#answer").innerHTML = `<span class="muted">…</span>`;
   const r = await api("/ask?q="+encodeURIComponent(q));
-  $("#answer").innerHTML = `<span class="pill" style="margin-right:8px">${r.intent}</span>${r.answer}`;
+  $("#answer").innerHTML = `<span class="pill" style="margin-right:8px">${esc(r.intent)}</span>${esc(r.answer)}`;
 }
 
 function renderChips(){
@@ -209,10 +212,10 @@ function renderChips(){
 async function loadAnomalies(){
   const a = await api("/demand-anomalies");
   $("#anoMeta").innerHTML = `<b>${a.count}</b> anomalies on a ${a.series_len}-point
-    ${a.granularity} series (period ${a.seasonal_period}).`;
+    ${esc(a.granularity)} series (period ${a.seasonal_period}).`;
   $("#anoRows").innerHTML = a.anomalies.length ? a.anomalies.map(x=>`<tr>
     <td>${x.index}</td>
-    <td><span class="pill" style="border-color:${x.direction==='spike'?'var(--warn)':'var(--bad)'}">${x.direction}</span></td>
+    <td><span class="pill" style="border-color:${x.direction==='spike'?'var(--warn)':'var(--bad)'}">${esc(x.direction)}</span></td>
     <td class="num">${fmt(x.value)}</td><td class="num">${fmt(x.expected)}</td>
     <td class="num"><b>${fmt(x.robust_z)}</b></td></tr>`).join("")
     : `<tr><td colspan="5" class="muted">No anomalies at current settings.</td></tr>`;
@@ -224,15 +227,15 @@ async function agentAsk(q){
   $("#aAnswer").innerHTML = `<span class="muted">…</span>`;
   $("#aTrace").innerHTML = ""; $("#aAction").innerHTML = "";
   const r = await api("/agent/ask?q="+encodeURIComponent(q));
-  $("#aAnswer").innerHTML = `<span class="pill" style="margin-right:8px">${r.plan.join(" → ")}</span>${r.answer}`;
+  $("#aAnswer").innerHTML = `<span class="pill" style="margin-right:8px">${esc(r.plan.join(" → "))}</span>${esc(r.answer)}`;
   if(r.proposed_actions && r.proposed_actions.length){
     const a = r.proposed_actions[0];
     $("#aAction").innerHTML = `<div style="margin-top:8px"><span class="pill"
-      style="border-color:var(--warn)">⏳ proposed: place_order ${a.sku_id} ×${a.quantity} — ${a.status}</span></div>`;
+      style="border-color:var(--warn)">⏳ proposed: ${esc(a.proposed_action)} ${esc(a.sku_id)} ×${esc(a.quantity)} — ${esc(a.status)}</span></div>`;
   }
   $("#aTrace").innerHTML = r.trace.map(e=>`<tr>
-    <td>${e.seq}</td><td>${e.name}</td>
-    <td><span class="pill" style="border-color:${e.status==='ok'?'var(--accent2)':'var(--bad)'}">${e.status}</span></td>
+    <td>${e.seq}</td><td>${esc(e.name)}</td>
+    <td><span class="pill" style="border-color:${e.status==='ok'?'var(--accent2)':'var(--bad)'}">${esc(e.status)}</span></td>
     <td class="num">${e.duration_ms}</td></tr>`).join("");
 }
 
@@ -254,14 +257,14 @@ async function loadImpact(){
 async function loadWorkflow(){
   const r = await api("/workflow/run");
   $("#wf").innerHTML = r.trace.map(e=>
-    `<span class="pill" style="margin:2px;border-color:${e.status==='ok'?'var(--accent2)':'var(--bad)'}">${e.seq}. ${e.name} · ${e.duration_ms}ms</span>`).join(" ")
-    + `<div style="margin-top:6px">run <b>${r.run.run_id}</b> · ${r.run.steps} steps · ${r.run.total_ms}ms · ${r.run.errors} errors</div>`;
+    `<span class="pill" style="margin:2px;border-color:${e.status==='ok'?'var(--accent2)':'var(--bad)'}">${e.seq}. ${esc(e.name)} · ${e.duration_ms}ms</span>`).join(" ")
+    + `<div style="margin-top:6px">run <b>${esc(r.run.run_id)}</b> · ${r.run.steps} steps · ${r.run.total_ms}ms · ${r.run.errors} errors</div>`;
 }
 
 async function loadScenarios(){
   const r = await api("/scenarios");
   $("#scen").innerHTML = r.scenarios.map(s=>`<tr>
-    <td>${s.scenario==='baseline'?'<b>'+s.scenario+'</b>':s.scenario}</td>
+    <td>${s.scenario==='baseline'?'<b>'+esc(s.scenario)+'</b>':esc(s.scenario)}</td>
     <td class="num">${fmt(s.outbound_lines)}</td><td class="num">${s.skus_needing_order}</td>
     <td class="num">${fmt(Math.round(s.safety_stock_units))}</td>
     <td class="num" style="color:${s.safety_stock_vs_baseline_pct>0?'var(--warn)':'var(--muted)'}">

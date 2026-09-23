@@ -316,6 +316,7 @@ def test_openapi_describes_the_fields(client):
     assert {"sku_id", "order_qty", "reorder_point_s"} <= set(schemas["ReplenishmentRow"]["properties"])
     assert {"n_skus", "horizon_days"} <= set(schemas["WorldRequest"]["properties"])
     assert {"interventions", "policies", "outcomes"} <= set(schemas["ExperimentRequest"]["properties"])
+    assert {"proposed_action", "status", "sku_id", "quantity"} <= set(schemas["ProposedAction"]["properties"])
 
 
 def test_ui_dir_is_mounted_for_development_hosting():

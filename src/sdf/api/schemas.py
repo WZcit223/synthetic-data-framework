@@ -241,8 +241,12 @@ class TraceEntry(Model):
 
 
 class ProposedAction(Model):
+    """A call held for approval: the action, its arguments and its status."""
+
     proposed_action: str
     status: str
+    sku_id: str | None = None  # the arguments of a place_order proposal
+    quantity: int | None = None
 
 
 class AgentAnswer(Model):
