@@ -115,6 +115,29 @@ def test_malformed_plug_in_metadata_is_listed_not_raised(monkeypatch):
     assert "needs a default" in problems["needs-config"] and "window" in problems["needs-config"]
 
 
+def test_a_plug_in_cannot_take_a_built_in_name(monkeypatch):
+    from importlib.metadata import EntryPoint
+
+    class FakeDist:
+        def __init__(self, name):
+            self.name = name
+
+    def ep(name, value, dist):
+        e = EntryPoint(name=name, value=value, group=registry_module.ENTRY_POINT_GROUP)
+        return e._for(FakeDist(dist)) if hasattr(e, "_for") else e
+
+    plugin = ep("seasonal-profile", f"{__name__}:ShuffleSeries", "vendor-pkg")
+    builtin = ep("seasonal-profile", "sdf.synthesis.fit:FittedSeasonalDemand", registry_module.DISTRIBUTION)
+    if plugin.dist is None:
+        pytest.skip("EntryPoint cannot carry a distribution on this Python")
+    for order in ([plugin, builtin], [builtin, plugin]):
+        monkeypatch.setattr(registry_module, "entry_points", lambda group, order=order: order)
+        reg = default_registry()
+        assert reg.origin("seasonal-profile") == "builtin" and reg.info("seasonal-profile").name == "seasonal-profile"
+        assert "seasonal-profile" not in reg.unavailable()
+        assert "already provided by a builtin" in reg.unavailable()["seasonal-profile (vendor-pkg)"]
+
+
 def test_a_broken_plug_in_is_listed_not_raised(monkeypatch):
     monkeypatch.setattr(
         registry_module,
@@ -239,6 +262,20 @@ def test_gaussian_copula_samples_a_table():
     assert len(rows) == 10 and all(len(r) == 4 for r in rows)
     assert model.sample(10, seed=4) == model.sample(10, seed=4)
     assert model.sample(10) != model.sample(10)  # the model's own stream continues
+
+
+@pytest.mark.skipif(importlib.util.find_spec("copulas") is None, reason="needs the synthesis extra")
+def test_gaussian_copula_matches_the_fitted_marginals():
+    rng = random.Random(0)
+    rows = [(x, 2 * x + rng.gauss(0, 1)) for x in (rng.gauss(10, 2) for _ in range(400))]
+    model = default_registry().create("gaussian-copula", seed=1).fit(TableData(rows=rows, columns=("x", "y")))
+    sample = model.sample(4000)
+    xs, ys = [r[0] for r in sample], [r[1] for r in sample]
+    assert abs(sum(xs) / len(xs) - 10) < 0.3 and abs(sum(ys) / len(ys) - 20) < 0.6
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    cov = sum((a - mx) * (b - my) for a, b in zip(xs, ys))
+    corr = cov / (sum((a - mx) ** 2 for a in xs) * sum((b - my) ** 2 for b in ys)) ** 0.5
+    assert corr > 0.9  # the dependence survives, not just the marginals
 
 
 @pytest.mark.skipif(importlib.util.find_spec("copulas") is None, reason="needs the synthesis extra")

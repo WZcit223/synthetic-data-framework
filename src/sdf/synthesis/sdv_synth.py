@@ -16,12 +16,9 @@ fidelity on complex joint distributions; the SDMetrics scoring is identical.
 
 from __future__ import annotations
 
-import threading
 from typing import ClassVar
 
 from .api import SynthesizerInfo, TableData
-
-_GLOBAL_NUMPY_RNG = threading.Lock()  # serialises the swap of NumPy's global generator
 
 _COLS = ["Quantity", "Price", "hour", "weekday"]
 _PAIRS = [("Quantity", "Price"), ("Quantity", "hour"), ("Price", "weekday")]
@@ -49,10 +46,12 @@ def _load_line_table(path: str, max_rows: int = 2000, seed: int = 1):
 class GaussianCopulaTable:
     """Gaussian copula over a numeric table (``gaussian-copula``; needs the ``synthesis`` extra).
 
-    ``copulas`` samples from NumPy's global generator, so each draw swaps in this
-    model's own generator under a lock and restores the global state afterwards:
-    other NumPy users are unaffected, repeated ``sample()`` calls continue the
-    model's stream, and ``seed`` pins one draw.
+    ``copulas`` fits the marginals and the correlation. Sampling is done here on
+    this model's own ``numpy.random.Generator`` (multivariate normal → normal
+    CDF → each marginal's inverse CDF, the same steps as
+    ``GaussianMultivariate.sample``), because that method draws from NumPy's
+    process-global generator. Nothing global is read or written, repeated
+    ``sample()`` calls continue the model's stream, and ``seed`` pins one draw.
     """
 
     info: ClassVar[SynthesizerInfo] = SynthesizerInfo(
@@ -60,14 +59,13 @@ class GaussianCopulaTable:
         produces="table",
         needs_fit=True,
         description="Gaussian copula with fitted marginals (copulas.GaussianMultivariate)",
-        requires=("copulas", "pandas", "numpy"),
+        requires=("copulas", "pandas", "numpy", "scipy"),
     )
 
     def __init__(self, *, seed: int | None = None) -> None:
         import numpy as np
 
-        self._rng = np.random.RandomState(seed)
-        self._columns: tuple[str, ...] = ()
+        self._rng = np.random.default_rng(seed)
         self._n_rows = 0
         self._model = None
 
@@ -75,29 +73,26 @@ class GaussianCopulaTable:
         import pandas as pd
         from copulas.multivariate import GaussianMultivariate
 
-        self._columns, self._n_rows = tuple(data.columns), len(data.rows)
+        self._n_rows = len(data.rows)
         self._model = GaussianMultivariate()
         self._model.fit(pd.DataFrame(data.rows, columns=list(data.columns), dtype=float))
         return self
 
     def sample(self, n: int | None = None, *, seed: int | None = None) -> list[tuple[float, ...]]:
         import numpy as np
+        from scipy import stats
 
         if self._model is None:
             raise RuntimeError("gaussian-copula: call fit() before sample()")
         n = self._n_rows if n is None else n
         if n == 0:
             return []
-        rng = np.random.RandomState(seed) if seed is not None else self._rng
-        with _GLOBAL_NUMPY_RNG:
-            saved = np.random.get_state()
-            np.random.set_state(rng.get_state())
-            try:
-                frame = self._model.sample(n)
-                rng.set_state(np.random.get_state())
-            finally:
-                np.random.set_state(saved)
-        return [tuple(float(v) for v in row) for row in frame[list(self._columns)].itertuples(index=False)]
+        rng = np.random.default_rng(seed) if seed is not None else self._rng
+        correlation = self._model.correlation.to_numpy()
+        normal = rng.multivariate_normal(np.zeros(len(correlation)), correlation, size=n)
+        cdf = stats.norm.cdf(normal)
+        columns = [np.asarray(u.percent_point(cdf[:, j]), dtype=float) for j, u in enumerate(self._model.univariates)]
+        return [tuple(float(c[i]) for c in columns) for i in range(n)]
 
 
 def gaussian_copula_fidelity(path: str, *, max_rows: int = 2000, seed: int = 1) -> dict:

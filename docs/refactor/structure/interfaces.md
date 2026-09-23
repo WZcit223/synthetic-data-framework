@@ -318,7 +318,10 @@ warehouse-spec = "sdf.synthesis.warehouse:WarehouseSpecSynthesizer"
 ```
 
 A declared synthesizer whose `requires` are missing, or that fails to load, is
-skipped and reported by `unavailable()`; it never breaks the registry or the CLI.
+skipped and reported by `unavailable()`; it never breaks the registry or the CLI. Built-ins mount
+first and keep their names: a plug-in declaring a built-in's name is not
+mounted and is reported under `"<name> (<distribution>)"`; plug-ins that share a
+name resolve by distribution name, the same way on every run.
 
 Minimal plug-in (runnable after PR 4):
 

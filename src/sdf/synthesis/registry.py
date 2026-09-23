@@ -75,8 +75,16 @@ class SynthesizerRegistry:
         the registry.
         """
         mounted: list[str] = []
-        for ep in sorted(entry_points(group=group), key=lambda e: e.name):
-            origin: Origin = "builtin" if ep.dist is not None and ep.dist.name == DISTRIBUTION else "plugin"
+        # Built-ins first, then plug-ins by distribution name: a plug-in reusing a
+        # built-in's name never replaces it, and equal-name plug-ins resolve the same way on every run.
+        for ep in sorted(entry_points(group=group), key=lambda e: (_origin(e) != "builtin", _dist_name(e), e.name)):
+            origin = _origin(ep)
+            if ep.name in self._entries:
+                holder = self._entries[ep.name]
+                self._unavailable[f"{ep.name} ({_dist_name(ep)})"] = (
+                    f"name already provided by a {holder.origin} synthesizer ({holder.cls.__module__}); {ep.value} not mounted"
+                )
+                continue
             try:
                 problem = self._mount(ep, origin)
             except Exception as exc:  # a broken third-party plug-in must not break the registry or the CLI
@@ -128,6 +136,14 @@ class SynthesizerRegistry:
             hint = f" ({self._unavailable[name]})" if name in self._unavailable else ""
             raise KeyError(f"unknown synthesizer {name!r}{hint}; choose from {self.names()}")
         return self._entries[name]
+
+
+def _dist_name(ep: EntryPoint) -> str:
+    return ep.dist.name if ep.dist is not None else ""
+
+
+def _origin(ep: EntryPoint) -> Origin:
+    return "builtin" if _dist_name(ep) == DISTRIBUTION else "plugin"
 
 
 def _importable(module: str) -> bool:
