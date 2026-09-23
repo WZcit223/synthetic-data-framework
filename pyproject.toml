@@ -16,7 +16,7 @@ api = ["fastapi", "uvicorn"]
 synthesis = ["copulas", "sdmetrics", "pandas", "numpy"]
 synthesis-deep = ["sdv", "faker"]  # CTGAN/TVAE (pulls torch)
 app = ["scikit-learn", "lightgbm"]
-dev = ["pytest>=7", "ruff>=0.4"]
+dev = ["pytest>=7", "ruff>=0.16.7"]
 
 [project.scripts]
 sdf = "sdf.cli:main"
@@ -32,19 +32,24 @@ addopts = "-q"
 testpaths = ["tests"]
 
 [tool.ruff]
-# The core framework favours a deliberately compact, one-statement-per-line style
-# for the numerical stand-ins. Line length and a few style checks are relaxed so
-# CI enforces real problems (undefined names, unused imports) without forcing a
-# rewrite of that style.
-line-length = 140
+# Aligned with TsumiNa/sciloom's ruff configuration. Only `target-version`
+# (this package supports Python 3.9+) and `src` (single package) differ.
+include = ["*.py", "*.pyi"]
+exclude = [".venv", "venv", "__pycache__", ".git"]
+src = [".", "src"]
+line-length = 120
+indent-width = 4
 target-version = "py39"
-extend-exclude = ["src/sdf/api/static", "demo"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W"]
-ignore = [
-    "E701",  # multiple statements on one line (colon) — intentional compact style
-    "E702",  # multiple statements on one line (semicolon) — intentional compact style
-    "E741",  # ambiguous variable name (e.g. loop var `l`) — local math notation
-    "E501",  # line too long — compact numeric one-liners
-]
+select = ["F", "E", "W", "I", "TID252"]
+ignore = ["F841", "E741", "W505", "E501"]
+fixable = ["ALL"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+no-lines-before = ["local-folder"]
+
+[tool.ruff.format]
+quote-style = "double"
+skip-magic-trailing-comma = false

@@ -15,9 +15,9 @@ algorithm or real dataset must eventually plug in are marked with
 
 __version__ = "0.1.0"
 
-from sdf.foundation.registry import DataSourceRegistry
-from sdf.synthesis.warehouse import WarehouseGenerator, GenerationSpec
 from sdf.application.warehouse_demo import WarehouseIntelligence
+from sdf.foundation.registry import DataSourceRegistry
+from sdf.synthesis.warehouse import GenerationSpec, WarehouseGenerator
 
 __all__ = [
     "DataSourceRegistry",

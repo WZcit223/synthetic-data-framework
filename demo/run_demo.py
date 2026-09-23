@@ -1,6 +1,6 @@
 """One-command end-to-end demo. Run from the repo root:
 
-    python demo/run_demo.py
+python demo/run_demo.py
 """
 
 import os

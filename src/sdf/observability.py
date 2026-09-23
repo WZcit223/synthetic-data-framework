@@ -34,8 +34,7 @@ def _summarise(value: Any, limit: int = 240) -> Any:
     if isinstance(value, dict):
         return {k: _summarise(v, 80) for k, v in list(value.items())[:12]}
     if isinstance(value, (list, tuple)):
-        return {"type": "list", "len": len(value),
-                "head": [_summarise(v, 80) for v in list(value)[:3]]}
+        return {"type": "list", "len": len(value), "head": [_summarise(v, 80) for v in list(value)[:3]]}
     return str(value)[:limit]
 
 
@@ -43,19 +42,26 @@ def _summarise(value: Any, limit: int = 240) -> Any:
 class LogEntry:
     seq: int
     ts: str
-    kind: str            # "tool" | "step"
+    kind: str  # "tool" | "step"
     name: str
-    status: str          # "ok" | "error"
+    status: str  # "ok" | "error"
     duration_ms: int
     inputs: Dict[str, Any] = field(default_factory=dict)
     output: Any = None
     note: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"seq": self.seq, "ts": self.ts, "kind": self.kind,
-                "name": self.name, "status": self.status,
-                "duration_ms": self.duration_ms, "inputs": self.inputs,
-                "output": self.output, "note": self.note}
+        return {
+            "seq": self.seq,
+            "ts": self.ts,
+            "kind": self.kind,
+            "name": self.name,
+            "status": self.status,
+            "duration_ms": self.duration_ms,
+            "inputs": self.inputs,
+            "output": self.output,
+            "note": self.note,
+        }
 
 
 class RunLogger:
@@ -68,12 +74,27 @@ class RunLogger:
         self.entries: List[LogEntry] = []
         self._sink_path = sink_path
 
-    def record(self, kind: str, name: str, inputs: Dict[str, Any],
-               output: Any, status: str = "ok", duration_ms: int = 0,
-               note: str = "") -> LogEntry:
-        e = LogEntry(seq=len(self.entries) + 1, ts=_now(), kind=kind, name=name,
-                     status=status, duration_ms=duration_ms,
-                     inputs=_summarise(inputs), output=_summarise(output), note=note)
+    def record(
+        self,
+        kind: str,
+        name: str,
+        inputs: Dict[str, Any],
+        output: Any,
+        status: str = "ok",
+        duration_ms: int = 0,
+        note: str = "",
+    ) -> LogEntry:
+        e = LogEntry(
+            seq=len(self.entries) + 1,
+            ts=_now(),
+            kind=kind,
+            name=name,
+            status=status,
+            duration_ms=duration_ms,
+            inputs=_summarise(inputs),
+            output=_summarise(output),
+            note=note,
+        )
         self.entries.append(e)
         if self._sink_path:
             with open(self._sink_path, "a", encoding="utf-8") as fh:
@@ -89,19 +110,23 @@ class RunLogger:
         try:
             yield box
             ms = int((time.perf_counter() - t0) * 1000)
-            self.record(kind, name, inputs or {}, box.get("output"),
-                        status="ok", duration_ms=ms, note=box.get("note", ""))
+            self.record(
+                kind, name, inputs or {}, box.get("output"), status="ok", duration_ms=ms, note=box.get("note", "")
+            )
         except Exception as exc:  # pragma: no cover - defensive
             ms = int((time.perf_counter() - t0) * 1000)
-            self.record(kind, name, inputs or {}, {"error": str(exc)},
-                        status="error", duration_ms=ms)
+            self.record(kind, name, inputs or {}, {"error": str(exc)}, status="error", duration_ms=ms)
             raise
 
     def summary(self) -> Dict[str, Any]:
         ok = sum(1 for e in self.entries if e.status == "ok")
         return {
-            "run_id": self.run_id, "run_kind": self.run_kind, "started": self.started,
-            "steps": len(self.entries), "ok": ok, "errors": len(self.entries) - ok,
+            "run_id": self.run_id,
+            "run_kind": self.run_kind,
+            "started": self.started,
+            "steps": len(self.entries),
+            "ok": ok,
+            "errors": len(self.entries) - ok,
             "total_ms": sum(e.duration_ms for e in self.entries),
         }
 

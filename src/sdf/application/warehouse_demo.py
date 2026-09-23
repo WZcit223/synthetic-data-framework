@@ -41,10 +41,7 @@ class WarehouseIntelligence:
         out = self.reg.stream("OutboundOrder")
 
         on_hand = sum(s.on_hand for s in inv)
-        value = sum(
-            s.on_hand * skus[s.sku_id].unit_cost
-            for s in inv if s.sku_id in skus
-        )
+        value = sum(s.on_hand * skus[s.sku_id].unit_cost for s in inv if s.sku_id in skus)
         cancels = sum(1 for o in out if o.status == "cancelled")
         express = sum(1 for o in out if o.priority == "express")
         n_out = max(1, len(out))
@@ -80,16 +77,18 @@ class WarehouseIntelligence:
                 target = d * (lead + 14) + safety  # cover to next cycle
                 qty = max(0, int(round(target - snap.available)))
                 if qty > 0:
-                    suggestions.append({
-                        "sku_id": snap.sku_id,
-                        "name": skus.get(snap.sku_id).name if snap.sku_id in skus else "?",
-                        "on_hand": snap.on_hand,
-                        "available": snap.available,
-                        "avg_daily_demand": round(d, 2),
-                        "reorder_point": round(reorder_point, 1),
-                        "suggested_order_qty": qty,
-                        "urgency": round(reorder_point - snap.available, 1),
-                    })
+                    suggestions.append(
+                        {
+                            "sku_id": snap.sku_id,
+                            "name": skus.get(snap.sku_id).name if snap.sku_id in skus else "?",
+                            "on_hand": snap.on_hand,
+                            "available": snap.available,
+                            "avg_daily_demand": round(d, 2),
+                            "reorder_point": round(reorder_point, 1),
+                            "suggested_order_qty": qty,
+                            "urgency": round(reorder_point - snap.available, 1),
+                        }
+                    )
         suggestions.sort(key=lambda x: x["urgency"], reverse=True)
         return suggestions[:top_n]
 
@@ -106,11 +105,9 @@ class WarehouseIntelligence:
         out: List[Dict] = []
         for snap in inv:
             if snap.available == 0:
-                out.append({"type": "stockout", "sku_id": snap.sku_id,
-                            "location_id": snap.location_id})
+                out.append({"type": "stockout", "sku_id": snap.sku_id, "location_id": snap.location_id})
             elif demand.get(snap.sku_id, 0.0) == 0.0 and snap.on_hand > 100:
-                out.append({"type": "dead_stock", "sku_id": snap.sku_id,
-                            "on_hand": snap.on_hand})
+                out.append({"type": "dead_stock", "sku_id": snap.sku_id, "on_hand": snap.on_hand})
         return out
 
     def abc_distribution(self) -> Dict[str, int]:
@@ -159,10 +156,7 @@ class WarehouseIntelligence:
         at_risk_before = sum(1 for s in inv if s.sku_id in suggestions)
         stockouts_before = sum(1 for s in inv if s.available == 0)
         # After top-up, flagged SKUs are lifted above their reorder point.
-        stockouts_after = sum(
-            1 for s in inv
-            if s.available == 0 and s.sku_id not in suggestions
-        )
+        stockouts_after = sum(1 for s in inv if s.available == 0 and s.sku_id not in suggestions)
         return {
             "skus_total": len(inv),
             "skus_flagged": at_risk_before,
@@ -178,17 +172,18 @@ class WarehouseIntelligence:
         skus = {s.sku_id: s for s in self.reg.stream("SKU")}
         ranked = sorted(demand.items(), key=lambda kv: kv[1], reverse=True)[:n]
         return [
-            {"sku_id": sid,
-             "name": skus[sid].name if sid in skus else "?",
-             "abc_class": skus[sid].abc_class if sid in skus else "?",
-             "avg_daily_demand": round(d, 2)}
+            {
+                "sku_id": sid,
+                "name": skus[sid].name if sid in skus else "?",
+                "abc_class": skus[sid].abc_class if sid in skus else "?",
+                "avg_daily_demand": round(d, 2),
+            }
             for sid, d in ranked
         ]
 
     # -- capability 2b: (s,S) inventory optimisation -----------------------
 
-    _Z = {0.80: 0.842, 0.85: 1.036, 0.90: 1.282, 0.95: 1.645,
-          0.975: 1.960, 0.99: 2.326}
+    _Z = {0.80: 0.842, 0.85: 1.036, 0.90: 1.282, 0.95: 1.645, 0.975: 1.960, 0.99: 2.326}
 
     def _z_for(self, service_level: float) -> float:
         key = min(self._Z, key=lambda k: abs(k - service_level))
@@ -196,8 +191,7 @@ class WarehouseIntelligence:
 
     def _sku_daily_stats(self) -> Dict:
         """Per-SKU mean and std of daily demand (for safety-stock sizing)."""
-        out = self.reg.stream("OutboundOrder",
-                              where=lambda o: o.status != "cancelled")
+        out = self.reg.stream("OutboundOrder", where=lambda o: o.status != "cancelled")
         per_sku_day: Dict = defaultdict(lambda: defaultdict(float))
         days = set()
         for o in out:
@@ -209,13 +203,12 @@ class WarehouseIntelligence:
             series = [byday.get(d, 0.0) for d in sorted(days)]
             mu = sum(series) / horizon
             var = sum((x - mu) ** 2 for x in series) / horizon
-            stats[sku] = (mu, var ** 0.5)
+            stats[sku] = (mu, var**0.5)
         return stats
 
-    def replenishment_ss_policy(self, lead_time_days: int = 7,
-                                review_days: int = 7,
-                                service_level: float = 0.95,
-                                top_n: int = 12) -> Dict:
+    def replenishment_ss_policy(
+        self, lead_time_days: int = 7, review_days: int = 7, service_level: float = 0.95, top_n: int = 12
+    ) -> Dict:
         """Classic (s, S) policy sized from demand variability + a service level.
 
         s (reorder point) = μ·(L+R) + z·σ·√(L+R);  S (order-up-to) = s.
@@ -236,23 +229,25 @@ class WarehouseIntelligence:
         for sku, (mu, sigma) in stats.items():
             if mu <= 0:
                 continue
-            ss = z * sigma * (protect ** 0.5)
+            ss = z * sigma * (protect**0.5)
             s = mu * protect + ss
             S = s  # order-up-to == reorder point for a single review cycle
             on_hand = avail.get(sku, 0)
             order = max(0, round(S - on_hand)) if on_hand <= s else 0
             total_ss_units += ss
-            rows.append({
-                "sku_id": sku,
-                "name": skus[sku].name if sku in skus else "?",
-                "avg_daily_demand": round(mu, 2),
-                "demand_std": round(sigma, 2),
-                "safety_stock": round(ss, 1),
-                "reorder_point_s": round(s, 1),
-                "order_up_to_S": round(S, 1),
-                "available": on_hand,
-                "order_qty": order,
-            })
+            rows.append(
+                {
+                    "sku_id": sku,
+                    "name": skus[sku].name if sku in skus else "?",
+                    "avg_daily_demand": round(mu, 2),
+                    "demand_std": round(sigma, 2),
+                    "safety_stock": round(ss, 1),
+                    "reorder_point_s": round(s, 1),
+                    "order_up_to_S": round(S, 1),
+                    "available": on_hand,
+                    "order_qty": order,
+                }
+            )
         rows.sort(key=lambda r: r["order_qty"], reverse=True)
         return {
             "service_level": service_level,
@@ -268,8 +263,7 @@ class WarehouseIntelligence:
 
     def _latest_vision(self) -> Dict:
         """Latest vision_occupancy reading per location."""
-        readings = self.reg.stream(
-            "SensorReading", where=lambda r: r.modality == "vision_occupancy")
+        readings = self.reg.stream("SensorReading", where=lambda r: r.modality == "vision_occupancy")
         latest: Dict = {}
         for r in readings:
             cur = latest.get(r.location_id)
@@ -290,25 +284,25 @@ class WarehouseIntelligence:
             loc = locs.get(loc_id)
             if not loc:
                 continue
-            zones[loc.zone][loc.aisle].append({
-                "location_id": loc_id,
-                "occupancy": r.value,
-                "book_units": r.meta.get("book_units"),
-                "est_units": r.meta.get("est_units"),
-                "capacity": r.meta.get("capacity"),
-            })
+            zones[loc.zone][loc.aisle].append(
+                {
+                    "location_id": loc_id,
+                    "occupancy": r.value,
+                    "book_units": r.meta.get("book_units"),
+                    "est_units": r.meta.get("est_units"),
+                    "capacity": r.meta.get("capacity"),
+                }
+            )
         out: List[Dict] = []
         for zone in sorted(zones):
             aisles = [
-                {"aisle": a, "cells": sorted(zones[zone][a],
-                                             key=lambda c: c["location_id"])}
+                {"aisle": a, "cells": sorted(zones[zone][a], key=lambda c: c["location_id"])}
                 for a in sorted(zones[zone])
             ]
             out.append({"zone": zone, "aisles": aisles})
         return out
 
-    def stocktake_discrepancies(self, rel_threshold: float = 0.25,
-                                min_abs: int = 15) -> Dict:
+    def stocktake_discrepancies(self, rel_threshold: float = 0.25, min_abs: int = 15) -> Dict:
         """Compare vision-estimated units vs book-of-record; flag mismatches.
 
         This is the 'AI stocktake' story: the camera mostly confirms the books,
@@ -325,12 +319,17 @@ class WarehouseIntelligence:
             diff = est - book
             rel = abs(diff) / max(1, book)
             if abs(diff) >= min_abs and rel >= rel_threshold:
-                flagged.append({
-                    "location_id": loc_id, "book_units": book,
-                    "vision_units": est, "diff": diff,
-                    "direction": "shortage" if diff < 0 else "surplus",
-                    "rel": round(rel, 2), "occupancy": r.value,
-                })
+                flagged.append(
+                    {
+                        "location_id": loc_id,
+                        "book_units": book,
+                        "vision_units": est,
+                        "diff": diff,
+                        "direction": "shortage" if diff < 0 else "surplus",
+                        "rel": round(rel, 2),
+                        "occupancy": r.value,
+                    }
+                )
             else:
                 matched += 1
         flagged.sort(key=lambda x: abs(x["diff"]), reverse=True)
@@ -348,8 +347,9 @@ class WarehouseIntelligence:
 
     def demand_anomalies(self, k: float = 3.5) -> Dict:
         """Seasonal-residual + robust-z anomalies on the demand series (C3)."""
-        from sdf.synthesis.forecast import build_series
         from sdf.synthesis.anomaly import seasonal_residual_anomalies
+        from sdf.synthesis.forecast import build_series
+
         orders = self.reg.stream("OutboundOrder")
         series, freq, period = build_series(orders)
         found = seasonal_residual_anomalies(series, period, k=k)
@@ -385,8 +385,7 @@ class WarehouseIntelligence:
     # -- internals ---------------------------------------------------------
 
     def _daily_demand(self) -> Dict[str, float]:
-        out = self.reg.stream("OutboundOrder",
-                              where=lambda o: o.status != "cancelled")
+        out = self.reg.stream("OutboundOrder", where=lambda o: o.status != "cancelled")
         totals: Dict[str, int] = defaultdict(int)
         days = set()
         for o in out:

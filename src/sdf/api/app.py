@@ -11,24 +11,21 @@ stateful `/generate` so the front-end sliders can re-drive the GenerationSpec.
 
 from __future__ import annotations
 
-import os
-
 import csv
 import io
 import json
+import os
 
 try:
     from fastapi import FastAPI, Response
     from fastapi.responses import HTMLResponse
 except ImportError as exc:  # pragma: no cover
-    raise SystemExit(
-        "FastAPI is optional. Install it with: pip install fastapi uvicorn"
-    ) from exc
+    raise SystemExit("FastAPI is optional. Install it with: pip install fastapi uvicorn") from exc
 
-from sdf.cli import build_registry
-from sdf.synthesis.warehouse import GenerationSpec
-from sdf.synthesis.quality import structural_quality_check
 from sdf.application.warehouse_demo import WarehouseIntelligence
+from sdf.cli import build_registry
+from sdf.synthesis.quality import structural_quality_check
+from sdf.synthesis.warehouse import GenerationSpec
 
 app = FastAPI(title="Synthetic Data Framework — AI Warehouse", version="0.2.0")
 
@@ -62,9 +59,13 @@ def health():
 
 
 @app.post("/generate")
-def generate(n_skus: int = 200, horizon_days: int = 90,
-             daily_orders_per_a_sku: float = 6.0,
-             stockout_pressure: float = 0.08, seed: int = 42):
+def generate(
+    n_skus: int = 200,
+    horizon_days: int = 90,
+    daily_orders_per_a_sku: float = 6.0,
+    stockout_pressure: float = 0.08,
+    seed: int = 42,
+):
     spec = GenerationSpec(
         n_skus=max(10, min(2000, n_skus)),
         horizon_days=max(14, min(365, horizon_days)),
@@ -73,10 +74,16 @@ def generate(n_skus: int = 200, horizon_days: int = 90,
         seed=seed,
     )
     _state.regenerate(spec)
-    return {"ok": True, "spec": {
-        "n_skus": spec.n_skus, "horizon_days": spec.horizon_days,
-        "daily_orders_per_a_sku": spec.daily_orders_per_a_sku,
-        "stockout_pressure": spec.stockout_pressure, "seed": spec.seed}}
+    return {
+        "ok": True,
+        "spec": {
+            "n_skus": spec.n_skus,
+            "horizon_days": spec.horizon_days,
+            "daily_orders_per_a_sku": spec.daily_orders_per_a_sku,
+            "stockout_pressure": spec.stockout_pressure,
+            "seed": spec.seed,
+        },
+    }
 
 
 @app.get("/foundation/summary")
@@ -118,10 +125,8 @@ def application_replenishment_sim():
 
 
 @app.get("/application/replenishment/ss")
-def application_replenishment_ss(service_level: float = 0.95,
-                                 lead_time_days: int = 7):
-    return _state.intel.replenishment_ss_policy(
-        service_level=service_level, lead_time_days=lead_time_days)
+def application_replenishment_ss(service_level: float = 0.95, lead_time_days: int = 7):
+    return _state.intel.replenishment_ss_policy(service_level=service_level, lead_time_days=lead_time_days)
 
 
 @app.get("/application/top_movers")
@@ -142,38 +147,43 @@ def application_demand_anomalies():
 @app.get("/application/ask")
 def application_ask(q: str = ""):
     from sdf.application.knowledge import KnowledgeQA
+
     return KnowledgeQA(_state.intel).ask(q)
 
 
 @app.get("/agent/ask")
 def agent_ask(q: str = ""):
     from sdf.application.agent import WarehouseAgent
+
     return WarehouseAgent(_state.intel).handle(q)
 
 
 @app.get("/agent/tools")
 def agent_tools():
     from sdf.application.agent import WarehouseAgent
+
     return {"tools": WarehouseAgent(_state.intel).list_tools()}
 
 
 @app.get("/economics/impact")
 def economics_impact():
     from sdf.application.economics import financial_impact
+
     return financial_impact(_state.intel)
 
 
 @app.get("/workflow/run")
 def workflow_run():
     from sdf.workflow import warehouse_pipeline
+
     res = warehouse_pipeline(_state.spec).run()
-    return {"pipeline": res["pipeline"], "order": res["order"],
-            "run": res["run"], "trace": res["trace"]}
+    return {"pipeline": res["pipeline"], "order": res["order"], "run": res["run"], "trace": res["trace"]}
 
 
 @app.get("/scenarios")
 def scenarios():
     from sdf.synthesis.scenarios import run_scenarios
+
     return run_scenarios(_state.spec)
 
 
@@ -190,11 +200,11 @@ def application_stocktake():
 @app.get("/validation/backtest")
 def validation_backtest():
     """Measured forecast backtest on the current world's demand (real number)."""
-    from sdf.synthesis.forecast import build_series, models_for, compare_models
+    from sdf.synthesis.forecast import build_series, compare_models, models_for
+
     orders = _state.reg.stream("OutboundOrder")
     series, freq, period = build_series(orders)
-    report = compare_models(series, test_len=2 * period,
-                            models=models_for(period))
+    report = compare_models(series, test_len=2 * period, models=models_for(period))
     report["granularity"] = freq
     report["seasonal_period"] = period
     return report
@@ -204,22 +214,25 @@ def validation_backtest():
 def export(entity: str = "outbound"):
     """Download the current synthetic dataset for one entity as CSV."""
     tables = {
-        "skus": _state.wh.skus, "locations": _state.wh.locations,
-        "inventory": _state.wh.inventory, "inbound": _state.wh.inbound,
-        "outbound": _state.wh.outbound, "sensors": _state.wh.sensors,
+        "skus": _state.wh.skus,
+        "locations": _state.wh.locations,
+        "inventory": _state.wh.inventory,
+        "inbound": _state.wh.inbound,
+        "outbound": _state.wh.outbound,
+        "sensors": _state.wh.sensors,
     }
     rows = tables.get(entity)
     if not rows:
-        return Response(content="unknown or empty entity\n",
-                        media_type="text/plain", status_code=404)
+        return Response(content="unknown or empty entity\n", media_type="text/plain", status_code=404)
     keys = list(rows[0].to_dict().keys())
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=keys)
     w.writeheader()
     for r in rows:
         d = r.to_dict()
-        w.writerow({k: (json.dumps(v) if isinstance(v, (dict, list)) else v)
-                    for k, v in d.items()})
+        w.writerow({k: (json.dumps(v) if isinstance(v, (dict, list)) else v) for k, v in d.items()})
     return Response(
-        content=buf.getvalue(), media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{entity}.csv"'})
+        content=buf.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{entity}.csv"'},
+    )

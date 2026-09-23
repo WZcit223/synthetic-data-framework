@@ -20,15 +20,22 @@ import csv
 from datetime import datetime
 from typing import List, Tuple
 
-from sdf.foundation.schema import SKU, OutboundOrder
 from sdf.foundation.registry import DataSourceRegistry
+from sdf.foundation.schema import SKU, OutboundOrder
 
 
 def _parse_dt(s: str) -> datetime:
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M",
-                "%m/%d/%Y %H:%M", "%d/%m/%Y %H:%M",
-                "%m/%d/%y %H:%M", "%d/%m/%y %H:%M",   # 2-digit year (UCI export)
-                "%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d"):
+    for fmt in (
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%m/%d/%Y %H:%M",
+        "%d/%m/%Y %H:%M",
+        "%m/%d/%y %H:%M",
+        "%d/%m/%y %H:%M",  # 2-digit year (UCI export)
+        "%m/%d/%Y",
+        "%m/%d/%y",
+        "%Y-%m-%d",
+    ):
         try:
             return datetime.strptime(s.strip(), fmt)
         except ValueError:
@@ -69,18 +76,21 @@ def load_online_retail_csv(path: str) -> Tuple[List[SKU], List[OutboundOrder]]:
                     category="retail",
                     unit_cost=round(price * 0.6, 2),
                     unit_price=price,
-                    weight_kg=0.1, volume_m3=0.001,
+                    weight_kg=0.1,
+                    volume_m3=0.001,
                     abc_class="?",  # assigned downstream if needed
                 )
-            orders.append(OutboundOrder(
-                order_id=f"{row.get('Invoice','INV')}-{i}",
-                ts=ts,
-                sku_id=code,
-                quantity=abs(qty),
-                channel="ecommerce",
-                priority="standard",
-                status="shipped" if qty > 0 else "cancelled",
-            ))
+            orders.append(
+                OutboundOrder(
+                    order_id=f"{row.get('Invoice', 'INV')}-{i}",
+                    ts=ts,
+                    sku_id=code,
+                    quantity=abs(qty),
+                    channel="ecommerce",
+                    priority="standard",
+                    status="shipped" if qty > 0 else "cancelled",
+                )
+            )
     return list(skus.values()), orders
 
 
@@ -88,6 +98,5 @@ def register_online_retail(reg: DataSourceRegistry, path: str) -> Tuple[int, int
     """Load the CSV and register both entity streams as an open dataset."""
     skus, orders = load_online_retail_csv(path)
     reg.register("retail_skus", "SKU", skus, origin="external-open-dataset")
-    reg.register("retail_outbound", "OutboundOrder", orders,
-                 origin="external-open-dataset")
+    reg.register("retail_outbound", "OutboundOrder", orders, origin="external-open-dataset")
     return len(skus), len(orders)

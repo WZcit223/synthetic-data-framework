@@ -5,10 +5,10 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from sdf.synthesis.warehouse import WarehouseGenerator, GenerationSpec
-from sdf.synthesis.quality import structural_quality_check
-from sdf.cli import build_registry
 from sdf.application.warehouse_demo import WarehouseIntelligence
+from sdf.cli import build_registry
+from sdf.synthesis.quality import structural_quality_check
+from sdf.synthesis.warehouse import GenerationSpec, WarehouseGenerator
 
 
 def test_deterministic_seed():
@@ -54,13 +54,14 @@ def test_vision_stocktake():
 
 def test_phase2_adapter_and_backtest():
     import os
+
     from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-    from sdf.synthesis.forecast import daily_demand_series, compare_models
-    path = os.path.join(os.path.dirname(__file__), "..",
-                        "data", "sample_online_retail_ii.csv")
+    from sdf.synthesis.forecast import compare_models, daily_demand_series
+
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "sample_online_retail_ii.csv")
     skus, orders = load_online_retail_csv(path)
     assert skus and orders
-    assert all(o.quantity > 0 for o in orders)          # abs() applied
+    assert all(o.quantity > 0 for o in orders)  # abs() applied
     series = daily_demand_series(orders)
     assert len(series) > 30
     report = compare_models(series, test_len=21)
@@ -72,13 +73,14 @@ def test_phase2_adapter_and_backtest():
 
 def test_phase2_fitted_synthesis_fidelity():
     import os
+
     from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-    from sdf.synthesis.fit import FittedHourlyDemand
     from sdf.synthesis.fidelity import fidelity_report, ks_2samp, pearson
+    from sdf.synthesis.fit import FittedHourlyDemand
+
     assert ks_2samp([1, 2, 3], [1, 2, 3]) == 0.0
     assert pearson([1, 2, 3], [2, 4, 6]) == 1.0
-    path = os.path.join(os.path.dirname(__file__), "..",
-                        "data", "sample_online_retail_ii.csv")
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "sample_online_retail_ii.csv")
     _skus, orders = load_online_retail_csv(path)
     model = FittedHourlyDemand().fit(orders)
     synth = model.generate()
@@ -102,6 +104,7 @@ def test_phase3_ss_policy():
 
 def test_phase3_anomaly_c3():
     from sdf.synthesis.anomaly import seasonal_residual_anomalies
+
     series = [100 + [10, 12, 9, 11, 13, 8, 3][i % 7] for i in range(84)]
     series[40] = 900  # injected spike
     found = seasonal_residual_anomalies(series, 7, k=3.5)
@@ -115,6 +118,7 @@ def test_phase3_anomaly_c3():
 
 def test_phase4_knowledge_qa_c6():
     from sdf.application.knowledge import KnowledgeQA
+
     _, reg = build_registry(GenerationSpec(n_skus=60, horizon_days=45))
     qa = KnowledgeQA(WarehouseIntelligence(reg))
     assert qa.ask("which SKUs are stockout?")["intent"] == "stockouts"
@@ -128,10 +132,11 @@ def test_phase4_knowledge_qa_c6():
 def test_phase21_sdv_optional():
     """Gaussian-copula + SDMetrics; skipped when optional libs are absent."""
     import os
+
     try:
         from sdf.synthesis.sdv_synth import gaussian_copula_fidelity
-        path = os.path.join(os.path.dirname(__file__), "..",
-                            "data", "online_retail_ii_2010_10k.csv")
+
+        path = os.path.join(os.path.dirname(__file__), "..", "data", "online_retail_ii_2010_10k.csv")
         rep = gaussian_copula_fidelity(path, max_rows=400)
     except ImportError:
         print("SKIP test_phase21_sdv_optional (copulas/sdmetrics not installed)")
@@ -142,17 +147,17 @@ def test_phase21_sdv_optional():
 
 def test_phase3_model_and_tstr():
     import os
-    from sdf.synthesis.models import seasonal_linear
-    from sdf.synthesis.forecast import backtest, seasonal_naive
+
     from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+    from sdf.synthesis.forecast import backtest, seasonal_naive
+    from sdf.synthesis.models import seasonal_linear
     from sdf.synthesis.tstr import tstr_report
+
     # Model beats seasonal-naive on a clean trend+season series.
     vals = [10 + 0.8 * i + [10, 12, 9, 11, 13, 8, 3][i % 7] for i in range(120)]
-    assert backtest(vals, seasonal_linear(7), 21)["MAE"] < \
-        backtest(vals, seasonal_naive(7), 21)["MAE"]
+    assert backtest(vals, seasonal_linear(7), 21)["MAE"] < backtest(vals, seasonal_naive(7), 21)["MAE"]
     # TSTR ratio is finite and reasonable on the sample.
-    path = os.path.join(os.path.dirname(__file__), "..",
-                        "data", "sample_online_retail_ii.csv")
+    path = os.path.join(os.path.dirname(__file__), "..", "data", "sample_online_retail_ii.csv")
     _skus, orders = load_online_retail_csv(path)
     r = tstr_report(orders)
     assert r["ratio_tstr_over_trtr"] is not None
@@ -161,6 +166,7 @@ def test_phase3_model_and_tstr():
 
 def test_observability_runlogger():
     from sdf.observability import RunLogger
+
     log = RunLogger("test")
     with log.step("step", "a", inputs={"x": 1}) as box:
         box["output"] = {"ok": True}
@@ -172,6 +178,7 @@ def test_observability_runlogger():
 
 def test_economics_impact():
     from sdf.application.economics import financial_impact
+
     _, reg = build_registry(GenerationSpec(n_skus=80, horizon_days=60))
     rep = financial_impact(WarehouseIntelligence(reg))
     assert rep["unmet_units"]["ours"] <= rep["unmet_units"]["naive"]
@@ -181,6 +188,7 @@ def test_economics_impact():
 
 def test_agent_trace_and_guardrail():
     from sdf.application.agent import WarehouseAgent
+
     _, reg = build_registry(GenerationSpec(n_skus=80, horizon_days=60))
     agent = WarehouseAgent(WarehouseIntelligence(reg))
     r = agent.handle("should I reorder and what is the money impact?")
@@ -196,6 +204,7 @@ def test_agent_trace_and_guardrail():
 
 def test_pipeline_dag():
     from sdf.workflow import warehouse_pipeline
+
     res = warehouse_pipeline(GenerationSpec(n_skus=60, horizon_days=45)).run()
     assert res["order"] == ["ingest", "validate", "application", "economics", "report"]
     assert res["run"]["errors"] == 0
@@ -203,9 +212,9 @@ def test_pipeline_dag():
 
 
 def test_privacy_metrics():
-    from sdf.synthesis.privacy import privacy_report, bootstrap_synthesize
-    real = [(float(i % 7), float(i % 5) + 0.5, float(i % 24), float(i % 7))
-            for i in range(300)]
+    from sdf.synthesis.privacy import bootstrap_synthesize, privacy_report
+
+    real = [(float(i % 7), float(i % 5) + 0.5, float(i % 24), float(i % 7)) for i in range(300)]
     synth = bootstrap_synthesize(real, seed=3)
     rep = privacy_report(real, synth)
     assert 0.0 <= rep["clone_risk_pct"] <= 100.0
@@ -214,8 +223,8 @@ def test_privacy_metrics():
 
 def test_scenarios_whatif():
     from sdf.synthesis.scenarios import run_scenarios
-    rep = run_scenarios(GenerationSpec(n_skus=50, horizon_days=45),
-                        names=["baseline", "promo_spike"])
+
+    rep = run_scenarios(GenerationSpec(n_skus=50, horizon_days=45), names=["baseline", "promo_spike"])
     by = {r["scenario"]: r for r in rep["scenarios"]}
     # a promo spike should not require less safety stock than baseline
     assert by["promo_spike"]["safety_stock_units"] >= by["baseline"]["safety_stock_units"]

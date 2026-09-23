@@ -1,14 +1,14 @@
 """Foundation Layer: canonical entities and the multi-source data registry."""
 
+from sdf.foundation.registry import DataSource, DataSourceRegistry
 from sdf.foundation.schema import (
     SKU,
-    Location,
-    InventorySnapshot,
     InboundOrder,
+    InventorySnapshot,
+    Location,
     OutboundOrder,
     SensorReading,
 )
-from sdf.foundation.registry import DataSourceRegistry, DataSource
 
 __all__ = [
     "SKU",

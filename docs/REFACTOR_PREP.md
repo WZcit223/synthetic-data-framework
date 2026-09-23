@@ -73,7 +73,7 @@ observability       ← application.agent, workflow.pipeline
 
 ### 1.3 工具链现状
 
-- Python 3.9 floor（CI 矩阵 3.9 / 3.11）；核心零依赖；`ruff` 只选 `E/F/W` 且忽略 `E501/E701/E702/E741`。
+- Python 3.9 floor（CI 矩阵 3.9 / 3.11）；核心零依赖；`ruff` 配置已与 sciloom 对齐（`F/E/W/I/TID252` + `ruff format`），紧凑单行风格已于 PR #3 统一重排。
 - `pyproject` 的 `[project.scripts] sdf = "sdf.cli:main"` 已定义，但文档全程用 `PYTHONPATH=src python -m sdf.cli`，说明没有人以安装方式使用过；`tests/` 也用 `sys.path.insert` 而非安装包。
 - 远端分支：`main`、`system-v1/synthetic-data-generation`（v1 冻结）、`feature/repo-governance`（PR #1 已合并，**分支未删**，可清理）。
 
@@ -291,7 +291,7 @@ tests/
 ## 6. 需要项目负责人拍板的事项
 
 1. **零依赖核心是否继续坚持**。若允许 `numpy` 进核心，`models.py`、`privacy.py`、`fidelity.py` 可缩短一半并去掉 O(n²)；若坚持，§4 结构不变，只是这些模块保持纯 Python。
-2. **紧凑单行风格是否保留**。`ruff` 目前忽略 `E501/E701/E702`；拆分模块时是否顺势收紧到默认规则（会触发大面积格式 diff，建议单独一个"仅格式"PR，放在第 2 步之后）。
+2. ~~**紧凑单行风格是否保留**~~ 已决定：`ruff` 对齐 sciloom 并启用 `ruff format`，全仓库已在 PR #3 中一次性重排（29 个文件、行为与黄金数字均未变），后续步骤不再有格式 diff。
 3. **`replenishment_suggestions` 的固定规则是否退役**。它在仪表盘"补货闭环"视图与 `insights` 里可见；退役意味着前端文案要改。建议保留为 `RuleOfThumbPolicy` 但从 `insights`/`agent` 默认路径切换到 (s,S)。
 4. **第 3 步导致的度量数字变化如何对外解释**。MAPE 口径修正后，`VALIDATION.md` 中所有 MAPE 列会变；建议同一 PR 里同时给出旧口径与新口径一次，之后只维护新口径。
 5. **`data/` 的 1 MB CSV 是否迁出**。与重构无关，可以并行。

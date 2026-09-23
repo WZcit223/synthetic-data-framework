@@ -39,13 +39,11 @@ def _solve(A: List[List[float]], b: List[float]) -> List[float]:
 def _design_row(i: int, period: int, lag1: float, lagp: float) -> List[float]:
     """Features: intercept, trend, day-of-cycle dummies, lag-1, lag-period."""
     d = i % period
-    return ([1.0, float(i)]
-            + [1.0 if d == k else 0.0 for k in range(1, period)]
-            + [lag1, lagp])
+    return [1.0, float(i)] + [1.0 if d == k else 0.0 for k in range(1, period)] + [lag1, lagp]
 
 
 def _fit(values: List[float], period: int) -> List[float]:
-    p = period + 3                      # intercept + trend + (period-1) dummies + 2 lags
+    p = period + 3  # intercept + trend + (period-1) dummies + 2 lags
     xtx = [[0.0] * p for _ in range(p)]
     xty = [0.0] * p
     for i in range(period, len(values)):
@@ -65,8 +63,7 @@ def fit_weights(values: List[float], period: int) -> List[float]:
     return _fit(values, period)
 
 
-def predict_at(weights: List[float], i: int, period: int,
-               lag1: float, lagp: float) -> float:
+def predict_at(weights: List[float], i: int, period: int, lag1: float, lagp: float) -> float:
     """Public: predict index ``i`` given fitted weights and the two lag values."""
     row = _design_row(i, period, lag1, lagp)
     return max(0.0, sum(a * b for a, b in zip(row, weights)))
@@ -74,6 +71,7 @@ def predict_at(weights: List[float], i: int, period: int,
 
 def seasonal_linear(period: int = 7) -> Callable[[List[float]], float]:
     """History→next-value autoregressive-seasonal forecaster."""
+
     def f(h: List[float]) -> float:
         n = len(h)
         if n < 2 * period + 2:
@@ -81,5 +79,6 @@ def seasonal_linear(period: int = 7) -> Callable[[List[float]], float]:
         w = _fit(h, period)
         row = _design_row(n, period, h[n - 1], h[n - period])
         return max(0.0, sum(a * b for a, b in zip(row, w)))
+
     f.__name__ = f"seasonal_linear{period}"
     return f

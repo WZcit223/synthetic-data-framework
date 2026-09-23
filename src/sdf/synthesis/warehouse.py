@@ -23,9 +23,9 @@ from typing import Dict, List, Optional
 
 from sdf.foundation.schema import (
     SKU,
-    Location,
-    InventorySnapshot,
     InboundOrder,
+    InventorySnapshot,
+    Location,
     OutboundOrder,
     SensorReading,
 )
@@ -48,17 +48,19 @@ class GenerationSpec:
     seed: int = 42
 
     # Business shape knobs (stand-ins for learned distribution parameters).
-    abc_split: tuple = (0.2, 0.3, 0.5)          # A/B/C class proportions
-    daily_orders_per_a_sku: float = 6.0          # demand intensity, class A
+    abc_split: tuple = (0.2, 0.3, 0.5)  # A/B/C class proportions
+    daily_orders_per_a_sku: float = 6.0  # demand intensity, class A
     express_ratio: float = 0.25
-    stockout_pressure: float = 0.08              # fraction of SKUs kept tight
+    stockout_pressure: float = 0.08  # fraction of SKUs kept tight
 
     # Provenance / requirements (documentation carried with the data).
     reference_dataset: str = "synthetic-only (framework mode)"
-    requirements: Dict[str, str] = field(default_factory=lambda: {
-        "realism": "structurally valid; distributions are plausible, not fitted",
-        "validation": "framework mode = no statistical validation (see roadmap)",
-    })
+    requirements: Dict[str, str] = field(
+        default_factory=lambda: {
+            "realism": "structurally valid; distributions are plausible, not fitted",
+            "validation": "framework mode = no statistical validation (see roadmap)",
+        }
+    )
 
 
 @dataclass
@@ -75,8 +77,14 @@ class SyntheticWarehouse:
 
 
 _CATEGORIES = [
-    "fasteners", "electronics", "packaging", "textiles",
-    "lubricants", "spare-parts", "safety-gear", "adhesives",
+    "fasteners",
+    "electronics",
+    "packaging",
+    "textiles",
+    "lubricants",
+    "spare-parts",
+    "safety-gear",
+    "adhesives",
 ]
 
 
@@ -119,17 +127,19 @@ class WarehouseGenerator:
             r = self._rng.random()
             abc = "A" if r < a else ("B" if r < a + b else "C")
             cost = round(self._rng.uniform(0.5, 400.0), 2)
-            skus.append(SKU(
-                sku_id=f"SKU-{i:05d}",
-                name=self._rand_name(),
-                category=self._rng.choice(_CATEGORIES),
-                unit_cost=cost,
-                unit_price=round(cost * self._rng.uniform(1.15, 2.4), 2),
-                weight_kg=round(self._rng.uniform(0.01, 25.0), 3),
-                volume_m3=round(self._rng.uniform(0.0001, 0.5), 4),
-                abc_class=abc,
-                shelf_life_days=self._rng.choice([None, None, 180, 365, 730]),
-            ))
+            skus.append(
+                SKU(
+                    sku_id=f"SKU-{i:05d}",
+                    name=self._rand_name(),
+                    category=self._rng.choice(_CATEGORIES),
+                    unit_cost=cost,
+                    unit_price=round(cost * self._rng.uniform(1.15, 2.4), 2),
+                    weight_kg=round(self._rng.uniform(0.01, 25.0), 3),
+                    volume_m3=round(self._rng.uniform(0.0001, 0.5), 4),
+                    abc_class=abc,
+                    shelf_life_days=self._rng.choice([None, None, 180, 365, 730]),
+                )
+            )
         return skus
 
     def _gen_locations(self) -> List[Location]:
@@ -137,41 +147,44 @@ class WarehouseGenerator:
         zones = ["INBOUND", "BULK", "PICK", "COLD", "OUTBOUND"]
         for i in range(self.spec.n_locations):
             zone = self._rng.choice(zones)
-            locs.append(Location(
-                location_id=f"LOC-{i:04d}",
-                zone=zone,
-                aisle=f"A{self._rng.randint(1, 20):02d}",
-                rack=f"R{self._rng.randint(1, 40):02d}",
-                level=self._rng.randint(1, 6),
-                capacity_units=self._rng.choice([50, 100, 200, 500]),
-                temperature_controlled=(zone == "COLD"),
-            ))
+            locs.append(
+                Location(
+                    location_id=f"LOC-{i:04d}",
+                    zone=zone,
+                    aisle=f"A{self._rng.randint(1, 20):02d}",
+                    rack=f"R{self._rng.randint(1, 40):02d}",
+                    level=self._rng.randint(1, 6),
+                    capacity_units=self._rng.choice([50, 100, 200, 500]),
+                    temperature_controlled=(zone == "COLD"),
+                )
+            )
         return locs
 
-    def _gen_inventory(
-        self, skus: List[SKU], locations: List[Location]
-    ) -> List[InventorySnapshot]:
+    def _gen_inventory(self, skus: List[SKU], locations: List[Location]) -> List[InventorySnapshot]:
         # ALGORITHM-HOOK: on-hand levels here are heuristic. A real system fits
         # these from historical inventory series (seasonality, safety stock).
         snaps: List[InventorySnapshot] = []
         ts = self.spec.start + timedelta(days=self.spec.horizon_days)
-        tight = set(self._rng.sample(
-            [s.sku_id for s in skus],
-            k=max(1, int(len(skus) * self.spec.stockout_pressure)),
-        ))
+        tight = set(
+            self._rng.sample(
+                [s.sku_id for s in skus],
+                k=max(1, int(len(skus) * self.spec.stockout_pressure)),
+            )
+        )
         for sku in skus:
             loc = self._rng.choice(locations)
             base = {"A": 400, "B": 150, "C": 40}[sku.abc_class]
-            on_hand = int(self._rng.uniform(0.0 if sku.sku_id in tight else 0.3,
-                                            1.6) * base)
-            snaps.append(InventorySnapshot(
-                ts=ts,
-                sku_id=sku.sku_id,
-                location_id=loc.location_id,
-                on_hand=on_hand,
-                reserved=int(on_hand * self._rng.uniform(0.0, 0.3)),
-                in_transit=self._rng.choice([0, 0, 0, base // 2]),
-            ))
+            on_hand = int(self._rng.uniform(0.0 if sku.sku_id in tight else 0.3, 1.6) * base)
+            snaps.append(
+                InventorySnapshot(
+                    ts=ts,
+                    sku_id=sku.sku_id,
+                    location_id=loc.location_id,
+                    on_hand=on_hand,
+                    reserved=int(on_hand * self._rng.uniform(0.0, 0.3)),
+                    in_transit=self._rng.choice([0, 0, 0, base // 2]),
+                )
+            )
         return snaps
 
     def _gen_inbound(self, skus: List[SKU]) -> List[InboundOrder]:
@@ -180,15 +193,17 @@ class WarehouseGenerator:
         for i in range(n):
             sku = self._rng.choice(skus)
             day = self._rng.randint(0, self.spec.horizon_days)
-            orders.append(InboundOrder(
-                order_id=f"IN-{i:06d}",
-                ts=self.spec.start + timedelta(days=day),
-                sku_id=sku.sku_id,
-                quantity=self._rng.choice([50, 100, 200, 500]),
-                supplier_id=f"SUP-{self._rng.randint(1, 25):03d}",
-                lead_time_days=self._rng.randint(2, 30),
-                status=self._rng.choice(["received", "received", "in_transit"]),
-            ))
+            orders.append(
+                InboundOrder(
+                    order_id=f"IN-{i:06d}",
+                    ts=self.spec.start + timedelta(days=day),
+                    sku_id=sku.sku_id,
+                    quantity=self._rng.choice([50, 100, 200, 500]),
+                    supplier_id=f"SUP-{self._rng.randint(1, 25):03d}",
+                    lead_time_days=self._rng.randint(2, 30),
+                    status=self._rng.choice(["received", "received", "in_transit"]),
+                )
+            )
         return orders
 
     def _gen_outbound(self, skus: List[SKU]) -> List[OutboundOrder]:
@@ -200,10 +215,10 @@ class WarehouseGenerator:
         # Inject a few demand shocks (promo spikes / supply drops) so the C3
         # anomaly detector has real events to surface. # ALGORITHM-HOOK: real
         # anomalies come from the data, not injection.
-        shock = {d: 3.2 for d in self._rng.sample(
-            range(self.spec.horizon_days), k=max(1, self.spec.horizon_days // 40))}
-        for d in self._rng.sample(range(self.spec.horizon_days),
-                                  k=max(1, self.spec.horizon_days // 60)):
+        shock = {
+            d: 3.2 for d in self._rng.sample(range(self.spec.horizon_days), k=max(1, self.spec.horizon_days // 40))
+        }
+        for d in self._rng.sample(range(self.spec.horizon_days), k=max(1, self.spec.horizon_days // 60)):
             shock[d] = 0.15  # drop day
         oid = 0
         for day in range(self.spec.horizon_days):
@@ -214,26 +229,21 @@ class WarehouseGenerator:
                 lam = rate[sku.abc_class] * weekday_factor
                 k = self._poisson(lam)
                 for _ in range(k):
-                    orders.append(OutboundOrder(
-                        order_id=f"OUT-{oid:07d}",
-                        ts=ts_day + timedelta(minutes=self._rng.randint(0, 1439)),
-                        sku_id=sku.sku_id,
-                        quantity=self._rng.choice([1, 1, 1, 2, 3, 5]),
-                        channel=self._rng.choice(
-                            ["ecommerce", "ecommerce", "wholesale", "store"]),
-                        priority=("express"
-                                  if self._rng.random() < self.spec.express_ratio
-                                  else "standard"),
-                        status=self._rng.choices(
-                            ["shipped", "picked", "cancelled"],
-                            weights=[0.86, 0.11, 0.03])[0],
-                    ))
+                    orders.append(
+                        OutboundOrder(
+                            order_id=f"OUT-{oid:07d}",
+                            ts=ts_day + timedelta(minutes=self._rng.randint(0, 1439)),
+                            sku_id=sku.sku_id,
+                            quantity=self._rng.choice([1, 1, 1, 2, 3, 5]),
+                            channel=self._rng.choice(["ecommerce", "ecommerce", "wholesale", "store"]),
+                            priority=("express" if self._rng.random() < self.spec.express_ratio else "standard"),
+                            status=self._rng.choices(["shipped", "picked", "cancelled"], weights=[0.86, 0.11, 0.03])[0],
+                        )
+                    )
                     oid += 1
         return orders
 
-    def _gen_sensors(
-        self, locations: List[Location], inventory: List[InventorySnapshot]
-    ) -> List[SensorReading]:
+    def _gen_sensors(self, locations: List[Location], inventory: List[InventorySnapshot]) -> List[SensorReading]:
         # Book-of-record units per location (what the system *thinks* is there).
         book: Dict[str, int] = {}
         for snap in inventory:
@@ -249,27 +259,40 @@ class WarehouseGenerator:
             # estimate that closely tracks the book value, with a few injected
             # mismatches so the stocktake view has realistic discrepancies.
             if self._rng.random() < 0.18:
-                factor = self._rng.choice([
-                    self._rng.uniform(0.35, 0.7),   # shortage (shrinkage/miscount)
-                    self._rng.uniform(1.3, 1.7),    # surplus (misplacement)
-                ])
+                factor = self._rng.choice(
+                    [
+                        self._rng.uniform(0.35, 0.7),  # shortage (shrinkage/miscount)
+                        self._rng.uniform(1.3, 1.7),  # surplus (misplacement)
+                    ]
+                )
                 est_units = int(round(b * factor))
             else:
                 est_units = int(round(b * self._rng.uniform(0.96, 1.04)))
             # Occupancy is only for the heatmap colour; est drives the stocktake.
             occ = _clamp(est_units / max(cap, b, 1))
-            meta = {"source": "synthetic-cv-stub", "capacity": cap,
-                    "book_units": b, "est_units": est_units}
+            meta = {"source": "synthetic-cv-stub", "capacity": cap, "book_units": b, "est_units": est_units}
             for day in range(0, self.spec.horizon_days, 7):
                 ts = self.spec.start + timedelta(days=day)
-                readings.append(SensorReading(
-                    ts=ts, location_id=loc.location_id,
-                    modality="vision_occupancy",
-                    value=round(occ, 3), unit="ratio", meta=dict(meta)))
+                readings.append(
+                    SensorReading(
+                        ts=ts,
+                        location_id=loc.location_id,
+                        modality="vision_occupancy",
+                        value=round(occ, 3),
+                        unit="ratio",
+                        meta=dict(meta),
+                    )
+                )
                 if loc.temperature_controlled:
-                    readings.append(SensorReading(
-                        ts=ts, location_id=loc.location_id, modality="temperature",
-                        value=round(self._rng.uniform(1.0, 7.0), 2), unit="C"))
+                    readings.append(
+                        SensorReading(
+                            ts=ts,
+                            location_id=loc.location_id,
+                            modality="temperature",
+                            value=round(self._rng.uniform(1.0, 7.0), 2),
+                            unit="C",
+                        )
+                    )
         return readings
 
     # -- helpers -----------------------------------------------------------
@@ -279,6 +302,7 @@ class WarehouseGenerator:
         if lam <= 0:
             return 0
         import math
+
         l_bound = math.exp(-lam)
         k, p = 0, 1.0
         while True:
@@ -288,5 +312,6 @@ class WarehouseGenerator:
                 return k - 1
 
     def _rand_name(self) -> str:
-        return "".join(self._rng.choice(string.ascii_uppercase) for _ in range(3)) \
-            + "-" + str(self._rng.randint(100, 999))
+        return (
+            "".join(self._rng.choice(string.ascii_uppercase) for _ in range(3)) + "-" + str(self._rng.randint(100, 999))
+        )

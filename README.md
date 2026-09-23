@@ -66,7 +66,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
 ```bash
 pip install -e ".[dev]"     # pytest + ruff
-ruff check . && pytest      # CI runs the same on Python 3.9 and 3.11
+ruff check . && ruff format --check . && pytest   # CI runs the same on Python 3.9 and 3.11
 ```
 
 - **New engineers:** start with [`docs/ONBOARDING.md`](docs/ONBOARDING.md).

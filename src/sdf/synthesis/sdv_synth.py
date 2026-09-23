@@ -41,26 +41,22 @@ def _load_line_table(path: str, max_rows: int = 2000, seed: int = 1):
     return real.reset_index(drop=True)
 
 
-def gaussian_copula_fidelity(path: str, max_rows: int = 2000,
-                             seed: int = 1) -> Dict:
+def gaussian_copula_fidelity(path: str, max_rows: int = 2000, seed: int = 1) -> Dict:
     """Fit a Gaussian copula on the real table and score it with SDMetrics."""
     from copulas.multivariate import GaussianMultivariate
-    from sdmetrics.single_column import KSComplement
     from sdmetrics.column_pairs import CorrelationSimilarity
+    from sdmetrics.single_column import KSComplement
 
     real = _load_line_table(path, max_rows=max_rows, seed=seed)
     model = GaussianMultivariate()
     model.fit(real)
     synth = model.sample(len(real))
 
-    ks: Dict[str, float] = {
-        c: round(float(KSComplement.compute(real[c], synth[c])), 4) for c in _COLS
-    }
+    ks: Dict[str, float] = {c: round(float(KSComplement.compute(real[c], synth[c])), 4) for c in _COLS}
     corr: Dict[str, float] = {}
     for a, b in _PAIRS:
         try:
-            corr[f"{a}~{b}"] = round(float(CorrelationSimilarity.compute(
-                real[[a, b]], synth[[a, b]])), 4)
+            corr[f"{a}~{b}"] = round(float(CorrelationSimilarity.compute(real[[a, b]], synth[[a, b]])), 4)
         except Exception:
             pass
 
@@ -73,5 +69,5 @@ def gaussian_copula_fidelity(path: str, max_rows: int = 2000,
         "pair_trend_corr": corr,
         "column_shape_score": round(column_shape, 4),
         "pair_trend_score": round(pair_trend, 4),
-        "sdmetrics_overall": round(overall, 4),   # 0..1, higher = more faithful
+        "sdmetrics_overall": round(overall, 4),  # 0..1, higher = more faithful
     }

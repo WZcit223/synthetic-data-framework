@@ -16,8 +16,8 @@ from collections import defaultdict
 from datetime import date
 from typing import Callable, Dict, List, Optional
 
-
 # -- build a daily series from canonical OutboundOrders ---------------------
+
 
 def daily_demand_series(orders, sku_id: Optional[str] = None) -> List[float]:
     """Aggregate shipped orders into a dense daily quantity series."""
@@ -33,6 +33,7 @@ def daily_demand_series(orders, sku_id: Optional[str] = None) -> List[float]:
     d0, d1 = min(by_day), max(by_day)
     out, cur = [], d0
     from datetime import timedelta
+
     while cur <= d1:
         out.append(float(by_day.get(cur, 0.0)))
         cur += timedelta(days=1)
@@ -46,6 +47,7 @@ def hourly_business_series(orders, lo: int = 8, hi: int = 19):
     extract). Captures intraday seasonality — the dominant signal at this scale.
     """
     from datetime import datetime
+
     by: Dict = defaultdict(float)
     for o in orders:
         if o.status == "cancelled":
@@ -54,8 +56,7 @@ def hourly_business_series(orders, lo: int = 8, hi: int = 19):
     if not by:
         return [], 0
     days = sorted({k.date() for k in by})
-    values = [float(by.get(datetime(d.year, d.month, d.day, h), 0.0))
-              for d in days for h in range(lo, hi)]
+    values = [float(by.get(datetime(d.year, d.month, d.day, h), 0.0)) for d in days for h in range(lo, hi)]
     return values, (hi - lo)
 
 
@@ -81,11 +82,13 @@ def models_for(period: int, include_model: bool = True) -> Dict:
     }
     if include_model:
         from sdf.synthesis.models import seasonal_linear  # Phase 3
+
         models[f"seas_linear{period}"] = seasonal_linear(period)
     return models
 
 
 # -- one-step forecast models: history -> next-value prediction -------------
+
 
 def m_mean(h: List[float]) -> float:
     return sum(h) / len(h) if h else 0.0
@@ -99,6 +102,7 @@ def moving_average(k: int = 7) -> Callable[[List[float]], float]:
     def f(h: List[float]) -> float:
         w = h[-k:] if h else []
         return sum(w) / len(w) if w else 0.0
+
     f.__name__ = f"ma{k}"
     return f
 
@@ -106,6 +110,7 @@ def moving_average(k: int = 7) -> Callable[[List[float]], float]:
 def seasonal_naive(period: int = 7) -> Callable[[List[float]], float]:
     def f(h: List[float]) -> float:
         return h[-period] if len(h) >= period else (h[-1] if h else 0.0)
+
     f.__name__ = f"snaive{period}"
     return f
 
@@ -120,8 +125,8 @@ DEFAULT_MODELS = {
 
 # -- walk-forward backtest ---------------------------------------------------
 
-def backtest(values: List[float], model: Callable[[List[float]], float],
-             test_len: int = 21) -> Dict[str, float]:
+
+def backtest(values: List[float], model: Callable[[List[float]], float], test_len: int = 21) -> Dict[str, float]:
     """One-step-ahead walk-forward evaluation over the last ``test_len`` days."""
     n = len(values)
     test_len = min(test_len, max(1, n // 3))
@@ -147,8 +152,7 @@ def backtest(values: List[float], model: Callable[[List[float]], float],
     }
 
 
-def compare_models(values: List[float], test_len: int = 21,
-                   models: Optional[Dict[str, Callable]] = None) -> Dict:
+def compare_models(values: List[float], test_len: int = 21, models: Optional[Dict[str, Callable]] = None) -> Dict:
     """Backtest every model; return per-model metrics and the MAE winner."""
     models = models or DEFAULT_MODELS
     results = [backtest(values, fn, test_len) for fn in models.values()]

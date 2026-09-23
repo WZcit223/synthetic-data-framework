@@ -18,7 +18,7 @@ Architecture / directional PRs must be reviewed and merged manually.
 ### For implementation PRs
 
 - [ ] Scoped to already-agreed requirements or design
-- [ ] `ruff check .` passes
+- [ ] `ruff check .` and `ruff format --check .` pass
 - [ ] `pytest` passes
 - [ ] Docs updated if behaviour changed
 

@@ -19,6 +19,7 @@ from typing import Dict, List
 def ks_2samp(a: List[float], b: List[float]) -> float:
     """Two-sample KS statistic = max |F_a(x) - F_b(x)| (ties handled)."""
     import bisect
+
     if not a or not b:
         return 1.0
     sa, sb = sorted(a), sorted(b)
@@ -70,8 +71,8 @@ def fidelity_report(real: List[float], synth: List[float], ppd: int) -> Dict:
     prof_corr = pearson(_profile(real, ppd), _profile(synth, ppd))
     ks = ks_2samp(real, synth)
     return {
-        "ks_statistic": ks,                       # 0 = distributions identical
-        "profile_corr": prof_corr,                # 1 = seasonality identical
+        "ks_statistic": ks,  # 0 = distributions identical
+        "profile_corr": prof_corr,  # 1 = seasonality identical
         "mean_delta_pct": round(100 * (smean - rmean) / rmean, 2) if rmean else None,
         "std_delta_pct": round(100 * (sstd - rstd) / rstd, 2) if rstd else None,
         "real_mean": round(rmean, 2),

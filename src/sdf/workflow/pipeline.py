@@ -24,7 +24,7 @@ from sdf.observability import RunLogger
 @dataclass
 class Step:
     name: str
-    run: Callable[[Dict[str, Any]], Any]   # run(ctx) -> artifact
+    run: Callable[[Dict[str, Any]], Any]  # run(ctx) -> artifact
     depends_on: List[str] = field(default_factory=list)
 
 
@@ -62,8 +62,7 @@ class Pipeline:
         artifacts: Dict[str, Any] = {}
         for name in self._order:
             step = self.steps[name]
-            with log.step("step", name,
-                          inputs={"depends_on": step.depends_on}) as box:
+            with log.step("step", name, inputs={"depends_on": step.depends_on}) as box:
                 art = step.run(ctx)
                 artifacts[name] = art
                 ctx[name] = art
@@ -83,16 +82,18 @@ def warehouse_pipeline(spec=None, real_csv: str = None) -> Pipeline:
     ingest → validate → application → economics → report
     (ingest generates the synthetic world, or loads a real CSV via the adapter).
     """
-    from sdf.synthesis.warehouse import GenerationSpec
-    from sdf.synthesis.quality import structural_quality_check
-    from sdf.application.warehouse_demo import WarehouseIntelligence
     from sdf.application.economics import financial_impact
+    from sdf.application.warehouse_demo import WarehouseIntelligence
+    from sdf.synthesis.quality import structural_quality_check
+    from sdf.synthesis.warehouse import GenerationSpec
 
     def ingest(ctx):
         from sdf.cli import build_registry
+
         if real_csv:
-            from sdf.foundation.registry import DataSourceRegistry
             from sdf.foundation.adapters.retail_csv import register_online_retail
+            from sdf.foundation.registry import DataSourceRegistry
+
             reg = DataSourceRegistry()
             n_sku, n_ord = register_online_retail(reg, real_csv)
             ctx["registry"] = reg
@@ -112,9 +113,11 @@ def warehouse_pipeline(spec=None, real_csv: str = None) -> Pipeline:
     def application(ctx):
         intel = WarehouseIntelligence(ctx["registry"])
         ctx["_intel"] = intel
-        return {"kpis": intel.kpis().__dict__,
-                "replenishment_flagged": len(intel.replenishment_suggestions(9999)),
-                "anomalies": intel.demand_anomalies().get("count", 0)}
+        return {
+            "kpis": intel.kpis().__dict__,
+            "replenishment_flagged": len(intel.replenishment_suggestions(9999)),
+            "anomalies": intel.demand_anomalies().get("count", 0),
+        }
 
     def economics(ctx):
         intel = ctx.get("_intel")
@@ -123,14 +126,19 @@ def warehouse_pipeline(spec=None, real_csv: str = None) -> Pipeline:
         return financial_impact(intel)
 
     def report(ctx):
-        return {"validate": ctx.get("validate"),
-                "application": ctx.get("application"),
-                "economics_annual_saving": (ctx.get("economics") or {}).get("annualised_net_saving")}
+        return {
+            "validate": ctx.get("validate"),
+            "application": ctx.get("application"),
+            "economics_annual_saving": (ctx.get("economics") or {}).get("annualised_net_saving"),
+        }
 
-    return Pipeline([
-        Step("ingest", ingest),
-        Step("validate", validate, depends_on=["ingest"]),
-        Step("application", application, depends_on=["ingest"]),
-        Step("economics", economics, depends_on=["application"]),
-        Step("report", report, depends_on=["validate", "application", "economics"]),
-    ], name="warehouse-diw")
+    return Pipeline(
+        [
+            Step("ingest", ingest),
+            Step("validate", validate, depends_on=["ingest"]),
+            Step("application", application, depends_on=["ingest"]),
+            Step("economics", economics, depends_on=["application"]),
+            Step("report", report, depends_on=["validate", "application", "economics"]),
+        ],
+        name="warehouse-diw",
+    )

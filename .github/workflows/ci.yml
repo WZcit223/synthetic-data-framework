@@ -25,9 +25,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install ruff
-        run: pip install "ruff>=0.4"
+        run: pip install "ruff>=0.16.7"
       - name: Ruff check
         run: ruff check .
+      - name: Ruff format check
+        run: ruff format --check .
 
   test:
     name: Tests (pytest ${{ matrix.python-version }})

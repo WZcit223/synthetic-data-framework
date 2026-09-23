@@ -64,9 +64,11 @@ intent still applies.
   `src/sdf/synthesis/warehouse.py`; new config dataclasses follow its shape and
   are validated in `__post_init__` as the instruction describes. Logging uses the
   standard library; do not introduce `loguru`.
-- **Import rules.** `ruff` is configured with `E`, `F`, `W` only, so import
-  grouping and the parent-relative ban are reviewed by hand until the `I` and
-  `TID252` rules are enabled. **Pending:** enabling them is a separate lint PR.
+- **Import rules and formatting.** `ruff` is configured to match sciloom
+  (`pyproject.toml`): `ruff check` enforces the import grouping (`I`) and the
+  parent-relative ban (`TID252`), and `ruff format --check` enforces layout.
+  Preferring single-dot imports inside a package is reviewed by hand. The
+  earlier compact one-statement-per-line style is gone; do not reintroduce it.
 - **Documentation locations.** Internal architecture, validation results and
   refactor plans live in `docs/`. Root Markdown is `README.md`, `AGENTS.md`,
   `CLAUDE.md` and `CONTRIBUTING.md`; the last two are accepted exceptions to the
@@ -110,9 +112,11 @@ Run before opening or updating a PR, from the repository root:
 ```bash
 pip install -e ".[dev]"
 ruff check .
+ruff format --check .
 python -m pytest
 python demo/run_demo.py
 ```
 
-CI (`.github/workflows/ci.yml`) runs the first two on Python 3.9 and 3.11 for every
-PR into `main`. The optional statistical extras are not installed in CI.
+CI (`.github/workflows/ci.yml`) runs the first three on Python 3.9 and 3.11 for
+every PR into `main`. The optional statistical extras are not installed in CI.
+Run `ruff check --fix . && ruff format .` before committing Python changes.

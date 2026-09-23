@@ -32,7 +32,7 @@ branches short-lived and rebase/merge `main` in if they fall behind.
 
 - changes land **only** through a Pull Request;
 - **direct pushes and force-pushes are blocked**;
-- the **CI status check must pass** before merge (lint + tests).
+- the **CI status check must pass** before merge (lint + format + tests).
 
 Required approvals are currently **0**: the project lead (**@WZcit223**) owns and
 approves all changes in this account, and CI is the merge gate. If a second
@@ -45,7 +45,7 @@ engineer joins the repo, raise the required-approvals count to 1.
 For PRs that only implement already-agreed requirements or design and **do not
 change the overall architecture**:
 
-- ensure `ruff check .` and `pytest` pass locally;
+- ensure `ruff check .`, `ruff format --check .` and `pytest` pass locally;
 - open the PR (fill the template);
 - you may enable **auto-merge** — GitHub merges automatically once CI is green
   and any branch-protection rules are satisfied. No extra human approval step is
@@ -70,6 +70,7 @@ write the short plan first.
 ```bash
 pip install -e ".[dev]"     # pytest + ruff
 ruff check .                # lint
+ruff format --check .       # formatting
 pytest                      # tests
 ```
 
