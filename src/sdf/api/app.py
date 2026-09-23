@@ -23,15 +23,15 @@ except ImportError as exc:  # pragma: no cover
     raise ImportError("FastAPI is optional. Install it with: uv sync --extra api") from exc
 
 from sdf import __version__
+from sdf.analytics.forecast import build_series, compare_models, models_for
 from sdf.application.agent import WarehouseAgent
 from sdf.application.economics import financial_impact
+from sdf.application.intelligence import WarehouseIntelligence
 from sdf.application.knowledge import KnowledgeQA
 from sdf.application.scenarios import run_scenarios
-from sdf.application.warehouse_demo import WarehouseIntelligence
-from sdf.synthesis.forecast import build_series, compare_models, models_for
 from sdf.synthesis.materialise import build_registry
-from sdf.synthesis.quality import structural_quality_check
 from sdf.synthesis.spec import GenerationSpec
+from sdf.validation.quality import structural_quality_check
 from sdf.workflow import warehouse_pipeline
 
 app = FastAPI(title="Synthetic Data Framework — AI Warehouse", version=__version__)

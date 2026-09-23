@@ -17,7 +17,7 @@ from typing import Dict, List
 from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.scenarios import SCENARIOS, apply_scenario
 from sdf.synthesis.spec import GenerationSpec
-from .warehouse_demo import WarehouseIntelligence
+from .intelligence import WarehouseIntelligence
 
 
 def run_scenarios(base_spec=None, names: List[str] = None, service_level: float = 0.95) -> Dict:

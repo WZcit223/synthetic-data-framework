@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from sdf.application.warehouse_demo import WarehouseIntelligence
+from sdf.application.intelligence import WarehouseIntelligence
+from sdf.synthesis.materialise import build_registry
+from sdf.synthesis.spec import GenerationSpec
 from .anomaly import seasonal_residual_anomalies
-from .materialise import build_registry
-from .spec import GenerationSpec
 
 
 def test_phase3_anomaly_c3():

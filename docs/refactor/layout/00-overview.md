@@ -42,10 +42,13 @@ src/sdf/
 ```
 
 Layer direction (enforced by a test from PR 2 on):
-`foundation → synthesis → analytics → validation → application → observability/workflow/api/cli`.
-`analytics` and `validation` may import `foundation` and `synthesis`;
-`application` may import everything below it; entry points may import
-everything. Nothing imports an entry point.
+`foundation → analytics → synthesis → validation → application → workflow → api/cli`
+(`observability` ranks with `synthesis`). `analytics` may import only
+`foundation`; `synthesis` may import `analytics` (fitting a synthesiser consumes
+the shared series aggregation); `validation` may import both; `application` may
+import everything below it; entry points may import everything. Nothing imports
+an entry point. (PR 3 amended the original `synthesis → analytics` order to
+match the code; see its plan file.)
 
 ### Alternatives considered
 
@@ -90,7 +93,7 @@ everything. Nothing imports an entry point.
 |---|---|---|---|
 | 1 | [`01-safety-net.md`](01-safety-net.md) | Characterisation tests, colocated test layout, no `sys.path` hacks | unchanged (asserted) |
 | 2 | [`02-import-direction.md`](02-import-direction.md) | Remove reverse edges, relative imports, no import-time side effects, layering test | unchanged (asserted) |
-| 3 | [`03-module-layout.md`](03-module-layout.md) | `analytics/` + `validation/` split, `intelligence.py`, single demand aggregation | unchanged |
+| 3 | [`03-module-layout.md`](03-module-layout.md) | `analytics/` + `validation/` split, `intelligence.py`, single demand aggregation | unchanged (asserted) |
 | 4 | [`04-contracts.md`](04-contracts.md) | Config validation, typed public functions, built-in generics | unchanged |
 
 The interface contract for this sequence is the current code: no new API is

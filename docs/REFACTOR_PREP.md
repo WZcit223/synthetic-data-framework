@@ -217,13 +217,13 @@ src/sdf/
     spec.py                   GenerationSpec（从 warehouse.py 拆出，scenarios 只依赖它）
     warehouse.py              WarehouseGenerator（RNG 调用顺序不变）
     materialise.py            build_registry(spec) -> (SyntheticWarehouse, DataSourceRegistry)   ← 从 cli 迁入
-    quality.py forecast.py models.py fit.py fidelity.py tstr.py anomaly.py privacy.py sdv_synth.py
+    fit.py sdv_synth.py       （forecast/models/anomaly 已迁至 analytics/，quality/fidelity/tstr/privacy 已迁至 validation/ —— layout PR 3）
     scenarios.py              只保留 SCENARIOS 表与 apply(spec, tweaks) -> spec 的纯变换（不依赖任何上层）
-  analytics/                  （新）纯函数，不持有状态
-    demand.py                 DemandTable：唯一的按 SKU/按天聚合与统计
+  analytics/                  纯函数，不持有状态（layout PR 3 已建：demand.py forecast.py models.py anomaly.py）
+    demand.py                 DemandTable：唯一的按 SKU/按天聚合与统计（已完成）
     metrics.py                mae/rmse/mape(wape)/bias，供 forecast 与 tstr 共用
   application/
-    intelligence.py           WarehouseIntelligence 门面（公共方法签名不变）
+    intelligence.py           WarehouseIntelligence 门面（公共方法签名不变；改名已完成，拆分待后续）
     kpi.py                    kpis / abc_distribution / top_movers
     replenishment.py          ReplenishmentPolicy 接口 + RuleOfThumbPolicy + SSPolicy + simulation
     anomaly_rules.py          stockout / dead_stock 规则 + demand_anomalies 包装
@@ -237,6 +237,7 @@ src/sdf/
       executor.py             call()：审批门与 read_only 在此强制
       planner.py              Planner 接口 + KeywordPlanner（LLM planner 为 HOOK）
       agent.py                WarehouseAgent 组装
+  validation/                 quality.py fidelity.py tstr.py privacy.py（layout PR 3 已建）
   observability.py            RunLogger（摘要与完整落盘分离）
   workflow/pipeline.py        ctx 分为 artifacts 与 resources 两个命名空间
   api/

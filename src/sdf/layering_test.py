@@ -1,7 +1,11 @@
 """Layer-direction test: no module imports a module from a higher layer.
 
 Ranks (lower may not import higher):
-foundation 0 · synthesis 1 · observability 1 · application 2 · workflow 3 · api 4 · cli 4.
+foundation 0 · analytics 1 · synthesis 2 · observability 2 · validation 3 · application 4 · workflow 5 · api 6 · cli 6.
+
+``analytics`` sits below ``synthesis`` because fitting a synthesiser on real
+data (``synthesis.fit``) consumes the shared series aggregation; nothing in
+``analytics`` needs a generator.
 ``api`` and ``cli`` are peers that must not import each other. Re-export
 shims are not allowed, so every edge the parser sees is a real dependency.
 """
@@ -16,7 +20,17 @@ from pathlib import Path
 import pytest
 
 PACKAGE = Path(__file__).resolve().parent
-RANK = {"foundation": 0, "synthesis": 1, "observability": 1, "application": 2, "workflow": 3, "api": 4, "cli": 4}
+RANK = {
+    "foundation": 0,
+    "analytics": 1,
+    "synthesis": 2,
+    "observability": 2,
+    "validation": 3,
+    "application": 4,
+    "workflow": 5,
+    "api": 6,
+    "cli": 6,
+}
 
 
 def _layer(module: str) -> str:
@@ -78,6 +92,8 @@ def test_api_and_cli_do_not_import_each_other():
         ("sdf.synthesis.scenarios", "sdf.application"),
         ("sdf.synthesis.scenarios", "sdf.cli"),
         ("sdf.synthesis.materialise", "sdf.application"),
+        ("sdf.analytics.forecast", "sdf.synthesis"),
+        ("sdf.validation.quality", "sdf.application"),
     ],
 )
 def test_importing_a_lower_layer_does_not_load_a_higher_one(module, must_not_load):

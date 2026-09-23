@@ -5,7 +5,7 @@ from __future__ import annotations
 from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.spec import GenerationSpec
 from .agent import WarehouseAgent
-from .warehouse_demo import WarehouseIntelligence
+from .intelligence import WarehouseIntelligence
 
 
 def test_agent_trace_and_guardrail():
