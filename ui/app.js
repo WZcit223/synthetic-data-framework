@@ -206,7 +206,7 @@ async function ask(q){
 
 function renderChips(){
   $("#qchips").innerHTML = SAMPLE_Q.map(q =>
-    `<span class="pill" style="cursor:pointer" onclick="ask(${JSON.stringify(q).replace(/"/g,'&quot;')})">${q}</span>`).join("");
+    `<button type="button" class="pill chip" onclick="ask(${JSON.stringify(q).replace(/"/g,'&quot;')})">${esc(q)}</button>`).join("");
 }
 
 async function loadAnomalies(){

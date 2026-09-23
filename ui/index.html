@@ -22,23 +22,23 @@
   <div class="card">
     <div class="controls">
       <div class="ctrl">
-        <label>SKUs <output id="o_skus">200</output></label>
+        <label for="skus">SKUs <output id="o_skus">200</output></label>
         <input id="skus" type="range" min="20" max="500" step="20" value="200">
       </div>
       <div class="ctrl">
-        <label>Days of history <output id="o_days">90</output></label>
+        <label for="days">Days of history <output id="o_days">90</output></label>
         <input id="days" type="range" min="30" max="180" step="10" value="90">
       </div>
       <div class="ctrl">
-        <label>Demand intensity (class-A) <output id="o_dem">6.0</output></label>
+        <label for="dem">Demand intensity (class-A) <output id="o_dem">6.0</output></label>
         <input id="dem" type="range" min="1" max="16" step="0.5" value="6">
       </div>
       <div class="ctrl">
-        <label>Stockout pressure <output id="o_stk">0.08</output></label>
+        <label for="stk">Stockout pressure <output id="o_stk">0.08</output></label>
         <input id="stk" type="range" min="0" max="0.4" step="0.01" value="0.08">
       </div>
       <div class="ctrl">
-        <label>Seed <output id="o_seed">42</output></label>
+        <label for="seed">Seed <output id="o_seed">42</output></label>
         <input id="seed" type="range" min="1" max="99" step="1" value="42">
       </div>
       <button class="primary" onclick="regen()">↻ Regenerate synthetic world</button>
@@ -87,7 +87,7 @@
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <h3 style="margin:0;font-size:14px">Demand & forecast</h3>
-        <select id="mover" onchange="loadSeries()"></select>
+        <select id="mover" aria-label="SKU shown in the demand chart" onchange="loadSeries()"></select>
       </div>
       <div id="series"></div>
       <div id="seriesMeta" class="note"></div>
@@ -103,7 +103,7 @@
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
       <h3 style="margin:0;font-size:14px">(s, S) inventory optimisation
         <span class="pill">safety stock from demand variability</span></h3>
-      <label class="muted" style="font-size:12px;margin-left:auto">service level</label>
+      <label for="sl" class="muted" style="font-size:12px;margin-left:auto">service level</label>
       <select id="sl" onchange="loadSS();loadComparison()">
         <option value="0.90">90%</option>
         <option value="0.95" selected>95%</option>
@@ -168,7 +168,7 @@
       <h3 style="margin:0 0 8px;font-size:14px">Ask the warehouse
         <span class="pill">grounded · LLM+KG is the ALGO-HOOK</span></h3>
       <div style="display:flex;gap:8px">
-        <input id="q" placeholder="e.g. safety stock at 95%?  which SKUs are stockout?"
+        <input id="q" aria-label="Question about the warehouse data" placeholder="e.g. safety stock at 95%?  which SKUs are stockout?"
           style="flex:1;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
           border-radius:8px;padding:9px 12px;font-size:13px"
           onkeydown="if(event.key==='Enter')ask()">
@@ -199,7 +199,7 @@
           <span class="pill">tool calls · audit trace · human-in-loop</span></h3>
       </div>
       <div style="display:flex;gap:8px">
-        <input id="aq" placeholder="e.g. should I reorder and what's the money impact?"
+        <input id="aq" aria-label="Request for the warehouse agent" placeholder="e.g. should I reorder and what's the money impact?"
           style="flex:1;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
           border-radius:8px;padding:9px 12px;font-size:13px"
           onkeydown="if(event.key==='Enter')agentAsk()">
