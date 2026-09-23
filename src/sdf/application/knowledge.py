@@ -94,7 +94,7 @@ class KnowledgeQA:
     def _replenish(self) -> dict:
         p = self.intel.replenishment_ss_policy(service_level=0.95, top_n=1)
         n = p["skus_needing_order"]
-        top = p["rows"][0] if n else None
+        top = p["rows"][0] if n and p["rows"] else None
         msg = f"{n} SKUs need an order under the 95% service-level (s,S) policy."
         if top:
             msg += f" Largest order: {top['sku_id']} — order {top['order_qty']} units."

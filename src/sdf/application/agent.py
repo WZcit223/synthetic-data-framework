@@ -114,7 +114,7 @@ class WarehouseAgent:
             repl = self.call(log, "replenishment", top_n=5)
             impact = self.call(log, "financial_impact")
             n = repl["skus_needing_order"]
-            top = repl["rows"][0] if n else None
+            top = repl["rows"][0] if n and repl["rows"] else None  # rows are sorted by order_qty, largest first
             if top:
                 # propose the action, gated by approval
                 action = self.call(log, "place_order", sku_id=top["sku_id"], quantity=top["order_qty"])
