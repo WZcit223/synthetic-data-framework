@@ -12,8 +12,9 @@ store) without changing the interface the Application Layer depends on.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -23,13 +24,13 @@ class DataSource:
     name: str
     entity_type: str
     origin: str  # "synthetic" | "real" | "external-open-dataset"
-    _rows: List[Any] = field(default_factory=list)
+    _rows: list[Any] = field(default_factory=list)
 
     def add(self, rows: Iterable[Any]) -> "DataSource":
         self._rows.extend(rows)
         return self
 
-    def rows(self) -> List[Any]:
+    def rows(self) -> list[Any]:
         return list(self._rows)
 
     def __len__(self) -> int:  # pragma: no cover - trivial
@@ -40,7 +41,7 @@ class DataSourceRegistry:
     """Central catalogue that lets layers overlay multiple sources by entity."""
 
     def __init__(self) -> None:
-        self._sources: Dict[str, DataSource] = {}
+        self._sources: dict[str, DataSource] = {}
 
     def register(
         self,
@@ -54,17 +55,17 @@ class DataSourceRegistry:
         self._sources[name] = src
         return src
 
-    def sources(self) -> List[DataSource]:
+    def sources(self) -> list[DataSource]:
         return list(self._sources.values())
 
     def stream(
         self,
         entity_type: str,
-        where: Optional[Callable[[Any], bool]] = None,
-    ) -> List[Any]:
+        where: Callable[[Any], bool] | None = None,
+    ) -> list[Any]:
         """Overlay every registered source of ``entity_type`` into one stream."""
 
-        out: List[Any] = []
+        out: list[Any] = []
         for src in self._sources.values():
             if src.entity_type != entity_type:
                 continue
@@ -73,15 +74,15 @@ class DataSourceRegistry:
                     out.append(row)
         return out
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         return {
             "source_count": len(self._sources),
             "by_entity": self._count_by("entity_type"),
             "by_origin": self._count_by("origin"),
         }
 
-    def _count_by(self, attr: str) -> Dict[str, int]:
-        counts: Dict[str, int] = {}
+    def _count_by(self, attr: str) -> dict[str, int]:
+        counts: dict[str, int] = {}
         for src in self._sources.values():
             key = getattr(src, attr)
             counts[key] = counts.get(key, 0) + len(src)

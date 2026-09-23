@@ -15,8 +15,9 @@ contract (name, deps, run(ctx)->artifact) is intentionally the same shape.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List
+from typing import Any
 
 from sdf.application.economics import financial_impact
 from sdf.application.intelligence import WarehouseIntelligence
@@ -31,17 +32,23 @@ from sdf.validation.quality import structural_quality_check
 @dataclass
 class Step:
     name: str
-    run: Callable[[Dict[str, Any]], Any]  # run(ctx) -> artifact
-    depends_on: List[str] = field(default_factory=list)
+    run: Callable[[dict[str, Any]], Any]  # run(ctx) -> artifact
+    depends_on: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("name must be non-empty")
+        if self.name in self.depends_on:
+            raise ValueError(f"name {self.name!r} must not appear in its own depends_on")
 
 
 class Pipeline:
-    def __init__(self, steps: List[Step], name: str = "diw") -> None:
+    def __init__(self, steps: list[Step], name: str = "diw") -> None:
         self.name = name
         self.steps = {s.name: s for s in steps}
         self._order = self._toposort(steps)
 
-    def _toposort(self, steps: List[Step]) -> List[str]:
+    def _toposort(self, steps: list[Step]) -> list[str]:
         order, seen, temp = [], set(), set()
         by_name = {s.name: s for s in steps}
 
@@ -63,10 +70,10 @@ class Pipeline:
             visit(s.name)
         return order
 
-    def run(self, ctx: Dict[str, Any] = None, sink_path: str = None) -> Dict[str, Any]:
+    def run(self, ctx: dict[str, Any] = None, sink_path: str = None) -> dict[str, Any]:
         ctx = dict(ctx or {})
         log = RunLogger(self.name, sink_path=sink_path)
-        artifacts: Dict[str, Any] = {}
+        artifacts: dict[str, Any] = {}
         for name in self._order:
             step = self.steps[name]
             with log.step("step", name, inputs={"depends_on": step.depends_on}) as box:

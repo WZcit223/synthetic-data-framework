@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 class Entity:
     """Mixin giving every entity a uniform ``to_dict`` for serialisation."""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -32,7 +32,7 @@ class SKU(Entity):
     weight_kg: float
     volume_m3: float
     abc_class: str  # A/B/C velocity class (Pareto)
-    shelf_life_days: Optional[int] = None
+    shelf_life_days: int | None = None
 
 
 @dataclass
@@ -104,4 +104,4 @@ class SensorReading(Entity):
     modality: str  # temperature | humidity | occupancy | vision_occupancy
     value: float
     unit: str
-    meta: Dict[str, Any] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)

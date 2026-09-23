@@ -12,19 +12,17 @@ with a discrete-event simulator or an agent-based model of the facility.
 
 from __future__ import annotations
 
-from typing import Dict, List
-
 from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.scenarios import SCENARIOS, apply_scenario
 from sdf.synthesis.spec import GenerationSpec
 from .intelligence import WarehouseIntelligence
 
 
-def run_scenarios(base_spec=None, names: List[str] = None, service_level: float = 0.95) -> Dict:
+def run_scenarios(base_spec=None, names: list[str] = None, service_level: float = 0.95) -> dict:
     """Generate each scenario world and compare KPIs + inventory stress."""
     base = base_spec or GenerationSpec()
     names = names or list(SCENARIOS)
-    rows: List[Dict] = []
+    rows: list[dict] = []
     for name in names:
         spec = apply_scenario(base, SCENARIOS.get(name, {}))
         _wh, reg = build_registry(spec)

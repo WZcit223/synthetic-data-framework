@@ -94,7 +94,7 @@ match the code; see its plan file.)
 | 1 | [`01-safety-net.md`](01-safety-net.md) | Characterisation tests, colocated test layout, no `sys.path` hacks | unchanged (asserted) |
 | 2 | [`02-import-direction.md`](02-import-direction.md) | Remove reverse edges, relative imports, no import-time side effects, layering test | unchanged (asserted) |
 | 3 | [`03-module-layout.md`](03-module-layout.md) | `analytics/` + `validation/` split, `intelligence.py`, single demand aggregation | unchanged (asserted) |
-| 4 | [`04-contracts.md`](04-contracts.md) | Config validation, typed public functions, built-in generics | unchanged |
+| 4 | [`04-contracts.md`](04-contracts.md) | Config validation, typed public functions, built-in generics | unchanged (asserted) |
 
 The interface contract for this sequence is the current code: no new API is
 designed, so no example-code contract file is needed. PR 3 introduces one new

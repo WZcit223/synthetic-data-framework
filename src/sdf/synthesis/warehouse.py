@@ -19,7 +19,6 @@ import random
 import string
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Dict, List, Optional
 
 from sdf.foundation.schema import (
     SKU,
@@ -36,12 +35,12 @@ from .spec import GenerationSpec
 class SyntheticWarehouse:
     """The full generated bundle handed to the Foundation Layer."""
 
-    skus: List[SKU]
-    locations: List[Location]
-    inventory: List[InventorySnapshot]
-    inbound: List[InboundOrder]
-    outbound: List[OutboundOrder]
-    sensors: List[SensorReading]
+    skus: list[SKU]
+    locations: list[Location]
+    inventory: list[InventorySnapshot]
+    inbound: list[InboundOrder]
+    outbound: list[OutboundOrder]
+    sensors: list[SensorReading]
     spec: GenerationSpec
 
 
@@ -64,7 +63,7 @@ def _clamp(x: float, lo: float = 0.02, hi: float = 1.0) -> float:
 class WarehouseGenerator:
     """Seeded, deterministic generator for a complete warehouse dataset."""
 
-    def __init__(self, spec: Optional[GenerationSpec] = None) -> None:
+    def __init__(self, spec: GenerationSpec | None = None) -> None:
         self.spec = spec or GenerationSpec()
         self._rng = random.Random(self.spec.seed)
 
@@ -89,8 +88,8 @@ class WarehouseGenerator:
 
     # -- entity generators -------------------------------------------------
 
-    def _gen_skus(self) -> List[SKU]:
-        skus: List[SKU] = []
+    def _gen_skus(self) -> list[SKU]:
+        skus: list[SKU] = []
         a, b, _c = self.spec.abc_split
         for i in range(self.spec.n_skus):
             r = self._rng.random()
@@ -111,8 +110,8 @@ class WarehouseGenerator:
             )
         return skus
 
-    def _gen_locations(self) -> List[Location]:
-        locs: List[Location] = []
+    def _gen_locations(self) -> list[Location]:
+        locs: list[Location] = []
         zones = ["INBOUND", "BULK", "PICK", "COLD", "OUTBOUND"]
         for i in range(self.spec.n_locations):
             zone = self._rng.choice(zones)
@@ -129,10 +128,10 @@ class WarehouseGenerator:
             )
         return locs
 
-    def _gen_inventory(self, skus: List[SKU], locations: List[Location]) -> List[InventorySnapshot]:
+    def _gen_inventory(self, skus: list[SKU], locations: list[Location]) -> list[InventorySnapshot]:
         # ALGORITHM-HOOK: on-hand levels here are heuristic. A real system fits
         # these from historical inventory series (seasonality, safety stock).
-        snaps: List[InventorySnapshot] = []
+        snaps: list[InventorySnapshot] = []
         ts = self.spec.start + timedelta(days=self.spec.horizon_days)
         tight = set(
             self._rng.sample(
@@ -156,8 +155,8 @@ class WarehouseGenerator:
             )
         return snaps
 
-    def _gen_inbound(self, skus: List[SKU]) -> List[InboundOrder]:
-        orders: List[InboundOrder] = []
+    def _gen_inbound(self, skus: list[SKU]) -> list[InboundOrder]:
+        orders: list[InboundOrder] = []
         n = self.spec.horizon_days * 2
         for i in range(n):
             sku = self._rng.choice(skus)
@@ -175,11 +174,11 @@ class WarehouseGenerator:
             )
         return orders
 
-    def _gen_outbound(self, skus: List[SKU]) -> List[OutboundOrder]:
+    def _gen_outbound(self, skus: list[SKU]) -> list[OutboundOrder]:
         # ALGORITHM-HOOK: demand is a class-scaled Poisson-ish draw. The real
         # system models demand with a fitted time-series / intermittent-demand
         # model (Croston, DeepAR, TimeGAN) learned from order history.
-        orders: List[OutboundOrder] = []
+        orders: list[OutboundOrder] = []
         rate = {"A": self.spec.daily_orders_per_a_sku, "B": 1.5, "C": 0.3}
         # Inject a few demand shocks (promo spikes / supply drops) so the C3
         # anomaly detector has real events to surface. # ALGORITHM-HOOK: real
@@ -212,13 +211,13 @@ class WarehouseGenerator:
                     oid += 1
         return orders
 
-    def _gen_sensors(self, locations: List[Location], inventory: List[InventorySnapshot]) -> List[SensorReading]:
+    def _gen_sensors(self, locations: list[Location], inventory: list[InventorySnapshot]) -> list[SensorReading]:
         # Book-of-record units per location (what the system *thinks* is there).
-        book: Dict[str, int] = {}
+        book: dict[str, int] = {}
         for snap in inventory:
             book[snap.location_id] = book.get(snap.location_id, 0) + snap.on_hand
 
-        readings: List[SensorReading] = []
+        readings: list[SensorReading] = []
         sample = self._rng.sample(locations, k=min(40, len(locations)))
         for loc in sample:
             cap = max(1, loc.capacity_units)

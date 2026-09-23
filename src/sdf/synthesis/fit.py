@@ -14,7 +14,6 @@ for sequences); the fidelity/TSTR harness scores whichever generator you use.
 from __future__ import annotations
 
 import random
-from typing import List, Optional
 
 from sdf.analytics.forecast import hourly_business_series
 
@@ -25,11 +24,11 @@ class FittedSeasonalDemand:
     def __init__(self, seed: int = 7) -> None:
         self.seed = seed
         self.period = 1
-        self.profile: List[float] = []
-        self.resid: List[float] = []
-        self.reference: List[float] = []
+        self.profile: list[float] = []
+        self.resid: list[float] = []
+        self.reference: list[float] = []
 
-    def fit(self, series: List[float], period: int) -> "FittedSeasonalDemand":
+    def fit(self, series: list[float], period: int) -> "FittedSeasonalDemand":
         self.period = max(1, period)
         self.reference = list(series)
         prof = [0.0] * self.period
@@ -43,7 +42,7 @@ class FittedSeasonalDemand:
         ] or [1.0]
         return self
 
-    def generate(self, n_points: Optional[int] = None) -> List[float]:
+    def generate(self, n_points: int | None = None) -> list[float]:
         rng = random.Random(self.seed)
         if n_points is None:
             n_points = len(self.reference)
@@ -56,7 +55,7 @@ class FittedHourlyDemand:
     def __init__(self, seed: int = 7) -> None:
         self._m = FittedSeasonalDemand(seed)
         self.ppd = 0
-        self.real_series: List[float] = []
+        self.real_series: list[float] = []
 
     def fit(self, orders, lo: int = 8, hi: int = 19) -> "FittedHourlyDemand":
         series, ppd = hourly_business_series(orders, lo, hi)
@@ -66,9 +65,9 @@ class FittedHourlyDemand:
         return self
 
     @property
-    def profile(self) -> List[float]:
+    def profile(self) -> list[float]:
         return self._m.profile
 
-    def generate(self, n_days: Optional[int] = None) -> List[float]:
+    def generate(self, n_days: int | None = None) -> list[float]:
         n_points = None if n_days is None else n_days * self.ppd
         return self._m.generate(n_points)

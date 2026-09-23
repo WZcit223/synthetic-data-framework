@@ -16,8 +16,6 @@ fidelity on complex joint distributions; the SDMetrics scoring is identical.
 
 from __future__ import annotations
 
-from typing import Dict
-
 _COLS = ["Quantity", "Price", "hour", "weekday"]
 _PAIRS = [("Quantity", "Price"), ("Quantity", "hour"), ("Price", "weekday")]
 
@@ -41,7 +39,7 @@ def _load_line_table(path: str, max_rows: int = 2000, seed: int = 1):
     return real.reset_index(drop=True)
 
 
-def gaussian_copula_fidelity(path: str, max_rows: int = 2000, seed: int = 1) -> Dict:
+def gaussian_copula_fidelity(path: str, max_rows: int = 2000, seed: int = 1) -> dict:
     """Fit a Gaussian copula on the real table and score it with SDMetrics."""
     from copulas.multivariate import GaussianMultivariate
     from sdmetrics.column_pairs import CorrelationSimilarity
@@ -52,8 +50,8 @@ def gaussian_copula_fidelity(path: str, max_rows: int = 2000, seed: int = 1) -> 
     model.fit(real)
     synth = model.sample(len(real))
 
-    ks: Dict[str, float] = {c: round(float(KSComplement.compute(real[c], synth[c])), 4) for c in _COLS}
-    corr: Dict[str, float] = {}
+    ks: dict[str, float] = {c: round(float(KSComplement.compute(real[c], synth[c])), 4) for c in _COLS}
+    corr: dict[str, float] = {}
     for a, b in _PAIRS:
         try:
             corr[f"{a}~{b}"] = round(float(CorrelationSimilarity.compute(real[[a, b]], synth[[a, b]])), 4)

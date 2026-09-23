@@ -1,4 +1,4 @@
-"""Quality reporting (Synthesis Layer).
+"""Structural quality reporting (Validation).
 
 IMPORTANT — this is the deliberate framework/algorithm boundary.
 
@@ -13,21 +13,22 @@ docs/ALGORITHM_AND_DATA_CHECKLIST.md.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List
+
+from sdf.synthesis.warehouse import SyntheticWarehouse
 
 
 @dataclass
 class QualityReport:
     mode: str
-    checks: Dict[str, bool] = field(default_factory=dict)
-    metrics: Dict[str, float] = field(default_factory=dict)
-    notes: List[str] = field(default_factory=list)
+    checks: dict[str, bool] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
+    notes: list[str] = field(default_factory=list)
 
     @property
     def passed(self) -> bool:
         return all(self.checks.values())
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "mode": self.mode,
             "passed": self.passed,
@@ -37,7 +38,7 @@ class QualityReport:
         }
 
 
-def structural_quality_check(warehouse) -> QualityReport:
+def structural_quality_check(warehouse: SyntheticWarehouse) -> QualityReport:
     """Referential-integrity + sanity checks only (framework mode)."""
 
     sku_ids = {s.sku_id for s in warehouse.skus}

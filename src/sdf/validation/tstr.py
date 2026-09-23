@@ -18,10 +18,11 @@ DeepAR/TFT; this harness scores them unchanged.
 
 from __future__ import annotations
 
-from typing import Dict
+from collections.abc import Iterable
 
 from sdf.analytics.forecast import build_series
 from sdf.analytics.models import fit_weights, predict_at
+from sdf.foundation.schema import OutboundOrder
 from sdf.synthesis.fit import FittedSeasonalDemand
 
 
@@ -34,7 +35,7 @@ def _mae(weights, series, period, start) -> float:
     return err / cnt if cnt else 0.0
 
 
-def tstr_report(orders, test_frac: float = 0.3) -> Dict:
+def tstr_report(orders: Iterable[OutboundOrder], test_frac: float = 0.3) -> dict:
     """Run TSTR on a real order stream (auto daily/hourly granularity)."""
     series, freq, period = build_series(orders)
     n = len(series)

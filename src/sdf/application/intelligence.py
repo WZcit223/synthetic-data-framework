@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Dict, List
 
 from sdf.analytics.anomaly import seasonal_residual_anomalies
 from sdf.analytics.demand import DemandTable
@@ -59,7 +58,7 @@ class WarehouseIntelligence:
 
     # -- capability 2: decision support / replenishment --------------------
 
-    def replenishment_suggestions(self, top_n: int = 10) -> List[Dict]:
+    def replenishment_suggestions(self, top_n: int = 10) -> list[dict]:
         """Rule-based reorder-point flags.
 
         ALGORITHM-HOOK: replace the fixed safety-stock rule with a fitted
@@ -70,7 +69,7 @@ class WarehouseIntelligence:
         inv = self.reg.stream("InventorySnapshot")
         demand = self._daily_demand()
 
-        suggestions: List[Dict] = []
+        suggestions: list[dict] = []
         for snap in inv:
             d = demand.get(snap.sku_id, 0.0)
             lead = 7  # placeholder average lead time
@@ -97,7 +96,7 @@ class WarehouseIntelligence:
 
     # -- capability 3: insight / anomaly & ABC -----------------------------
 
-    def anomalies(self) -> List[Dict]:
+    def anomalies(self) -> list[dict]:
         """Flag stockouts and dead stock.
 
         ALGORITHM-HOOK: replace threshold rules with an anomaly-detection model
@@ -105,7 +104,7 @@ class WarehouseIntelligence:
         """
         inv = self.reg.stream("InventorySnapshot")
         demand = self._daily_demand()
-        out: List[Dict] = []
+        out: list[dict] = []
         for snap in inv:
             if snap.available == 0:
                 out.append({"type": "stockout", "sku_id": snap.sku_id, "location_id": snap.location_id})
@@ -113,15 +112,15 @@ class WarehouseIntelligence:
                 out.append({"type": "dead_stock", "sku_id": snap.sku_id, "on_hand": snap.on_hand})
         return out
 
-    def abc_distribution(self) -> Dict[str, int]:
-        dist: Dict[str, int] = defaultdict(int)
+    def abc_distribution(self) -> dict[str, int]:
+        dist: dict[str, int] = defaultdict(int)
         for s in self.reg.stream("SKU"):
             dist[s.abc_class] += 1
         return dict(sorted(dist.items()))
 
     # -- deep dive: replenishment closed loop ------------------------------
 
-    def demand_series(self, sku_id: str, forecast_days: int = 14) -> Dict:
+    def demand_series(self, sku_id: str, forecast_days: int = 14) -> dict:
         """Daily demand history for one SKU + a naive trailing-average forecast.
 
         ALGORITHM-HOOK: the forecast here is a trailing mean. Replace with a
@@ -141,7 +140,7 @@ class WarehouseIntelligence:
             "forecast_total": round(forecast_avg * forecast_days, 1),
         }
 
-    def replenishment_simulation(self) -> Dict:
+    def replenishment_simulation(self) -> dict:
         """Compare service level before vs. after applying the suggestions.
 
         This is the 'closed loop' story: forecast -> reorder point -> suggested
@@ -164,7 +163,7 @@ class WarehouseIntelligence:
             "service_level_after": round(1 - stockouts_after / total, 4),
         }
 
-    def top_movers(self, n: int = 8) -> List[Dict]:
+    def top_movers(self, n: int = 8) -> list[dict]:
         """Highest-demand SKUs — entry points for the deep-dive view."""
         demand = self._daily_demand()
         skus = {s.sku_id: s for s in self.reg.stream("SKU")}
@@ -187,14 +186,14 @@ class WarehouseIntelligence:
         key = min(self._Z, key=lambda k: abs(k - service_level))
         return self._Z[key]
 
-    def sku_daily_stats(self) -> Dict:
+    def sku_daily_stats(self) -> dict:
         """Per-SKU mean and std of daily demand (for safety-stock sizing)."""
         table = self.demand_table()
         return {sku: (table.mean(sku), table.std(sku)) for sku in table.series}
 
     def replenishment_ss_policy(
         self, lead_time_days: int = 7, review_days: int = 7, service_level: float = 0.95, top_n: int = 12
-    ) -> Dict:
+    ) -> dict:
         """Classic (s, S) policy sized from demand variability + a service level.
 
         s (reorder point) = μ·(L+R) + z·σ·√(L+R);  S (order-up-to) = s.
@@ -210,7 +209,7 @@ class WarehouseIntelligence:
             avail[snap.sku_id] = avail.get(snap.sku_id, 0) + snap.available
 
         protect = lead_time_days + review_days
-        rows: List[Dict] = []
+        rows: list[dict] = []
         total_ss_units = 0.0
         for sku, (mu, sigma) in stats.items():
             if mu <= 0:
@@ -247,17 +246,17 @@ class WarehouseIntelligence:
 
     # -- capability 5: vision stocktake (multimodal) -----------------------
 
-    def _latest_vision(self) -> Dict:
+    def _latest_vision(self) -> dict:
         """Latest vision_occupancy reading per location."""
         readings = self.reg.stream("SensorReading", where=lambda r: r.modality == "vision_occupancy")
-        latest: Dict = {}
+        latest: dict = {}
         for r in readings:
             cur = latest.get(r.location_id)
             if cur is None or r.ts >= cur.ts:
                 latest[r.location_id] = r
         return latest
 
-    def shelf_occupancy_grid(self) -> List[Dict]:
+    def shelf_occupancy_grid(self) -> list[dict]:
         """Zone → aisle → cells, each cell an occupancy ratio for a heatmap.
 
         DATA-HOOK: occupancy is a synthetic CV estimate. Replace with real
@@ -265,7 +264,7 @@ class WarehouseIntelligence:
         """
         locs = {l.location_id: l for l in self.reg.stream("Location")}
         latest = self._latest_vision()
-        zones: Dict = defaultdict(lambda: defaultdict(list))
+        zones: dict = defaultdict(lambda: defaultdict(list))
         for loc_id, r in latest.items():
             loc = locs.get(loc_id)
             if not loc:
@@ -279,7 +278,7 @@ class WarehouseIntelligence:
                     "capacity": r.meta.get("capacity"),
                 }
             )
-        out: List[Dict] = []
+        out: list[dict] = []
         for zone in sorted(zones):
             aisles = [
                 {"aisle": a, "cells": sorted(zones[zone][a], key=lambda c: c["location_id"])}
@@ -288,7 +287,7 @@ class WarehouseIntelligence:
             out.append({"zone": zone, "aisles": aisles})
         return out
 
-    def stocktake_discrepancies(self, rel_threshold: float = 0.25, min_abs: int = 15) -> Dict:
+    def stocktake_discrepancies(self, rel_threshold: float = 0.25, min_abs: int = 15) -> dict:
         """Compare vision-estimated units vs book-of-record; flag mismatches.
 
         This is the 'AI stocktake' story: the camera mostly confirms the books,
@@ -297,7 +296,7 @@ class WarehouseIntelligence:
         counting/detection model, not occupancy × capacity.
         """
         latest = self._latest_vision()
-        flagged: List[Dict] = []
+        flagged: list[dict] = []
         matched = 0
         for loc_id, r in latest.items():
             book = r.meta.get("book_units", 0)
@@ -331,7 +330,7 @@ class WarehouseIntelligence:
 
     # -- capability 3: statistical demand anomalies ------------------------
 
-    def demand_anomalies(self, k: float = 3.5) -> Dict:
+    def demand_anomalies(self, k: float = 3.5) -> dict:
         """Seasonal-residual + robust-z anomalies on the demand series (C3)."""
 
         orders = self.reg.stream("OutboundOrder")
@@ -347,7 +346,7 @@ class WarehouseIntelligence:
 
     # -- capability 4: knowledge organisation ------------------------------
 
-    def insights(self) -> List[str]:
+    def insights(self) -> list[str]:
         """Natural-language-ish findings.
 
         ALGORITHM-HOOK: replace this with an LLM + knowledge-graph layer
@@ -372,7 +371,7 @@ class WarehouseIntelligence:
         """Per-SKU daily demand of non-cancelled orders (the shared aggregation)."""
         return DemandTable.from_orders(self.reg.stream("OutboundOrder"))
 
-    def _daily_demand(self) -> Dict[str, float]:
+    def _daily_demand(self) -> dict[str, float]:
         """Total demand per SKU divided by the number of days that had any order."""
         table = self.demand_table()
         horizon = max(1, table.active_days)

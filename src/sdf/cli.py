@@ -8,7 +8,6 @@ from __future__ import annotations
 import csv
 import json
 import os
-from typing import List
 
 import click
 
@@ -65,7 +64,7 @@ def cmd_demo() -> int:
     return 0
 
 
-def _write_csv(path: str, rows: List) -> None:
+def _write_csv(path: str, rows: list) -> None:
     if not rows:
         return
     keys = list(rows[0].to_dict().keys())

@@ -13,15 +13,16 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from typing import Callable, Dict, List, Optional
+from collections.abc import Callable, Iterable
 
+from sdf.foundation.schema import OutboundOrder
 from .demand import DemandTable
 from .models import seasonal_linear  # Phase 3
 
 # -- build a daily series from canonical OutboundOrders ---------------------
 
 
-def daily_demand_series(orders, sku_id: Optional[str] = None) -> List[float]:
+def daily_demand_series(orders: Iterable[OutboundOrder], sku_id: str | None = None) -> list[float]:
     """Aggregate shipped orders into a dense daily quantity series.
 
     With ``sku_id`` the axis spans that SKU's own first-to-last order day.
@@ -31,7 +32,7 @@ def daily_demand_series(orders, sku_id: Optional[str] = None) -> List[float]:
     return list(DemandTable.from_orders(orders).total())
 
 
-def hourly_business_series(orders, lo: int = 8, hi: int = 19):
+def hourly_business_series(orders: Iterable[OutboundOrder], lo: int = 8, hi: int = 19):
     """Dense per-business-hour demand series. Returns (values, periods_per_day).
 
     Used when the data spans too few days for a daily model (e.g. a short
@@ -39,7 +40,7 @@ def hourly_business_series(orders, lo: int = 8, hi: int = 19):
     """
     from datetime import datetime
 
-    by: Dict = defaultdict(float)
+    by: dict = defaultdict(float)
     for o in orders:
         if o.status == "cancelled":
             continue
@@ -51,7 +52,7 @@ def hourly_business_series(orders, lo: int = 8, hi: int = 19):
     return values, (hi - lo)
 
 
-def build_series(orders, prefer_daily_min_days: int = 14):
+def build_series(orders: Iterable[OutboundOrder], prefer_daily_min_days: int = 14):
     """Pick the finest granularity the data can support.
 
     Returns (values, granularity_label, seasonal_period).
@@ -63,7 +64,7 @@ def build_series(orders, prefer_daily_min_days: int = 14):
     return values, "hourly", max(1, ppd)
 
 
-def models_for(period: int, include_model: bool = True) -> Dict:
+def models_for(period: int, include_model: bool = True) -> dict:
     """Baselines matched to the granularity, plus the Phase 3 seasonal model."""
     models = {
         "mean": m_mean,
@@ -79,16 +80,16 @@ def models_for(period: int, include_model: bool = True) -> Dict:
 # -- one-step forecast models: history -> next-value prediction -------------
 
 
-def m_mean(h: List[float]) -> float:
+def m_mean(h: list[float]) -> float:
     return sum(h) / len(h) if h else 0.0
 
 
-def m_naive(h: List[float]) -> float:
+def m_naive(h: list[float]) -> float:
     return h[-1] if h else 0.0
 
 
-def moving_average(k: int = 7) -> Callable[[List[float]], float]:
-    def f(h: List[float]) -> float:
+def moving_average(k: int = 7) -> Callable[[list[float]], float]:
+    def f(h: list[float]) -> float:
         w = h[-k:] if h else []
         return sum(w) / len(w) if w else 0.0
 
@@ -96,8 +97,8 @@ def moving_average(k: int = 7) -> Callable[[List[float]], float]:
     return f
 
 
-def seasonal_naive(period: int = 7) -> Callable[[List[float]], float]:
-    def f(h: List[float]) -> float:
+def seasonal_naive(period: int = 7) -> Callable[[list[float]], float]:
+    def f(h: list[float]) -> float:
         return h[-period] if len(h) >= period else (h[-1] if h else 0.0)
 
     f.__name__ = f"snaive{period}"
@@ -115,7 +116,7 @@ DEFAULT_MODELS = {
 # -- walk-forward backtest ---------------------------------------------------
 
 
-def backtest(values: List[float], model: Callable[[List[float]], float], test_len: int = 21) -> Dict[str, float]:
+def backtest(values: list[float], model: Callable[[list[float]], float], test_len: int = 21) -> dict[str, float]:
     """One-step-ahead walk-forward evaluation over the last ``test_len`` days."""
     n = len(values)
     test_len = min(test_len, max(1, n // 3))
@@ -141,7 +142,7 @@ def backtest(values: List[float], model: Callable[[List[float]], float], test_le
     }
 
 
-def compare_models(values: List[float], test_len: int = 21, models: Optional[Dict[str, Callable]] = None) -> Dict:
+def compare_models(values: list[float], test_len: int = 21, models: dict[str, Callable] | None = None) -> dict:
     """Backtest every model; return per-model metrics and the MAE winner."""
     models = models or DEFAULT_MODELS
     results = [backtest(values, fn, test_len) for fn in models.values()]

@@ -8,14 +8,12 @@ same way it would read a real feed.
 
 from __future__ import annotations
 
-from typing import Tuple
-
 from sdf.foundation.registry import DataSourceRegistry
 from .spec import GenerationSpec
 from .warehouse import SyntheticWarehouse, WarehouseGenerator
 
 
-def build_registry(spec: GenerationSpec) -> Tuple[SyntheticWarehouse, DataSourceRegistry]:
+def build_registry(spec: GenerationSpec) -> tuple[SyntheticWarehouse, DataSourceRegistry]:
     """Generate the world described by ``spec`` and register all six entity streams."""
     wh = WarehouseGenerator(spec).generate()
     reg = DataSourceRegistry()

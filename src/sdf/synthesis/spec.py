@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict
 
 
 @dataclass
@@ -36,9 +35,23 @@ class GenerationSpec:
 
     # Provenance / requirements (documentation carried with the data).
     reference_dataset: str = "synthetic-only (framework mode)"
-    requirements: Dict[str, str] = field(
+    requirements: dict[str, str] = field(
         default_factory=lambda: {
             "realism": "structurally valid; distributions are plausible, not fitted",
             "validation": "framework mode = no statistical validation (see roadmap)",
         }
     )
+
+    def __post_init__(self) -> None:
+        for name in ("n_skus", "n_locations", "horizon_days"):
+            if getattr(self, name) < 1:
+                raise ValueError(f"{name} must be >= 1, got {getattr(self, name)!r}")
+        if len(self.abc_split) != 3 or any(p < 0 for p in self.abc_split):
+            raise ValueError(f"abc_split must have three non-negative entries, got {self.abc_split!r}")
+        if abs(sum(self.abc_split) - 1.0) > 1e-9:
+            raise ValueError(f"abc_split must sum to 1, got {self.abc_split!r}")
+        if self.daily_orders_per_a_sku <= 0:
+            raise ValueError(f"daily_orders_per_a_sku must be > 0, got {self.daily_orders_per_a_sku!r}")
+        for name in ("express_ratio", "stockout_pressure"):
+            if not 0.0 <= getattr(self, name) <= 1.0:
+                raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)!r}")

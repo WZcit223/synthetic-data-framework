@@ -14,7 +14,6 @@ with a discrete-event simulator or an agent-based model of the facility.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Dict
 
 from .spec import GenerationSpec
 
@@ -27,7 +26,7 @@ SCENARIOS = {
 }
 
 
-def apply_scenario(spec: GenerationSpec, tweaks: Dict) -> GenerationSpec:
+def apply_scenario(spec: GenerationSpec, tweaks: dict) -> GenerationSpec:
     """Return a copy of ``spec`` with one scenario's tweaks applied (pure)."""
     kw = {}
     if "daily_orders_per_a_sku_mult" in tweaks:

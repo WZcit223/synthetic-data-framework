@@ -1,5 +1,10 @@
 # PR 4 — Contracts: config validation, typed public functions, built-in generics
 
+> Status: implemented (layout sequence PR 4). Acceptance commands below pass;
+> golden numbers and `sdf demo` output unchanged. `CostModel` additionally
+> rejects a negative `order_fixed_cost`, and the built-in generics conversion
+> also moved `Callable`, `Iterable` and `Sequence` to `collections.abc`.
+
 ## Goal
 
 Bring the code under `implementation-and-tests.instructions.md`: configuration
