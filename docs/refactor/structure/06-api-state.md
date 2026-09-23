@@ -12,13 +12,14 @@ same.
 
 - New `api/state.py`: `GenerateLimits` (defaults `max_skus=500`,
   `max_horizon_days=180`), `Snapshot` (frozen: `World`, `WarehouseIntelligence`,
-  `generated_ms`), `WorldStore` (`current`, `regenerate` builds a new snapshot
-  and swaps it in one assignment, with a lock so only one generation runs).
+  `generated_ms`), `WorldStore` (`current`; `regenerate` acquires a lock without
+  blocking, raises `GenerationBusy` if another generation holds it, otherwise
+  builds a new snapshot and swaps it in one assignment).
 - `api/app.py`: `create_app(*, limits=GenerateLimits(), ui_dir=None)`;
   module-level `app = create_app()`; every endpoint reads `store.current` once.
   `/scenarios` and `/workflow/run` use the current snapshot's world instead of
-  regenerating their own. `/generate` answers 409 while busy, 422 above the
-  limits, and returns `generated_ms`.
+  regenerating their own. `/generate` maps `GenerationBusy` to 409, rejects
+  parameters above the limits with 422, and returns `generated_ms`.
 - Dashboard: the generation call sends `horizon_days`, and the sliders' ranges
   match the limits.
 - `httpx` added to the `dev` dependency group only; new `api/app_test.py`

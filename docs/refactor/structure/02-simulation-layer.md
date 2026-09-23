@@ -50,7 +50,9 @@ policies and outcomes. Numbers do not change.
 uv run ruff check && uv run ruff format --check
 uv run pytest                                          # golden_test unchanged; contract examples run as tests
 uv run sdf validate --update-doc docs/VALIDATION.md && git diff --exit-code docs/VALIDATION.md
-uv run sdf demo | diff <capture-from-main> -           # byte-identical
+git worktree add /tmp/sdf-main origin/main && (cd /tmp/sdf-main && uv run sdf demo) > /tmp/demo-main.out
+uv run sdf demo | diff /tmp/demo-main.out -            # byte-identical to main
+git worktree remove /tmp/sdf-main
 ```
 
 ## Version

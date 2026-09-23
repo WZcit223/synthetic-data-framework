@@ -174,7 +174,8 @@ rows = exp.run()                         # list[OutcomeRow], tidy
 rows[0]                                  # OutcomeRow(intervention='baseline', policy='naive',
                                          #            metric='skus_needing_order', value=…)
 {r.metric for r in rows}                 # {'skus_needing_order', 'safety_stock_units', 'intermittent_needing_order',
-                                         #  'active_stockouts', 'unmet_units', 'holding_cost', 'order_cost', 'lost_margin'}
+                                         #  'active_stockouts', 'unmet_units', 'fill_rate', 'holding_cost',
+                                         #  'order_cost', 'lost_margin'}
 ```
 
 ```python
@@ -188,6 +189,10 @@ class Outcome(Protocol):
 
     def measure(self, world: World, policy: "Policy") -> dict[str, float]: ...
 ```
+
+`SimulatedCost` replays each SKU's demand history under the policy with
+`simulate_inventory` and reports `unmet_units`, `fill_rate` (1 − unmet units /
+total demand), `holding_cost`, `order_cost` and `lost_margin`.
 
 `CostModel` moves from `application/economics.py` to `sdf.simulation.outcome`
 in PR 2, because the simulation layer cannot import the application layer.
@@ -312,7 +317,7 @@ class ShuffleSeries:
         rng = random.Random(seed) if seed is not None else self._rng
         values = self._values[:]
         rng.shuffle(values)
-        return values[: n or len(values)]
+        return values if n is None else values[:n]   # n=0 returns an empty sample
 
 
 reg = default_registry()
@@ -425,8 +430,10 @@ store.regenerate(GenerationSpec(n_skus=80))   # builds a new Snapshot, then repl
 
 `app = create_app()` remains the module-level ASGI object, so
 `uv run uvicorn sdf.api.app:app` keeps working. Requests read `store.current`
-once and use only that snapshot. `/generate` answers 409 while a generation is
-running and 422 when a parameter exceeds `GenerateLimits`. Endpoint paths are
+once and use only that snapshot. `regenerate` takes the store's lock without
+waiting (`lock.acquire(blocking=False)`) and raises `GenerationBusy` when another
+generation holds it. `/generate` maps that to HTTP 409, and answers 422 when a
+parameter exceeds `GenerateLimits`. Endpoint paths are
 unchanged in PR 6.
 
 ### 4.3 Target (after PR 7): versioned JSON API and a separate UI

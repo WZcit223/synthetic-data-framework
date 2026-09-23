@@ -22,8 +22,9 @@ numbers for one question (project lead's decision, 2026-09-23).
   - the `sdf demo` "top replenishment suggestions" lines.
 - New endpoint `GET /application/replenishment/comparison?service_level=0.95`:
   an `Experiment` with `NaivePolicy` versus `ServiceLevelPolicy` and
-  `SimulatedCost` + `ReplenishmentNeed`. It returns the unmet units, fill rate,
-  holding cost and SKUs needing an order for each policy.
+  `SimulatedCost` + `ReplenishmentNeed`. It returns, for each policy, the contract's
+  `SimulatedCost` metrics (`unmet_units`, `fill_rate`, `holding_cost`,
+  `order_cost`, `lost_margin`) and `ReplenishmentNeed` metrics.
 - Remove `GET /application/replenishment` and
   `GET /application/replenishment/simulate`. The dashboard's "replenishment
   loop" panel is rebuilt on the comparison endpoint and shows the policy name.
