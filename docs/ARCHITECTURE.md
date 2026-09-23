@@ -90,6 +90,22 @@ metric. The (s,S) plan, the economics counterfactual and the scenario runner
 all run through it. The contract is in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §1.
 
+### API and UI
+`src/sdf/api` is a JSON-only, versioned API (`/api/v1`). Its OpenAPI schema
+(`/api/v1/openapi.json`) is the contract with any UI; response models declare
+every field a client may rely on. `create_app()` holds the current world as an
+immutable snapshot that `POST /api/v1/world` swaps in one step, and
+`POST /api/v1/experiments` exposes the simulation layer by name.
+
+The UI lives outside the Python package, in `ui/` (plain HTML/JS, no build
+step). It only carries user intent to the backend and presents results. It may
+reshape data it received (sort, filter, group, pivot, chart) but computes no
+business number and writes nothing back except intent (generation parameters,
+questions, experiment choices). It reaches the backend through one `api()`
+helper whose base URL is configurable, so it can be served by `create_app(ui_dir=…)`
+during development or hosted anywhere else. The contract is in
+[`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §4.
+
 ## 3. Why warehouse management is the first validation scenario
 - Real internal business demand exists (fast feedback, real stakeholders).
 - It exercises all four core capabilities, so it is representative of the wider

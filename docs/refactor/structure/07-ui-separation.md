@@ -1,5 +1,15 @@
 # PR 7 — Separate UI and a versioned JSON API
 
+> Status: implemented (structure sequence PR 7, version 1.0.0). No recorded
+> number moved: golden tests, `VALIDATION.md` and `sdf demo` are unchanged.
+> Additions beyond the scope below: `GET /api/v1/world/limits` (the PR 6 limits
+> endpoint, renamed), `sdf.simulation.catalog` (built-in names for the
+> experiment endpoint, usable by any caller that only has strings), CORS and
+> `ui_dir` as `create_app` arguments beside the environment variables, and two
+> stale `AGENTS.md` invariants refreshed (layer order with `simulation`; the
+> approval gate, enforced since PR 5). `GET /application/kpis` has no v1 twin;
+> the KPIs are part of `/api/v1/overview`.
+
 Interface contract: [`interfaces.md` §4.3](interfaces.md#43-target-after-pr-7-versioned-json-api-and-a-separate-ui).
 
 ## Goal

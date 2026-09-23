@@ -501,13 +501,23 @@ The backend serves JSON only, under `/api/v1`. Its OpenAPI schema
 | `GET /api/v1/health` | `GET /health` |
 | `GET /api/v1/world` | `GET /foundation/summary` |
 | `POST /api/v1/world` (JSON body: `n_skus`, `horizon_days`, `daily_orders_per_a_sku`, `stockout_pressure`, `seed`) | `POST /generate?…` |
-| `GET /api/v1/overview` | `GET /application/overview` |
+| `GET /api/v1/world/limits` | `GET /generate/limits` (added in PR 6) |
+| `GET /api/v1/overview` | `GET /application/overview` (also replaces `GET /application/kpis`) |
 | `GET /api/v1/replenishment?service_level=&top_n=` | `GET /application/replenishment/ss` |
 | `GET /api/v1/replenishment/comparison` | `GET /application/replenishment/comparison` (added in PR 3) |
 | `GET /api/v1/top-movers`, `/demand-series`, `/demand-anomalies`, `/shelf-occupancy`, `/stocktake` | the `/application/...` equivalents |
 | `GET /api/v1/quality`, `/backtest`, `/economics`, `/scenarios`, `/workflow/run` | `/synthesis/quality`, `/validation/backtest`, `/economics/impact`, `/scenarios`, `/workflow/run` |
 | `GET /api/v1/ask?q=`, `/agent/ask?q=`, `/agent/tools`, `/export?entity=` | same names without the prefix |
 | `POST /api/v1/experiments` | new: runs an `Experiment` (§1.5) from built-in names and returns `{"rows": [OutcomeRow...]}` |
+
+The experiment names come from `sdf.simulation.catalog`: interventions
+`baseline` plus every scenario in `sdf.synthesis.scenarios.SCENARIOS`; policies
+`{"kind": "naive"}` or `{"kind": "service-level", "service_level": …}` (both
+accept `lead_time_days` and `review_days`); outcomes `replenishment_need`,
+`active_stockouts`, `simulated_cost`. Unknown or repeated names answer 422, and
+each list holds at most six entries. Every response model declares the fields a
+client may rely on and passes further fields through, so adding a field is not a
+breaking change.
 
 ```bash
 curl -s -X POST localhost:8000/api/v1/experiments -H 'content-type: application/json' -d '{
@@ -533,7 +543,7 @@ async function api(path, options) {
 const overview = await api("/overview");
 ```
 
-Development hosting: `create_app(ui_dir=Path("ui"))` also mounts the static UI
+Development hosting: `create_app(ui_dir=Path("ui"), cors_origins=None)` also mounts the static UI
 at `/`. Setting `SDF_UI_DIR=ui` does the same for `uv run uvicorn sdf.api.app:app`.
 The UI can also be hosted anywhere else; allowed origins come from
 `SDF_CORS_ORIGINS`.
