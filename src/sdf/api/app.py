@@ -57,8 +57,9 @@ def create_app(*, limits: GenerateLimits = GenerateLimits()) -> FastAPI:
 
     @app.post("/generate")
     def generate(
-        n_skus: int = Query(200, ge=MIN_SKUS, le=limits.max_skus),
-        horizon_days: int = Query(90, ge=MIN_HORIZON_DAYS, le=limits.max_horizon_days),
+        # defaults stay inside whatever limits this app was built with
+        n_skus: int = Query(min(200, limits.max_skus), ge=MIN_SKUS, le=limits.max_skus),
+        horizon_days: int = Query(min(90, limits.max_horizon_days), ge=MIN_HORIZON_DAYS, le=limits.max_horizon_days),
         daily_orders_per_a_sku: float = Query(6.0, ge=0.5, le=20.0),
         stockout_pressure: float = Query(0.08, ge=0.0, le=0.5),
         seed: int = 42,

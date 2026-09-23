@@ -559,7 +559,8 @@ async function loadLimits(){
   const l = await (await fetch("/generate/limits")).json();
   for (const [id, key] of [["skus","n_skus"],["days","horizon_days"]]) {
     const el = $("#"+id);
-    el.max = l[key].max;  // the browser clamps a value above the new max
+    el.min = l[key].min;
+    el.max = l[key].max;  // the browser clamps a value outside the new range
     el.dispatchEvent(new Event("input"));  // keep the label in step with the (possibly clamped) value
   }
 }

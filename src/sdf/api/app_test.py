@@ -204,6 +204,12 @@ def test_limits_are_configurable():
     assert get(client, "/generate/limits")["n_skus"]["max"] == 50
 
 
+def test_defaults_stay_inside_the_smallest_limits():
+    client = TestClient(create_app(limits=GenerateLimits(max_skus=10, max_horizon_days=14)))
+    res = client.post("/generate")
+    assert res.status_code == 200 and (res.json()["spec"]["n_skus"], res.json()["spec"]["horizon_days"]) == (10, 14)
+
+
 @pytest.mark.parametrize(
     ("kwargs", "message"), [({"max_skus": 5}, "max_skus"), ({"max_horizon_days": 7}, "max_horizon_days")]
 )
