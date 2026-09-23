@@ -382,6 +382,14 @@ def test_experiment_endpoint_rejects_unknown_or_duplicate_names(client, body, me
     assert res.status_code == 422 and message in res.json()["detail"]
 
 
+def test_experiment_response_passes_extra_fields_through():
+    from .schemas import ExperimentResult
+
+    row = {"intervention": "baseline", "policy": "naive", "metric": "m", "value": 1.0, "unit": "units"}
+    dumped = ExperimentResult.model_validate({"rows": [row], "world": "w"}).model_dump()
+    assert dumped == {"rows": [row], "world": "w"}
+
+
 def test_experiment_endpoint_validates_the_body(client):
     assert (
         client.post(V1 + "/experiments", json={"policies": [{"kind": "magic"}], "outcomes": ["x"]}).status_code == 422

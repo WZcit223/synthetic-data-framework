@@ -279,8 +279,9 @@ async function refreshAll(){
 }
 
 async function loadLimits(){
-  // Size the generation sliders to what this backend accepts.
-  const l = await api("/world/limits");
+  // Size the generation sliders to what this backend accepts; keep the page defaults if it cannot say.
+  let l;
+  try { l = await api("/world/limits"); } catch (err) { console.warn("world limits unavailable:", err.message); return; }
   for (const [id, key] of [["skus","n_skus"],["days","horizon_days"]]) {
     const el = $("#"+id);
     el.min = l[key].min;
@@ -302,11 +303,16 @@ async function regen(){
     $("#status").textContent="✗ "+why;
     return;
   }
-  await refreshAll();
+  try {
+    await refreshAll();
+  } catch (err) {
+    $("#status").textContent=`✓ generated (${g.generated_ms} ms), but a panel failed to refresh: ${err.message}`;
+    return;
+  }
   $("#status").textContent=`✓ updated (${g.generated_ms} ms)`;
   setTimeout(()=>$("#status").textContent="",1500);
 }
 
 for (const a of document.querySelectorAll("a[data-export]")) a.href = API + "/export?entity=" + a.dataset.export;
 loadLimits();
-refreshAll();
+refreshAll().catch(err => { $("#status").textContent = "✗ could not load: " + err.message; });

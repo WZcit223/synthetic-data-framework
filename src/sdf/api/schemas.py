@@ -325,12 +325,12 @@ class ExperimentRequest(BaseModel):
     outcomes: list[str] = Field(min_length=1, max_length=6)
 
 
-class OutcomeRowModel(BaseModel):
+class OutcomeRowModel(Model):
     intervention: str
     policy: str
     metric: str
     value: float
 
 
-class ExperimentResult(BaseModel):
+class ExperimentResult(Model):
     rows: list[OutcomeRowModel]
