@@ -31,8 +31,9 @@ def _parse_dt(s: str, date_format: str | None = None) -> datetime:
     day-first, which is right for the UCI export; a day-first source must pass
     its format explicitly or ``03/04/2011`` is read as 4 March.
     """
+    s = (s or "").strip()  # a truncated CSV row yields None
     if date_format is not None:
-        return datetime.strptime(s.strip(), date_format)
+        return datetime.strptime(s, date_format)
     for fmt in (
         "%Y-%m-%d %H:%M:%S",
         "%Y-%m-%d %H:%M",
@@ -45,7 +46,7 @@ def _parse_dt(s: str, date_format: str | None = None) -> datetime:
         "%Y-%m-%d",
     ):
         try:
-            return datetime.strptime(s.strip(), fmt)
+            return datetime.strptime(s, fmt)
         except ValueError:
             continue
     raise ValueError(f"unrecognised InvoiceDate format: {s!r}")
@@ -104,9 +105,9 @@ def load_online_retail_csv(
                 report.skip("missing StockCode")
                 continue
             try:
-                qty = int(float(row.get("Quantity", "0")))
+                qty = int(float(row.get("Quantity")))  # None (truncated row) -> TypeError
                 price = float(row.get("Price", row.get("UnitPrice", "0")) or 0)
-            except ValueError:
+            except (TypeError, ValueError):
                 report.skip("non-numeric Quantity or Price")
                 continue
             if qty == 0:

@@ -56,3 +56,10 @@ def test_register_returns_the_load_report(sample_csv):
     report = register_online_retail(reg, sample_csv)
     assert (report.skus, report.orders) == (12, 3428)
     assert len(reg.stream("OutboundOrder")) == report.orders
+
+
+def test_truncated_rows_are_counted_not_fatal(tmp_path):
+    path = _write(tmp_path, "1,A1,ok,2,2010-01-04 10:00:00,1.5,1,UK\n2,A2,short\n3,A3,short,4\n")
+    _, orders, report = load_online_retail_csv(path)
+    assert len(orders) == 1
+    assert report.skipped == {"non-numeric Quantity or Price": 1, "unparseable InvoiceDate": 1}

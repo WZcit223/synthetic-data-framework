@@ -99,7 +99,7 @@ def read_retail_feature_table(path: str, limit: int = 3000, *, date_format: str 
                 if q <= 0 or p <= 0:
                     continue
                 dt = _parse_dt(r.get("InvoiceDate", ""), date_format)
-            except (ValueError, KeyError):
+            except (TypeError, ValueError, KeyError):
                 continue
             rows.append((q, p, float(dt.hour), float(dt.weekday())))
             if len(rows) >= limit:

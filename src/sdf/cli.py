@@ -102,10 +102,20 @@ def _print_load(load) -> None:
         print(f"  load          : {load.summary()}")
 
 
+def _no_usable_rows(path: str, load) -> bool:
+    """Report a CSV that yielded no usable order; the caller then exits 1."""
+    if load.rows_kept:
+        return False
+    print(f"  {path}: no usable rows ({load.summary()}); check the file and --date-format\n")
+    return True
+
+
 def cmd_backtest(path: str, date_format: str | None = None) -> int:
     """Phase 2: forecast backtest on a real/open dataset (Online Retail II)."""
 
     skus, orders, load = load_online_retail_csv(path, date_format=date_format)
+    if _no_usable_rows(path, load):
+        return 1
     series, freq, period = build_series(orders)
     report = compare_models(series, test_len=2 * period, models=models_for(period))
 
@@ -132,6 +142,8 @@ def cmd_synth(path: str, date_format: str | None = None) -> int:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
 
     _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
+    if _no_usable_rows(path, load):
+        return 1
     model = FittedHourlyDemand().fit(orders)
     synth = model.generate()
     rep = fidelity_report(model.real_series, synth, model.ppd)
@@ -155,6 +167,8 @@ def cmd_tstr(path: str, date_format: str | None = None) -> int:
     """Phase 3: TSTR — train on synthetic, test on real (checklist B2)."""
 
     _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
+    if _no_usable_rows(path, load):
+        return 1
     r = tstr_report(orders)
     print("=" * 60)
     print("  TSTR — train on synthetic, test on real (Phase 3, B2)")
@@ -280,6 +294,9 @@ def cmd_privacy(path: str, date_format: str | None = None) -> int:
     print("=" * 60)
     print("  Synthetic-data privacy (B3)")
     print("=" * 60)
+    if "error" in rep:
+        print(f"  {path}: {rep['error']} — no usable rows; check the file and --date-format\n")
+        return 1
     for k in ("n_real", "n_synth", "dcr_median", "dcr_p05", "nndr_median", "clone_risk_pct", "verdict"):
         print(f"  {k:<16}: {rep.get(k)}")
     print("  ALGORITHM-HOOK: full membership-inference + differential privacy.\n")
@@ -334,7 +351,8 @@ def export(outdir: str) -> None:
 @_date_format_option
 def backtest(csv_path: str, date_format: str | None) -> None:
     """Phase 2: walk-forward forecast backtest on real data."""
-    cmd_backtest(csv_path, date_format)
+    if cmd_backtest(csv_path, date_format):
+        raise click.exceptions.Exit(1)
 
 
 @main.command()
@@ -342,7 +360,8 @@ def backtest(csv_path: str, date_format: str | None) -> None:
 @_date_format_option
 def synth(csv_path: str, date_format: str | None) -> None:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
-    cmd_synth(csv_path, date_format)
+    if cmd_synth(csv_path, date_format):
+        raise click.exceptions.Exit(1)
 
 
 @main.command()
@@ -350,7 +369,8 @@ def synth(csv_path: str, date_format: str | None) -> None:
 @_date_format_option
 def tstr(csv_path: str, date_format: str | None) -> None:
     """Phase 3: train on synthetic, test on real."""
-    cmd_tstr(csv_path, date_format)
+    if cmd_tstr(csv_path, date_format):
+        raise click.exceptions.Exit(1)
 
 
 @main.command()
@@ -391,7 +411,8 @@ def scenarios() -> None:
 @_date_format_option
 def privacy(csv_path: str, date_format: str | None) -> None:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
-    cmd_privacy(csv_path, date_format)
+    if cmd_privacy(csv_path, date_format):
+        raise click.exceptions.Exit(1)
 
 
 @main.command()
