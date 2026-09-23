@@ -13,7 +13,8 @@ document can no longer drift from the code.
     registry counts, structural quality, KPIs, ABC mix, rule-based
     replenishment (count + top 3), replenishment simulation, (s,S) at 90/95/99 %,
     rule anomalies, demand anomalies (count + top), vision stocktake, the
-    backtest table, economics and the scenario table.
+    backtest table, economics, the scenario table, and the agent's
+    "reorder & impact" run (plan, step count, proposed actions).
   - `csv_snapshot(path: str) -> dict` — SKU/order counts, series shape, the
     backtest table, fitted fidelity, TSTR and privacy.
   - `snapshot(sample_csv: str, retail_csv: str) -> dict` combining the three.
@@ -27,7 +28,8 @@ document can no longer drift from the code.
   - `--update-doc PATH` rewrites the block between
     `<!-- sdf-validate:begin -->` and `<!-- sdf-validate:end -->` in `PATH`.
 - `golden_test.py` asserts on the snapshot dictionaries instead of calling
-  each function itself; the expected literals do not change.
+  each function itself, for every golden number including the agent run; the
+  expected literals do not change.
 - New `src/sdf/application/snapshot_test.py`:
   - the generated block in `docs/VALIDATION.md` equals
     `render_markdown(snapshot(...))`, so a changed number without a regenerated

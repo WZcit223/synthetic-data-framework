@@ -1,7 +1,8 @@
 # Correctness refactor — overview
 
-Status: accepted by the project lead on 2026-09-23 (with the two recommended
-decisions below). Second sequence after [`docs/refactor/layout/`](../layout/00-overview.md);
+Status: approved for execution on 2026-09-23 by the maintainer directing this
+refactor, together with the two recommended decisions below; the project
+lead's review is recorded on the plan PR. Second sequence after [`docs/refactor/layout/`](../layout/00-overview.md);
 it implements step 3 of [`docs/REFACTOR_PREP.md`](../../REFACTOR_PREP.md) §5 and
 the `sdf validate` part of step 7. The remaining steps (splitting
 `WarehouseIntelligence`, a replenishment-policy interface, the API state
@@ -96,5 +97,5 @@ PRs so the new guards are in place when formulas change.
 
 ## Version
 
-`Version: none` for the plan itself (documentation only). Each implementation
+`Version: none, documentation and plans only` for the plan itself. Each implementation
 PR records its own bump in its plan file.

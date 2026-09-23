@@ -21,11 +21,20 @@ No function pretends a problem did not happen.
     an unknown scenario; `apply_scenario` keeps its signature.
   - `QualityReport.passed` is `False` when no check ran.
 - **Skipped rows are counted.**
-  - `load_online_retail_csv` returns a `LoadReport` (rows read, rows kept,
-    skipped rows by reason) alongside SKUs and orders; `register_online_retail`
-    and the CLI print it.
-  - The date format is a keyword parameter (`date_format`, default the current
-    US order), so a day-first source can be read correctly by saying so.
+  - `load_online_retail_csv` returns `(skus, orders, report)` where `report`
+    is a `LoadReport` (rows read, rows kept, skipped rows by reason);
+    `register_online_retail` returns the `LoadReport` (which also carries the
+    SKU and order counts) instead of a `(n_skus, n_orders)` tuple.
+  - Every caller is updated in this PR: the `backtest`, `synth` and `tstr`
+    CLI commands (they print the skipped-row summary when it is not empty),
+    the workflow's real-CSV `ingest` step (its artifact includes the report,
+    so skip reasons reach the run record), the adapter package exports, and
+    the tests and golden paths that unpack the loader.
+  - The date format is a keyword parameter `date_format` (default: the current
+    month-first order) on `load_online_retail_csv` and
+    `register_online_retail`, passed through `warehouse_pipeline(...,
+    date_format=...)` and a `--date-format` option on the CSV commands, so a
+    day-first source can be read correctly on every real-CSV path.
 - **Pipeline keeps reasons.** The workflow report carries each step's
   `skipped` reason instead of reducing economics to a `None` saving.
 - **Repeated generation differs.** `FittedSeasonalDemand` creates its random

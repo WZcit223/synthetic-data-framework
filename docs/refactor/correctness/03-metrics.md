@@ -9,8 +9,10 @@ flagged results.
 ## Scope
 
 - New `src/sdf/analytics/metrics.py` with `mae`, `rmse`, `bias`, `mape`
-  (mean of `|error| / actual` over days with a positive actual; `nan` when
-  there is none) and `wape` (`Σ|error| / Σactual`; `nan` when the total is 0).
+  (mean of `|error| / actual` over days with a positive actual) and `wape`
+  (`Σ|error| / Σactual`). `mape` and `wape` return `float | None`: `None`
+  when there is no positive actual (respectively a zero total), so the value
+  serialises to JSON `null` in `sdf validate` and the API, never to `NaN`.
   `backtest` and `validation.tstr` use it; the local MAE helper in `tstr.py`
   goes away.
 - `backtest` reports `MAE`, `RMSE`, `MAPE_pct` (corrected), `WAPE_pct` (new)
@@ -19,9 +21,11 @@ flagged results.
   back to the mean absolute deviation; when that is also 0 the series is flat
   and the function returns no anomalies. `demand_anomalies` reports a `note`
   in that case.
-- `analytics/models.py`: solve the normal equations with
-  `numpy.linalg.lstsq` and return whether the design matrix was rank
-  deficient (`fit_weights` returns the weights; a new
+- `analytics/models.py`: build the existing design rows into a matrix `X`
+  and target `y` and call `numpy.linalg.lstsq(X, y, rcond=None)` directly,
+  instead of forming the normal equations `XᵀX` first (which squares the
+  condition number and hides the rank). The returned rank tells whether the
+  design was rank deficient (`fit_weights` returns the weights; a new
   `fit_weights_with_rank` exposes the flag, used by the model wrapper for its
   `note`). On full-rank data the weights match the current solver to floating
   precision.
