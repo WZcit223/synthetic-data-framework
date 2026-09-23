@@ -1,0 +1,27 @@
+#!/bin/sh
+# Format and lint staged Python files with ruff before each commit.
+# Enable once per clone: git config core.hooksPath .githooks
+set -eu
+
+staged=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR -- "*.py" "*.pyi")
+[ -n "$staged" ] || exit 0
+
+IFS="
+"
+set -- $staged
+unset IFS
+
+unstaged=$(git -c core.quotePath=false diff --name-only -- "$@")
+if [ -n "$unstaged" ]; then
+    printf "pre-commit: these staged Python files also have unstaged changes; stage or stash them first:\n%s\n" "$unstaged" >&2
+    exit 1
+fi
+
+uv run --frozen --quiet ruff check --fix-only --quiet -- "$@"
+uv run --frozen --quiet ruff format --quiet -- "$@"
+git add -- "$@"
+
+if ! uv run --frozen --quiet ruff check --quiet -- "$@"; then
+    printf "pre-commit: ruff reported errors it cannot fix; resolve them and commit again.\n" >&2
+    exit 1
+fi

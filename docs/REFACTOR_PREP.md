@@ -74,7 +74,7 @@ observability       ← application.agent, workflow.pipeline
 ### 1.3 工具链现状
 
 - Python 3.12 ~ 3.14（`.python-version` 固定 3.14，CI 矩阵 3.12 / 3.13 / 3.14；2026-09-23 从 3.9 floor 提升）；核心依赖 numpy / scipy / scikit-learn；`ruff` 配置已与 sciloom 对齐（`F/E/W/I/TID252` + `ruff format`），紧凑单行风格已于 PR #3 统一重排。
-- `pyproject` 的 `[project.scripts] sdf = "sdf.cli:main"` 已定义，但文档全程用 `PYTHONPATH=src python -m sdf.cli`，说明没有人以安装方式使用过；`tests/` 也用 `sys.path.insert` 而非安装包。
+- 项目改为仅由 uv 管理（`uv_build` 后端、`uv.lock`、`[dependency-groups] dev`，2026-09-23）；文档命令统一为 `uv run sdf ...`。`tests/` 与 `demo/` 仍保留 `sys.path.insert`，重构第 1 步随 `conftest.py` 一并移除。
 - 远端分支：`main`、`system-v1/synthetic-data-generation`（v1 冻结）、`feature/repo-governance`（PR #1 已合并，**分支未删**，可清理）。
 
 ---

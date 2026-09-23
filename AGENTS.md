@@ -44,18 +44,21 @@ the layout of those projects. Read them with the following mapping; where the
 mapping is not yet decided, the item is marked **pending** and the instruction's
 intent still applies.
 
-- **Package layout.** This is a single package under `src/sdf/`, not a uv
-  workspace. There is no `packages/` directory and no `website/`. Where an
+- **Package layout.** This is a single uv-managed package under `src/sdf/`
+  (`uv_build` backend, `uv.lock` committed), not a uv workspace. There is no
+  `packages/` directory and no `website/`. Dependencies change only through
+  `uv add` / `uv remove` so the lock file stays current; pip is not supported. Where an
   instruction names `packages/*`, read "the single package"; where it names
   `website/docs/`, read "there is no public site; user-facing documentation is
   `README.md` and `docs/`".
 - **Version bump.** The version lives in `[project].version` in `pyproject.toml`
   and is mirrored by `__version__` in `src/sdf/__init__.py`; a bump changes both
-  in the same PR. `uv version --bump` is not used here; edit both values by hand.
+  in the same PR: run `uv version --bump <kind>` and mirror the result in
+  `__version__` by hand.
   The version decision and its `Version:` line are still required at the end of
   every PR description and refactor plan file. Shipped code is `src/sdf/`.
-- **Tests.** The existing suite is `tests/test_generators.py`, run with `pytest`
-  after `pip install -e ".[dev]"`. New tests follow the colocated
+- **Tests.** The existing suite is `tests/test_generators.py`, run with
+  `uv run pytest`. New tests follow the colocated
   `<source>_test.py` rule. **Pending:** `pytest` currently collects only `tests/`
   (`testpaths` in `pyproject.toml`); the first PR that adds a colocated test must
   also add `src` to `testpaths` so CI runs it.
@@ -114,13 +117,15 @@ intent still applies.
 Run before opening or updating a PR, from the repository root:
 
 ```bash
-pip install -e ".[dev]"
-ruff check .
-ruff format --check .
-python -m pytest
-python demo/run_demo.py
+uv sync --locked
+uv run ruff check
+uv run ruff format --check
+uv run pytest
+uv run python demo/run_demo.py
 ```
 
-CI (`.github/workflows/ci.yml`) runs the first three on Python 3.12, 3.13 and 3.14 for
-every PR into `main`. The optional statistical extras are not installed in CI.
-Run `ruff check --fix . && ruff format .` before committing Python changes.
+CI (`.github/workflows/ci.yml`) runs exactly these on Python 3.12, 3.13 and 3.14
+for every PR into `main`, then `git diff --exit-code` to catch anything a check
+rewrote. The optional extras are not installed in CI. Enable the versioned
+pre-commit hook once per clone with `git config core.hooksPath .githooks`; it
+runs `ruff check --fix-only` and `ruff format` on staged Python files.

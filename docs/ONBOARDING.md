@@ -7,8 +7,9 @@ implementation still needs see
 
 ## 1. Requirements
 
-- Python **3.12 to 3.14** (`.python-version` pins 3.14; CI runs 3.12, 3.13 and 3.14). The core framework depends on
-  **numpy, scipy and scikit-learn**; install it once with `pip install -e .`.
+- [uv](https://docs.astral.sh/uv/) (0.12.10 or newer). It provides Python **3.12 to 3.14**
+  (`.python-version` pins 3.14; CI runs 3.12, 3.13 and 3.14) and installs the
+  numerical core (numpy, scipy, scikit-learn) from `uv.lock`. pip is not supported.
 - Optional extras (API server, statistical fidelity, deep synthesis, gradient
   boosting, causal inference) are declared in `pyproject.toml` and installed on demand.
 
@@ -18,25 +19,26 @@ implementation still needs see
 git clone https://github.com/WZcit223/synthetic-data-framework.git
 cd synthetic-data-framework
 
+uv sync                      # environment + dev tools, locked to uv.lock
 # End-to-end demo — generates a synthetic warehouse and prints a report.
-python demo/run_demo.py
+uv run python demo/run_demo.py
 ```
 
 ## 3. The CLI
 
-All entry points go through `sdf.cli` (run with `PYTHONPATH=src`):
+All entry points go through the `sdf` console script (`uv run sdf ...`):
 
 ```bash
-PYTHONPATH=src python -m sdf.cli demo                 # end-to-end demo report
-PYTHONPATH=src python -m sdf.cli export out/          # write synthetic CSVs to out/
-PYTHONPATH=src python -m sdf.cli backtest [csv]       # walk-forward forecast backtest
-PYTHONPATH=src python -m sdf.cli synth [csv]          # fitted synthesis + fidelity
-PYTHONPATH=src python -m sdf.cli tstr [csv]           # train-on-synthetic / test-on-real
-PYTHONPATH=src python -m sdf.cli agent "should I reorder?"   # trusted agent + audit trace
-PYTHONPATH=src python -m sdf.cli pipeline             # DAG workflow run record
-PYTHONPATH=src python -m sdf.cli impact               # counterfactual £ economics
-PYTHONPATH=src python -m sdf.cli scenarios            # what-if scenario family
-PYTHONPATH=src python -m sdf.cli privacy [csv]        # DCR / NNDR / clone-risk
+uv run sdf demo                 # end-to-end demo report
+uv run sdf export out/          # write synthetic CSVs to out/
+uv run sdf backtest [csv]       # walk-forward forecast backtest
+uv run sdf synth [csv]          # fitted synthesis + fidelity
+uv run sdf tstr [csv]           # train-on-synthetic / test-on-real
+uv run sdf agent "should I reorder?"   # trusted agent + audit trace
+uv run sdf pipeline             # DAG workflow run record
+uv run sdf impact               # counterfactual £ economics
+uv run sdf scenarios            # what-if scenario family
+uv run sdf privacy [csv]        # DCR / NNDR / clone-risk
 ```
 
 `[csv]` defaults to `data/sample_online_retail_ii.csv`.
@@ -44,8 +46,8 @@ PYTHONPATH=src python -m sdf.cli privacy [csv]        # DCR / NNDR / clone-risk
 ## 4. The API + dashboard
 
 ```bash
-pip install ".[api]"
-PYTHONPATH=src uvicorn sdf.api.app:app --reload
+uv sync --extra api
+uv run uvicorn sdf.api.app:app --reload
 # open http://127.0.0.1:8000  → the live dashboard (src/sdf/api/static/dashboard.html)
 ```
 
@@ -56,9 +58,9 @@ endpoints (`/application/*`, `/validation/*`, `/agent/*`, `/economics/*`,
 ## 5. Tests and linting
 
 ```bash
-pip install -e ".[dev]"     # pytest + ruff
-ruff check .                # lint (config in pyproject.toml)
-pytest                      # structural + validation tests
+uv run ruff check              # lint (config in pyproject.toml)
+uv run ruff format --check     # formatting
+uv run pytest                  # structural + validation tests
 ```
 
 CI (`.github/workflows/ci.yml`) runs exactly these on every PR into `main`.
@@ -66,10 +68,10 @@ CI (`.github/workflows/ci.yml`) runs exactly these on every PR into `main`.
 ## 6. Optional statistical extras
 
 ```bash
-pip install ".[synthesis]"        # copulas + sdmetrics (Gaussian-copula fidelity, SDMetrics)
-pip install ".[synthesis-deep]"   # sdv + faker (CTGAN/TVAE; pulls torch)
-pip install ".[app]"              # lightgbm
-pip install ".[causal]"           # dowhy + econml (pywhy causal stack)
+uv sync --extra synthesis         # copulas + sdmetrics (Gaussian-copula fidelity, SDMetrics)
+uv sync --extra synthesis-deep    # sdv + faker (CTGAN/TVAE; pulls torch)
+uv sync --extra app               # lightgbm
+uv sync --extra causal            # econml, plus dowhy on Python 3.13 only (dowhy 0.14 does not support 3.14 yet)
 ```
 
 These are lazy-imported; tests that need them **skip** cleanly when they are absent.

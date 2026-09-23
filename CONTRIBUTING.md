@@ -45,7 +45,7 @@ engineer joins the repo, raise the required-approvals count to 1.
 For PRs that only implement already-agreed requirements or design and **do not
 change the overall architecture**:
 
-- ensure `ruff check .`, `ruff format --check .` and `pytest` pass locally;
+- ensure `uv run ruff check`, `uv run ruff format --check` and `uv run pytest` pass locally;
 - open the PR (fill the template);
 - you may enable **auto-merge** — GitHub merges automatically once CI is green
   and any branch-protection rules are satisfied. No extra human approval step is
@@ -68,10 +68,16 @@ write the short plan first.
 ## Local checks
 
 ```bash
-pip install -e ".[dev]"     # pytest + ruff
-ruff check .                # lint
-ruff format --check .       # formatting
-pytest                      # tests
+uv sync                        # environment (Python 3.14) + pytest + ruff, locked to uv.lock
+uv run ruff check              # lint
+uv run ruff format --check     # formatting
+uv run pytest                  # tests
 ```
+
+Enable the versioned pre-commit hook once per clone with
+`git config core.hooksPath .githooks`; it formats and lints staged Python files.
+Dependencies are managed only through uv: add them with `uv add` (or
+`uv add --group dev` / `uv add --optional <extra>`) so `uv.lock` stays current, and
+commit the lock file with the change.
 
 Both must pass before opening a PR; CI runs the same checks on Python 3.12, 3.13 and 3.14.

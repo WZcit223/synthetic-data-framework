@@ -16,13 +16,15 @@ scenario is **AI Warehouse Management**.
 
 ## Quickstart
 
-Install once (`pip install -e .`; the numerical core needs numpy, scipy and scikit-learn), then:
+The project is managed with [uv](https://docs.astral.sh/uv/); `uv sync` creates the
+environment (Python 3.14 by default, numpy / scipy / scikit-learn core) and locks it to `uv.lock`:
 
 ```bash
-python demo/run_demo.py                          # end-to-end demo, prints report
-PYTHONPATH=src python -m sdf.cli export out/     # write synthetic CSVs
-PYTHONPATH=src python -m sdf.cli backtest        # real-data forecast backtest
-PYTHONPATH=src python -m sdf.cli agent "reorder & impact?"  # tool-using agent + audit trace
+uv sync
+uv run python demo/run_demo.py       # end-to-end demo, prints report
+uv run sdf export out/               # write synthetic CSVs
+uv run sdf backtest                  # real-data forecast backtest
+uv run sdf agent "reorder & impact?" # tool-using agent + audit trace
 ```
 
 The full command list is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
@@ -30,8 +32,8 @@ The full command list is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
 Web dashboard (FastAPI + a dependency-free HTML page, works offline):
 
 ```bash
-pip install ".[api]"
-PYTHONPATH=src uvicorn sdf.api.app:app --reload
+uv sync --extra api
+uv run uvicorn sdf.api.app:app --reload
 # open http://127.0.0.1:8000
 ```
 
@@ -65,8 +67,8 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 `feature/*` branches and merges via Pull Request. Before opening a PR:
 
 ```bash
-pip install -e ".[dev]"     # pytest + ruff
-ruff check . && ruff format --check . && pytest   # CI runs the same on Python 3.12, 3.13 and 3.14
+uv sync                                                      # environment + pytest + ruff
+uv run ruff check && uv run ruff format --check && uv run pytest   # CI runs the same on Python 3.12, 3.13 and 3.14
 ```
 
 - **New engineers:** start with [`docs/ONBOARDING.md`](docs/ONBOARDING.md).

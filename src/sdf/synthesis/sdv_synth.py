@@ -7,8 +7,8 @@ CorrelationSimilarity). It is an OPTIONAL extra — it needs
 ``pandas numpy copulas sdmetrics`` — so it is imported lazily and never on the
 core path. The dependency-free `fit.py`/`fidelity.py` remain the default.
 
-    pip install copulas sdmetrics pandas numpy
-    python -m sdf.cli sdv data/online_retail_ii_2010_10k.csv
+    uv sync --extra synthesis
+    uv run sdf sdv data/online_retail_ii_2010_10k.csv
 
 ALGORITHM-HOOK: swap GaussianCopula for CTGAN/TVAE (adds torch) for higher
 fidelity on complex joint distributions; the SDMetrics scoring is identical.

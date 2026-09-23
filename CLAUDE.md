@@ -19,9 +19,11 @@ disagree, `AGENTS.md` wins.
 - Confirm the shell your Bash tool actually runs before relying on heredocs.
   Claude Code cloud sessions run `bash`; the project lead's local shell may
   differ. Prefer the Write and Edit tools over shell redirection for file content.
-- The package is not installed by default. Either run `pip install -e ".[dev]"`
-  once per session, or prefix commands with `PYTHONPATH=src` as the README does.
-  The required checks are listed in `AGENTS.md` under "Required checks".
+- The project is uv-managed. Run `uv sync --locked` once per session, then run
+  every project command through `uv run ...` (never `pip install`, never
+  `PYTHONPATH=src`). The required checks are listed in `AGENTS.md` under
+  "Required checks". If uv is missing from a cloud session, install it with
+  `pip install uv` and treat that as the only pip call.
 - Keep scratch files in the session scratchpad directory, never in the
   repository tree; `out/` and `*.csv` outside `data/` are gitignored but still
   should not be created inside the checkout.

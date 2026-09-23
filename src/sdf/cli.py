@@ -1,16 +1,16 @@
 """Command-line entry point for the framework demo.
 
-python -m sdf.cli demo            # run the end-to-end pipeline, print report
-python -m sdf.cli export outdir/  # generate + write CSVs to a directory
-python -m sdf.cli backtest [csv]  # Phase 2: forecast backtest on real data
-python -m sdf.cli synth [csv]     # Phase 2.1: fit synthesizer + fidelity score
-python -m sdf.cli tstr [csv]      # Phase 3: train-on-synthetic, test-on-real
-python -m sdf.cli sdv [csv]       # Phase 2.1 full: Gaussian-copula + SDMetrics
-python -m sdf.cli agent "<q>"     # Phase 4: tool-using agent + audit trace
-python -m sdf.cli pipeline        # Data Intelligence Workflow (DAG) run record
-python -m sdf.cli impact          # business-outcome economics (£ counterfactual)
-python -m sdf.cli scenarios       # what-if scenario simulation
-python -m sdf.cli privacy [csv]   # synthetic-data privacy (DCR/NNDR/clone risk)
+uv run sdf demo            # run the end-to-end pipeline, print report
+uv run sdf export outdir/  # generate + write CSVs to a directory
+uv run sdf backtest [csv]  # Phase 2: forecast backtest on real data
+uv run sdf synth [csv]     # Phase 2.1: fit synthesizer + fidelity score
+uv run sdf tstr [csv]      # Phase 3: train-on-synthetic, test-on-real
+uv run sdf sdv [csv]       # Phase 2.1 full: Gaussian-copula + SDMetrics
+uv run sdf agent "<q>"     # Phase 4: tool-using agent + audit trace
+uv run sdf pipeline        # Data Intelligence Workflow (DAG) run record
+uv run sdf impact          # business-outcome economics (£ counterfactual)
+uv run sdf scenarios       # what-if scenario simulation
+uv run sdf privacy [csv]   # synthetic-data privacy (DCR/NNDR/clone risk)
 """
 
 from __future__ import annotations
@@ -182,7 +182,7 @@ def cmd_sdv(path: str) -> int:
 
         rep = gaussian_copula_fidelity(path)
     except ImportError:
-        print("This command needs: pip install copulas sdmetrics pandas numpy")
+        print("This command needs: uv sync --extra synthesis")
         return 1
     print("=" * 60)
     print("  Gaussian-copula synthesis + SDMetrics (Phase 2.1 full, B1)")

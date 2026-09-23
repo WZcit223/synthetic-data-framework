@@ -1,7 +1,7 @@
 """FastAPI surface + web dashboard for the framework.
 
-    pip install fastapi uvicorn
-    PYTHONPATH=src uvicorn sdf.api.app:app --reload
+    uv sync --extra api
+    uv run uvicorn sdf.api.app:app --reload
     # open http://127.0.0.1:8000
 
 The dashboard (served at "/") is a single dependency-free HTML file with inline
@@ -20,7 +20,7 @@ try:
     from fastapi import FastAPI, Response
     from fastapi.responses import HTMLResponse
 except ImportError as exc:  # pragma: no cover
-    raise SystemExit("FastAPI is optional. Install it with: pip install fastapi uvicorn") from exc
+    raise SystemExit("FastAPI is optional. Install it with: uv sync --extra api") from exc
 
 from sdf.application.warehouse_demo import WarehouseIntelligence
 from sdf.cli import build_registry
