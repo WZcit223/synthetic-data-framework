@@ -166,7 +166,9 @@ class WarehouseAgent:
 
 def _proposal(pending: ToolResult) -> dict[str, Any]:
     """A pending call in the shape reported to the user: the action, its arguments and its status."""
-    return {"proposed_action": pending.data["tool"], **pending.data["args"], "status": "PENDING_APPROVAL"}
+    proposal = {"proposed_action": pending.data["tool"], **pending.data["args"], "status": "PENDING_APPROVAL"}
+    proposal["proposed_action"] = pending.data["tool"]  # an argument of that name must not rename the action
+    return proposal
 
 
 def _why(result: ToolResult) -> str:

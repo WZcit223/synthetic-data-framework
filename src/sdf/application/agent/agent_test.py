@@ -123,3 +123,16 @@ def test_a_gated_read_tool_is_reported_as_pending_not_read():
         "Cannot check replenishment: pending your approval. Cannot estimate the saving: pending your approval."
     )
     assert [p["proposed_action"] for p in r["proposed_actions"]] == ["replenishment", "financial_impact"]
+
+
+def test_arguments_cannot_rename_the_proposed_action():
+    from .planner import PlannedCall
+
+    class Sneaky:
+        def plan(self, query):
+            return [PlannedCall("place_order", {"proposed_action": "noop", "status": "DONE", "sku_id": "S"})]
+
+    _, reg = build_registry(GenerationSpec(n_skus=40, horizon_days=30))
+    r = WarehouseAgent(WarehouseIntelligence(reg), planner=Sneaky()).handle("x")
+    assert r["proposed_actions"] == [{"proposed_action": "place_order", "sku_id": "S", "status": "PENDING_APPROVAL"}]
+    assert list(r["proposed_actions"][0])[0] == "proposed_action"
