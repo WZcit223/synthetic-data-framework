@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 
 try:
-    from fastapi import APIRouter, FastAPI, HTTPException, Response
+    from fastapi import APIRouter, FastAPI, HTTPException, Query, Response
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     from pydantic import ConfigDict, Field, create_model
@@ -123,13 +123,17 @@ def create_app(
         }
 
     @api.get("/replenishment", response_model=s.Replenishment)
-    def replenishment(service_level: float = 0.95, top_n: int = 12, lead_time_days: int = 7):
+    def replenishment(
+        service_level: float = Query(0.95, gt=0.5, lt=1.0),
+        top_n: int = Query(12, ge=0, le=1000),
+        lead_time_days: int = Query(7, ge=1, le=90),
+    ):
         return store.current.intel.replenishment_ss_policy(
             service_level=service_level, top_n=top_n, lead_time_days=lead_time_days
         )
 
     @api.get("/replenishment/comparison", response_model=s.ReplenishmentComparison)
-    def replenishment_comparison(service_level: float = 0.95):
+    def replenishment_comparison(service_level: float = Query(0.95, gt=0.5, lt=1.0)):
         return store.current.intel.replenishment_comparison(service_level=service_level)
 
     @api.get("/top-movers", response_model=list[s.TopMover])

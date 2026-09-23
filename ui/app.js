@@ -108,7 +108,7 @@ async function loadComparison(){
 async function loadMovers(){
   const m = await api("/top-movers?n=8");
   $("#mover").innerHTML = m.map(x=>`<option value="${esc(x.sku_id)}">${esc(x.sku_id)} · ${esc(x.name)} (${esc(x.abc_class)})</option>`).join("");
-  if(m.length) loadSeries();
+  if(m.length) await loadSeries();  // part of the refresh, so its failure is reported and it cannot land late
 }
 
 async function loadSeries(){

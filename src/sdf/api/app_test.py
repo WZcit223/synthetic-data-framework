@@ -81,6 +81,20 @@ def test_replenishment(client):
     assert len(body["rows"]) == 5
 
 
+@pytest.mark.parametrize(
+    "query",
+    [
+        "/replenishment?service_level=0",
+        "/replenishment?service_level=1",
+        "/replenishment?top_n=-1",
+        "/replenishment?lead_time_days=0",
+        "/replenishment/comparison?service_level=0.2",
+    ],
+)
+def test_replenishment_rejects_invalid_parameters(client, query):
+    assert client.get(V1 + query).status_code == 422
+
+
 def test_top_movers_and_demand_series(client):
     movers = get(client, "/top-movers?n=8")
     fields({"m": movers}, "m[].sku_id", "m[].name", "m[].abc_class")
