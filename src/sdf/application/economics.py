@@ -65,7 +65,7 @@ def financial_impact(intel, cost_model: CostModel = None, max_skus: int = 400) -
     the client's real current policy for a true before/after.
     """
     cm = cost_model or CostModel()
-    stats = intel._sku_daily_stats()
+    stats = intel.sku_daily_stats()
     skus = {s.sku_id: s for s in intel.reg.stream("SKU")}
     # per-SKU demand series over the horizon
     out = intel.reg.stream("OutboundOrder", where=lambda o: o.status != "cancelled")

@@ -50,6 +50,10 @@
 
 ### 1.2 实际依赖图（`grep "from sdf"` 得出）
 
+> 2026-09-23（layout 序列 PR 2 之后）：下图的反向边已全部消除，并由
+> `src/sdf/layering_test.py` 持续断言（`foundation < synthesis/observability <
+> application < workflow < api/cli`，`api` 与 `cli` 互不导入）。保留原图作为改前记录。
+
 ```
 foundation.schema ── ← synthesis.warehouse ← cli.build_registry ←──┐
 foundation.registry ← application.warehouse_demo ← api.app        │
@@ -60,22 +64,13 @@ synthesis.anomaly   ← application.warehouse_demo (lazy)
 application.*       ← application.agent, workflow.pipeline, api.app, cli
 observability       ← application.agent, workflow.pipeline
 
-反向 / 跨层（需在重构中消除）：
-  synthesis.scenarios  → sdf.cli, sdf.application.warehouse_demo   (合成层依赖入口层与应用层)
-  workflow.pipeline    → sdf.cli                                   (横切层依赖入口层)
-  api.app              → sdf.cli                                   (入口层依赖另一入口层)
-  application.economics → intel._sku_daily_stats / intel.reg      (跨对象读私有)
-  sdf/__init__.py      → 顶层 eager import application.warehouse_demo (导入任一子包都会拉起整棵树)
+反向 / 跨层（PR 2 已消除）：
+  synthesis.scenarios  → sdf.cli, sdf.application.warehouse_demo   → run_scenarios 迁至 application/scenarios.py
+  workflow.pipeline    → sdf.cli                                   → build_registry 迁至 synthesis/materialise.py
+  api.app              → sdf.cli                                   → 同上
+  application.economics → intel._sku_daily_stats / intel.reg      → 方法改为公开 sku_daily_stats()（PR 3 换实现）
+  sdf/__init__.py      → 顶层 eager import application.warehouse_demo → 包根只导出 __version__
 ```
-
-正向方向（Foundation → Synthesis → Application → 横切/入口）在其余模块里是成立的；
-`application → synthesis` 的引用（forecast、anomaly）是合理的"应用调用算法"，不算违规。
-
-### 1.3 工具链现状
-
-- Python 3.12 ~ 3.14（`.python-version` 固定 3.14，CI 矩阵 3.12 / 3.13 / 3.14）；核心依赖 numpy / scipy / scikit-learn；`ruff` 配置已与 sciloom 对齐（`F/E/W/I/TID252` + `ruff format`），紧凑单行风格已于 PR #3 统一重排。
-- 项目改为仅由 uv 管理（`uv_build` 后端、`uv.lock`、`[dependency-groups] dev`，2026-09-23）；文档命令统一为 `uv run sdf ...`。`tests/` 与 `demo/` 已在 layout 序列 PR 1 中移除（测试迁到同目录 `_test.py`，demo 只保留 `sdf demo` 命令）。
-- 远端分支：`main`、`system-v1/synthetic-data-generation`（v1 冻结）、`feature/repo-governance`（PR #1 已合并，**分支未删**，可清理）。
 
 ---
 
@@ -236,7 +231,7 @@ src/sdf/
     narrative.py              insights
     knowledge.py              路由表 + 处理器（处理器只调用公共入口）
     economics.py              只依赖 analytics.demand + replenishment.SSPolicy
-    scenarios.py              run_scenarios：对每个情景 materialise → 评估（从 synthesis 迁入；synthesis.scenarios 保留同名再导出一个版本）
+    scenarios.py              run_scenarios：对每个情景 materialise → 评估（PR 2 已从 synthesis 迁入，无再导出）
     agent/
       tools.py                Tool / ToolResult / ToolRegistry
       executor.py             call()：审批门与 read_only 在此强制
@@ -277,7 +272,7 @@ src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
 |---|---|---|---|
 | 0 | 方向性（本文） | 项目负责人确认 §4 目标结构与 §3.2 的处理方向 | 本 PR 合并 |
 | 1 | 实现 | ~~**特征化测试**~~ 已完成（layout 序列 PR 1）：`src/sdf/conftest.py`、`golden_test.py`、原 `tests/` 按模块拆为同目录 `_test.py`，`pytest.importorskip` 替换 `return`，删除 `tests/` 与 `demo/`；端点契约测试推迟到 API 状态模型那一步一并加 | 不改任何 `src/` 运行时代码；测试全绿 |
-| 2 | 实现 | **依赖方向**：新增 `synthesis/materialise.py`、`synthesis/spec.py`；`run_scenarios` 迁到 `application/scenarios.py`，`synthesis/scenarios.py` 只剩纯 spec 变换；`cli`、`api`、`pipeline`、`tests` 改为从新位置导入；`cli.build_registry` 与 `synthesis.scenarios.run_scenarios` 保留为再导出一个版本以兼容；`sdf/__init__` 去 eager import；`api/app.py` 改抛 `ImportError`；加 `test_layering.py` | 导入图无反向边（再导出 shim 允许在白名单内）；黄金数字不变 |
+| 2 | 实现 | ~~**依赖方向**~~ 已完成（layout 序列 PR 2）：`synthesis/materialise.py`、`synthesis/spec.py`、`application/scenarios.py` 新建；`cli.build_registry` 与 `synthesis.scenarios.run_scenarios` 直接删除，不留再导出（与 `in-branch-api-compat` 一致）；`sdf/__init__` 只剩 `__version__`；`api/app.py` 改抛 `ImportError`；包内导入改单点相对导入，仅为绕开反向边而存在的函数内导入提升到模块级；`layering_test.py` 断言层方向 | 导入图无反向边（由测试断言）；黄金数字与 `sdf demo` 输出不变 |
 | 3 | 实现 | **需求聚合统一 + 数值修复**：`analytics/demand.py`、`analytics/metrics.py`；`warehouse_demo`、`economics`、`forecast`、`knowledge` 改为消费；顺手修 C1、C2、C3、C4、C5、C6、C7、I1、I2、S3、S4、S5 | 黄金数字中 (s,S)/经济/回测项**会变**（C1/C5 影响），新值写回 `VALIDATION.md` 与 `test_golden.py`，并在 PR 里逐项解释差异 |
 | 4 | 实现 | **拆上帝对象**：`application/` 按 §4 拆分，`WarehouseIntelligence` 变门面；`ReplenishmentPolicy` 接口；`knowledge`、`agent`、`scenarios` 显式选策略 | 端点契约测试不变；`insights` 与 `/scenarios` 的"需订 SKU 数"口径在文案里标明策略 |
 | 5 | 实现 | **API 状态模型**：`create_app()`、不可变 `World`、原子替换、`/generate` 参数上限收紧并记录耗时 | 并发 `POST /generate` + `GET` 压测无撕裂；单例仍导出为 `app` |

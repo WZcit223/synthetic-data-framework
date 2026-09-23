@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from sdf.synthesis.scenarios import run_scenarios
-from sdf.synthesis.warehouse import GenerationSpec
+from sdf.synthesis.spec import GenerationSpec
+from .scenarios import run_scenarios
 
 
 def test_scenarios_whatif():

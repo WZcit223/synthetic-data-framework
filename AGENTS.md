@@ -99,8 +99,12 @@ intent still applies.
    hand-rolled loops; existing pure-Python stand-ins are ported in the refactor
    step that touches them.
 3. **Layer direction is Foundation → Synthesis → Application → entry points**
-   (`cli`, `api`, `workflow`). Do not add imports that point the other way; the
-   known violations and their fix are listed in `docs/REFACTOR_PREP.md` §1.2.
+   (`cli`, `api`, `workflow`). Do not add imports that point the other way.
+   `src/sdf/layering_test.py` asserts the direction on every module's imports
+   (rank order `foundation < synthesis, observability < application < workflow <
+   api, cli`; `api` and `cli` never import each other), so a reverse edge fails
+   the test suite. The violations that existed before the refactor and how they
+   were removed are recorded in `docs/REFACTOR_PREP.md` §1.2.
 4. **The generator's random-number consumption order is a contract.** Changing
    the order or count of `self._rng` calls in `WarehouseGenerator` changes every
    recorded number; do it only in a PR whose stated purpose is that change.

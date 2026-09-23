@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from sdf.synthesis.warehouse import GenerationSpec, WarehouseGenerator
+from .spec import GenerationSpec
+from .warehouse import WarehouseGenerator
 
 
 def test_deterministic_seed():

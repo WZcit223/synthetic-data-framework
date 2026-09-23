@@ -22,6 +22,8 @@ import random
 import statistics
 from typing import Dict, List, Sequence, Tuple
 
+from sdf.foundation.adapters.retail_csv import _parse_dt
+
 Row = Sequence[float]
 
 
@@ -87,8 +89,6 @@ def read_retail_feature_table(path: str, limit: int = 3000) -> List[Row]:
     Price adds continuity so distances are meaningful (not all-ties).
     """
     import csv
-
-    from sdf.foundation.adapters.retail_csv import _parse_dt
 
     rows: List[Row] = []
     with open(path, newline="", encoding="utf-8-sig") as fh:

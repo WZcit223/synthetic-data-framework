@@ -6,7 +6,7 @@ the same dataclasses the synthetic generator does, tagged with
 ``origin="external-open-dataset"`` in the registry.
 """
 
-from sdf.foundation.adapters.retail_csv import (
+from .retail_csv import (
     load_online_retail_csv,
     register_online_retail,
 )

@@ -14,7 +14,9 @@ with a discrete-event simulator or an agent-based model of the facility.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Dict, List
+from typing import Dict
+
+from .spec import GenerationSpec
 
 SCENARIOS = {
     "baseline": {},
@@ -25,7 +27,8 @@ SCENARIOS = {
 }
 
 
-def _apply(spec, tweaks: Dict):
+def apply_scenario(spec: GenerationSpec, tweaks: Dict) -> GenerationSpec:
+    """Return a copy of ``spec`` with one scenario's tweaks applied (pure)."""
     kw = {}
     if "daily_orders_per_a_sku_mult" in tweaks:
         kw["daily_orders_per_a_sku"] = round(spec.daily_orders_per_a_sku * tweaks["daily_orders_per_a_sku_mult"], 3)
@@ -34,37 +37,3 @@ def _apply(spec, tweaks: Dict):
     if "express_ratio" in tweaks:
         kw["express_ratio"] = tweaks["express_ratio"]
     return replace(spec, **kw)
-
-
-def run_scenarios(base_spec=None, names: List[str] = None, service_level: float = 0.95) -> Dict:
-    """Generate each scenario world and compare KPIs + inventory stress."""
-    from sdf.application.warehouse_demo import WarehouseIntelligence
-    from sdf.cli import build_registry
-    from sdf.synthesis.warehouse import GenerationSpec
-
-    base = base_spec or GenerationSpec()
-    names = names or list(SCENARIOS)
-    rows: List[Dict] = []
-    for name in names:
-        spec = _apply(base, SCENARIOS.get(name, {}))
-        _wh, reg = build_registry(spec)
-        intel = WarehouseIntelligence(reg)
-        k = intel.kpis()
-        ss = intel.replenishment_ss_policy(service_level=service_level)
-        stockouts = sum(1 for a in intel.anomalies() if a["type"] == "stockout")
-        rows.append(
-            {
-                "scenario": name,
-                "outbound_lines": k.outbound_lines,
-                "inventory_value": k.inventory_value,
-                "skus_needing_order": ss["skus_needing_order"],
-                "safety_stock_units": ss["total_safety_stock_units"],
-                "active_stockouts": stockouts,
-            }
-        )
-    base_row = next((r for r in rows if r["scenario"] == "baseline"), rows[0])
-    for r in rows:
-        r["safety_stock_vs_baseline_pct"] = round(
-            100 * (r["safety_stock_units"] - base_row["safety_stock_units"]) / max(1, base_row["safety_stock_units"]), 1
-        )
-    return {"service_level": service_level, "scenarios": rows}

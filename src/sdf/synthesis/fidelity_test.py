@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-from sdf.synthesis.fidelity import fidelity_report, ks_2samp, pearson
-from sdf.synthesis.fit import FittedHourlyDemand
+from .fidelity import fidelity_report, ks_2samp, pearson
+from .fit import FittedHourlyDemand
 
 
 def test_phase2_fitted_synthesis_fidelity(sample_csv):

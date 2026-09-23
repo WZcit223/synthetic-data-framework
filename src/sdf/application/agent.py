@@ -20,9 +20,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
-from sdf.application.economics import CostModel, financial_impact
-from sdf.application.knowledge import KnowledgeQA
 from sdf.observability import RunLogger
+from .economics import CostModel, financial_impact
+from .knowledge import KnowledgeQA
 
 
 @dataclass

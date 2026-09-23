@@ -89,7 +89,7 @@ everything. Nothing imports an entry point.
 | # | Plan | Purpose | Golden numbers |
 |---|---|---|---|
 | 1 | [`01-safety-net.md`](01-safety-net.md) | Characterisation tests, colocated test layout, no `sys.path` hacks | unchanged (asserted) |
-| 2 | [`02-import-direction.md`](02-import-direction.md) | Remove reverse edges, relative imports, no import-time side effects, layering test | unchanged |
+| 2 | [`02-import-direction.md`](02-import-direction.md) | Remove reverse edges, relative imports, no import-time side effects, layering test | unchanged (asserted) |
 | 3 | [`03-module-layout.md`](03-module-layout.md) | `analytics/` + `validation/` split, `intelligence.py`, single demand aggregation | unchanged |
 | 4 | [`04-contracts.md`](04-contracts.md) | Config validation, typed public functions, built-in generics | unchanged |
 

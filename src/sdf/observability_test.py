@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sdf.observability import RunLogger
+from .observability import RunLogger
 
 
 def test_observability_runlogger():

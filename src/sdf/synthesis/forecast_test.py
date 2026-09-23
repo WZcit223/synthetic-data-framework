@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from sdf.foundation.adapters.retail_csv import load_online_retail_csv
-from sdf.synthesis.forecast import compare_models, daily_demand_series
+from .forecast import compare_models, daily_demand_series
 
 
 def test_phase2_adapter_and_backtest(sample_csv):

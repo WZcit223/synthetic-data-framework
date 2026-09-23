@@ -1,7 +1,8 @@
 """Synthesis Layer: synthetic / predictive data generation."""
 
-from sdf.synthesis.quality import QualityReport, structural_quality_check
-from sdf.synthesis.warehouse import GenerationSpec, WarehouseGenerator
+from .quality import QualityReport, structural_quality_check
+from .spec import GenerationSpec
+from .warehouse import WarehouseGenerator
 
 __all__ = [
     "WarehouseGenerator",

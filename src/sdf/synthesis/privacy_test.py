@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sdf.synthesis.privacy import bootstrap_synthesize, privacy_report
+from .privacy import bootstrap_synthesize, privacy_report
 
 
 def test_privacy_metrics():

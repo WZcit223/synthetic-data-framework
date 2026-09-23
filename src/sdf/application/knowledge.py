@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Tuple
 
+from sdf.synthesis.forecast import build_series, compare_models, models_for
+
 
 class KnowledgeQA:
     """Intent-routed Q&A backed by WarehouseIntelligence."""
@@ -93,8 +95,6 @@ class KnowledgeQA:
         return {"intent": "replenishment", "data": {"count": len(s)}, "answer": msg}
 
     def _forecast(self) -> Dict:
-        from sdf.synthesis.forecast import build_series, compare_models, models_for
-
         orders = self.intel.reg.stream("OutboundOrder")
         series, freq, period = build_series(orders)
         rep = compare_models(series, test_len=2 * period, models=models_for(period))

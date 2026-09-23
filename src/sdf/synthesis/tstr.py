@@ -20,9 +20,9 @@ from __future__ import annotations
 
 from typing import Dict
 
-from sdf.synthesis.fit import FittedSeasonalDemand
-from sdf.synthesis.forecast import build_series
-from sdf.synthesis.models import fit_weights, predict_at
+from .fit import FittedSeasonalDemand
+from .forecast import build_series
+from .models import fit_weights, predict_at
 
 
 def _mae(weights, series, period, start) -> float:

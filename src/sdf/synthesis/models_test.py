@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from sdf.synthesis.forecast import backtest, seasonal_naive
-from sdf.synthesis.models import seasonal_linear
+from .forecast import backtest, seasonal_naive
+from .models import seasonal_linear
 
 
 def test_model_beats_seasonal_naive_on_trend_plus_season():

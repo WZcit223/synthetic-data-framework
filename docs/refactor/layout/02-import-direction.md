@@ -1,5 +1,8 @@
 # PR 2 — Import direction: no reverse edges, relative imports, no import-time side effects
 
+> Status: implemented (layout sequence PR 2). Acceptance commands below pass;
+> golden numbers and `sdf demo` output unchanged.
+
 ## Goal
 
 Make the layer direction real and enforced: nothing below an entry point

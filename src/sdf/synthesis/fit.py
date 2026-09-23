@@ -16,7 +16,7 @@ from __future__ import annotations
 import random
 from typing import List, Optional
 
-from sdf.synthesis.forecast import hourly_business_series
+from .forecast import hourly_business_series
 
 
 class FittedSeasonalDemand:
