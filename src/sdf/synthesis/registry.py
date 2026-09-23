@@ -14,9 +14,10 @@ runtime (for example from a notebook) without packaging it.
 
 from __future__ import annotations
 
+import inspect
 import re
 from dataclasses import dataclass
-from importlib.metadata import entry_points
+from importlib.metadata import EntryPoint, entry_points
 from importlib.util import find_spec
 from typing import Any, Literal, get_args
 
@@ -52,6 +53,15 @@ class SynthesizerRegistry:
         for method in ("fit", "sample"):
             if not callable(getattr(cls, method, None)):
                 raise TypeError(f"{info.name}: a synthesizer needs a {method}() method")
+        required = [
+            p.name
+            for p in inspect.signature(cls).parameters.values()
+            if p.default is p.empty and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)
+        ]
+        if required:
+            raise TypeError(
+                f"{info.name}: every constructor argument needs a default so create(name) works; missing {required}"
+            )
         if info.name in self._entries and not replace:
             raise ValueError(f"synthesizer {info.name!r} is already registered; pass replace=True to override")
         self._entries[info.name] = Registration(cls, origin)
@@ -68,25 +78,33 @@ class SynthesizerRegistry:
         for ep in sorted(entry_points(group=group), key=lambda e: e.name):
             origin: Origin = "builtin" if ep.dist is not None and ep.dist.name == DISTRIBUTION else "plugin"
             try:
-                cls = ep.load()
-                info = cls.info
-            except Exception as exc:  # a broken third-party plug-in must not break the CLI
-                self._unavailable[ep.name] = f"failed to load {ep.value}: {exc}"
-                continue
-            if info.name != ep.name:
-                self._unavailable[ep.name] = f"entry point name differs from info.name {info.name!r}"
-                continue
-            missing = [m for m in info.requires if not _importable(m)]
-            if missing:
-                self._unavailable[ep.name] = f"needs {', '.join(missing)}"
-                continue
-            try:
-                self.register(cls, origin=origin)
-            except (TypeError, ValueError) as exc:
-                self._unavailable[ep.name] = str(exc)
-                continue
-            mounted.append(info.name)
+                problem = self._mount(ep, origin)
+            except Exception as exc:  # a broken third-party plug-in must not break the registry or the CLI
+                problem = f"failed to load {ep.value}: {exc}"
+            if problem:
+                self._unavailable[ep.name] = problem
+            else:
+                mounted.append(ep.name)
         return mounted
+
+    def _mount(self, ep: EntryPoint, origin: Origin) -> str | None:
+        """Register one entry point; return why it cannot be mounted, or None."""
+        cls = ep.load()
+        info = getattr(cls, "info", None)
+        if not isinstance(info, SynthesizerInfo):
+            return f"{ep.value} has no SynthesizerInfo `info` class attribute"
+        if info.name != ep.name:
+            return f"entry point name differs from info.name {info.name!r}"
+        if not isinstance(info.requires, tuple) or not all(isinstance(m, str) for m in info.requires):
+            return "info.requires must be a tuple of module names"
+        missing = [m for m in info.requires if not _importable(m)]
+        if missing:
+            return f"needs {', '.join(missing)}"
+        try:
+            self.register(cls, origin=origin)
+        except (TypeError, ValueError) as exc:
+            return str(exc)
+        return None
 
     def create(self, name: str, **config: Any) -> Synthesizer:
         """A new instance of the synthesizer registered as ``name``, configured by ``config``."""

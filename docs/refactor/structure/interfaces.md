@@ -296,7 +296,8 @@ class Synthesizer(Protocol):
 ```
 
 `SynthesizerRegistry` methods: `register(cls, *, replace=False)` (validates the
-metadata and raises on a duplicate name), `load_entry_points(group="sdf.synthesizers")`,
+metadata, requires a default for every constructor argument so `create(name)`
+works, and raises on a duplicate name), `load_entry_points(group="sdf.synthesizers")`,
 `create(name, **config)` (raises `KeyError` listing the valid names),
 `names(*, origin=None)`, `info(name)`, `origin(name)` (`"builtin"`, `"plugin"` or
 `"runtime"`) and `unavailable()` (declared but not mounted, with the reason).

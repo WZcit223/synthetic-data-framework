@@ -82,6 +82,39 @@ def test_a_missing_dotted_requirement_is_listed_not_raised(monkeypatch):
     assert reg.names() == [] and reg.unavailable() == {"needs-absent-child": "needs no_such_parent_pkg.backend"}
 
 
+class InfoIsNone:
+    info = None
+
+
+class RequiresIsAString(ShuffleSeries):
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo("requires-a-string", "series", True, "x", requires="numpy")  # type: ignore[arg-type]
+
+
+class NeedsConfig(ShuffleSeries):
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo("needs-config", "series", True, "x")
+
+    def __init__(self, window: int) -> None:
+        super().__init__()
+
+
+def test_malformed_plug_in_metadata_is_listed_not_raised(monkeypatch):
+    monkeypatch.setattr(
+        registry_module,
+        "entry_points",
+        _fake_entry_points(
+            ("info-is-none", f"{__name__}:InfoIsNone"),
+            ("requires-a-string", f"{__name__}:RequiresIsAString"),
+            ("needs-config", f"{__name__}:NeedsConfig"),
+        ),
+    )
+    reg = default_registry()
+    problems = reg.unavailable()
+    assert reg.names() == [] and sorted(problems) == ["info-is-none", "needs-config", "requires-a-string"]
+    assert "no SynthesizerInfo" in problems["info-is-none"]
+    assert "tuple of module names" in problems["requires-a-string"]
+    assert "needs a default" in problems["needs-config"] and "window" in problems["needs-config"]
+
+
 def test_a_broken_plug_in_is_listed_not_raised(monkeypatch):
     monkeypatch.setattr(
         registry_module,
