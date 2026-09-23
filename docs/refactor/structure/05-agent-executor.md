@@ -1,5 +1,14 @@
 # PR 5 — Agent executor: approval enforced in one place
 
+> Status: implemented (structure sequence PR 5). No number moved: the golden
+> agent run (plan, 3 logged steps, SKU-00028 × 119 pending approval), the
+> `VALIDATION.md` block and `sdf demo` are unchanged, and `sdf agent` answers
+> match main apart from timings. Deviation: `KeywordPlanner` plans only the
+> read calls; the agent derives the `place_order` call from the replenishment
+> result (its arguments are not known when planning) and sends it through the
+> executor, which holds it as `pending_approval`. Failed tool steps are now
+> logged with status `error`, so a run's `errors` count reflects them.
+
 Interface contract: [`interfaces.md` §3](interfaces.md#3-agent-executor-sdfapplicationagent).
 
 ## Goal
