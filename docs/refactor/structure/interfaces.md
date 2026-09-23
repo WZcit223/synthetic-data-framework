@@ -57,7 +57,8 @@ len(world.stream("OutboundOrder"))             # 28897
 policy = ServiceLevelPolicy(service_level=0.95)            # lead_time_days=7, review_days=7
 policy.name                                                # 'service-level-95'
 profile = world.demand().profile("SKU-00001")              # sdf.analytics.demand.DemandProfile
-policy.levels(profile)                                     # Levels(reorder_point=…, order_up_to=…)
+policy.levels(profile)                                     # Levels(reorder_point=…, order_up_to=…, safety_stock=…)
+ServiceLevelPolicy(z=1.645).name                           # 'service-level-z1.645' (explicit z, no table lookup)
 
 plan = plan_orders(world, policy)                          # list[PlanRow], sorted by order_qty desc
 plan[0]                                                    # PlanRow(sku_id=…, name=…, profile=…, safety_stock=…,
@@ -66,6 +67,12 @@ sum(1 for r in plan if r.order_qty > 0)                    # 62  (same as today'
 
 NaivePolicy().levels(profile)                              # no safety stock: s = μ·L, S = μ·(L+R)
 ```
+
+`Levels.safety_stock` (default `0.0`) is the part of the reorder point held
+against variability; reports sum it. `ServiceLevelPolicy` takes the service
+level, or an explicit `z` that overrides the table (the economics counterfactual
+passes `CostModel.service_z`). `z_for` and `Z_FOR_SERVICE_LEVEL` live in
+`sdf.simulation.policy`.
 
 `Policy` is a protocol; any object with these members is a policy:
 
@@ -109,7 +116,8 @@ from sdf.simulation.engine import InventoryTrace, simulate_inventory
 from sdf.simulation.policy import Levels
 
 trace = simulate_inventory([5.0, 0.0, 9.0, 4.0], Levels(reorder_point=6.0, order_up_to=12.0), lead_time_days=2)
-trace                                   # InventoryTrace(unmet_units=…, holding_unit_days=…, orders=…)
+trace                                   # InventoryTrace(unmet_units=…, holding_unit_days=…, orders=…, total_demand=…)
+trace.fill_rate                         # 1 − unmet_units / total_demand
 ```
 
 This is today's `economics._simulate` without the cost arithmetic, which moves

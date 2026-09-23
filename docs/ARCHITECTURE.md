@@ -67,6 +67,17 @@ One module per concern: `kpi.py` (KPIs, ABC mix, top movers),
 `intelligence.py` is only a facade: `WarehouseIntelligence` holds the registry
 and delegates to those modules, so the API, CLI and agent keep one stable object.
 
+### Simulation layer
+`src/sdf/simulation` sits between validation and the application layer, so it
+can run without the facade (from a notebook, a workflow step or a future causal
+module). It has four parts: a `World` (an immutable dataset), `Intervention`s
+that change it, `Policy`s that make replenishment decisions on it, and
+`Outcome`s that measure the result. An `Experiment` runs every
+intervention × policy combination and returns tidy `OutcomeRow`s, one per
+metric. The (s,S) plan, the economics counterfactual and the scenario runner
+all run through it. The contract is in
+[`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §1.
+
 ## 3. Why warehouse management is the first validation scenario
 - Real internal business demand exists (fast feedback, real stakeholders).
 - It exercises all four core capabilities, so it is representative of the wider
