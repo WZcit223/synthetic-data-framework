@@ -1,5 +1,13 @@
 # PR 1 — Split the analysis class into one module per concern
 
+> Status: implemented (structure sequence PR 1). The one shared helper, calendar-day
+> demand rates, became `DemandTable.daily_rates()` in `analytics/demand.py`
+> instead of a private method, so the rule, anomaly and top-mover modules share it.
+> `KPISummary` moved to `kpi.py` (the plan text kept it in `intelligence.py`), because
+> `kpi.kpis` builds it and `intelligence.py` imports `kpi`; keeping it in the facade
+> would create an import cycle. Nothing serialises it by module path (the API returns
+> its fields as a dict), and `intelligence.py` still imports the name.
+
 Interface contract: [`interfaces.md`](interfaces.md) (this PR adds no new public
 interface; the facade keeps every public method).
 

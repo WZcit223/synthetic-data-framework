@@ -92,6 +92,11 @@ class DemandTable:
         s = self.series[sku_id]
         return sum(s) / len(s) if s else 0.0
 
+    def daily_rates(self) -> dict[str, float]:
+        """Mean daily demand per SKU over the calendar days of the table."""
+        horizon = max(1, len(self.days))
+        return {sku: sum(series) / horizon for sku, series in self.series.items()}
+
     def zero_ratio(self, sku_id: str) -> float:
         """Share of days on which the SKU had no demand."""
         s = self.series[sku_id]

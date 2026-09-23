@@ -62,3 +62,8 @@ def test_profile_distinguishes_smooth_and_intermittent_demand():
     assert sparse.mean == 3.0
     assert sparse.variability == pytest.approx(15.0)  # a typical selling day, larger than std 6.4
     assert DemandProfile(mean=0.0, std=0.0, zero_ratio=1.0).variability == 0.0
+
+
+def test_daily_rates_divide_by_calendar_days():
+    t = DemandTable.from_orders([_order(1, "A", 6), _order(3, "A", 3), _order(3, "B", 3)])
+    assert t.daily_rates() == {"A": 3.0, "B": 1.0}
