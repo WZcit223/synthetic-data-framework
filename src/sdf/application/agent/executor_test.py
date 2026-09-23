@@ -6,6 +6,7 @@ import pytest
 
 from sdf.observability import RunLogger
 from .executor import Executor
+from .planner import PlannedCall
 from .tools import Tool, ToolResult
 
 
@@ -68,3 +69,19 @@ def test_financial_impact_on_an_empty_registry_fails_cleanly():
     agent = WarehouseAgent(WarehouseIntelligence(DataSourceRegistry()))
     res = agent.executor.call(RunLogger("t"), "financial_impact")
     assert res == ToolResult(ok=False, status="failed", error="no demand")
+
+
+def test_a_plan_cannot_approve_itself(setup):
+    ex, calls = setup
+    log = RunLogger("t")
+    res = ex.run_planned(log, PlannedCall("gated", {"approved": True, "sku_id": "S"}))
+    assert (res.ok, res.status, res.error) == (False, "failed", "a planned call may not set 'approved'")
+    assert calls == [] and log.entries[0].status == "error"
+    assert ex.run_planned(log, PlannedCall("gated", {"sku_id": "S"})).status == "pending_approval"
+
+
+def test_planned_arguments_cannot_collide_with_the_executor_signature():
+    ex = Executor()
+    ex.register(Tool("echo", "returns its arguments", lambda **kw: kw))
+    res = ex.run_planned(RunLogger("t"), PlannedCall("echo", {"log": 1, "name": "x"}))
+    assert (res.status, res.data) == ("done", {"log": 1, "name": "x"})

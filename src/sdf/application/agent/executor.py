@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from sdf.observability import RunLogger
+from .planner import PlannedCall
 from .tools import Tool, ToolResult
 
 APPROVAL_NOTE = "requires human approval — not executed"
@@ -27,6 +28,18 @@ class Executor:
         ``failed`` result. An unknown name is a ``failed`` result too, so a
         planner that invents a tool cannot crash the run.
         """
+        return self._run(log, name, args, approved=approved)
+
+    def run_planned(self, log: RunLogger, call: PlannedCall) -> ToolResult:
+        """Run a planner's call. A plan can never approve itself: ``approved`` is not accepted as an argument."""
+        if "approved" in call.args:
+            result = ToolResult(ok=False, status="failed", error="a planned call may not set 'approved'")
+            log.record("tool", call.tool, call.args, {"error": result.error}, status="error")
+            return result
+        return self._run(log, call.tool, dict(call.args), approved=False)
+
+    def _run(self, log: RunLogger, name: str, args: dict[str, Any], *, approved: bool) -> ToolResult:
+        # Tool arguments travel as a dict, so names such as "log" or "name" cannot collide with a signature.
         tool = self.tools.get(name)
         if tool is None:
             result = ToolResult(ok=False, status="failed", error=f"unknown tool {name!r}")

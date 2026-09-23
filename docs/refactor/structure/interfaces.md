@@ -453,7 +453,10 @@ by raising (the application functions' `{"error": …}` results are converted by
 raising `ToolError`); the executor turns any exception, and an unknown tool name,
 into `ToolResult(ok=False, status="failed", error=…)` and logs the step as an
 error. `WarehouseAgent(intel, sink_path=None, planner=None)` takes any `Planner`
-(default `KeywordPlanner`).
+(default `KeywordPlanner`) and runs its calls with `Executor.run_planned(log,
+call)`, which never approves and rejects a planned `approved` argument, so a plan
+cannot approve itself. Every planned call the executor holds back is reported in
+`proposed_actions`.
 
 ---
 

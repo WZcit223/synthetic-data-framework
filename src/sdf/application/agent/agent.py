@@ -3,8 +3,10 @@
 Guardrails:
   - every tool runs through ``Executor``, which never runs a state-changing or
     approval-gated tool without an explicit approval;
-  - every answer is composed from tool results (nothing invented), branching on
-    ``ToolResult.ok``;
+  - a planner's calls run through ``Executor.run_planned``, so a plan can never
+    approve itself;
+  - every answer is composed from tool results (nothing invented), and only a
+    ``done`` result's data is read;
   - the full call chain is logged for audit.
 """
 
@@ -86,7 +88,7 @@ class WarehouseAgent:
         """Plan the query, execute the plan, propose any follow-up action; return answer + trace."""
         log = RunLogger("agent", sink_path=self.sink_path)
         calls = self.planner.plan(query)
-        executed = [(c, self.executor.call(log, c.tool, **c.args)) for c in calls]
+        executed = [(c, self.executor.run_planned(log, c)) for c in calls]
         results: dict[str, ToolResult] = {}
         for c, r in executed:
             results.setdefault(c.tool, r)  # the answer templates read the first call of each tool
@@ -95,8 +97,8 @@ class WarehouseAgent:
 
         if "replenishment" in results:
             repl = results["replenishment"]
-            n = repl.data["skus_needing_order"] if repl.ok else 0
-            rows = repl.data["rows"] if repl.ok else []
+            n = repl.data["skus_needing_order"] if repl.status == "done" else 0
+            rows = repl.data["rows"] if repl.status == "done" else []
             top = rows[0] if n and rows else None  # rows are sorted by order_qty, largest first
             if top:
                 pending = self.executor.call(log, "place_order", sku_id=top["sku_id"], quantity=top["order_qty"])
@@ -105,8 +107,8 @@ class WarehouseAgent:
             ans = (
                 (
                     f"{n} SKUs need an order under the 95% service-level (s,S) policy. "
-                    if repl.ok
-                    else f"Cannot check replenishment: {repl.error}. "
+                    if repl.status == "done"
+                    else f"Cannot check replenishment: {_why(repl)}. "
                 )
                 + (
                     f"Largest order: {top['sku_id']} — propose ordering "
@@ -118,8 +120,8 @@ class WarehouseAgent:
             )
         elif "financial_impact" in results:
             impact = results["financial_impact"]
-            if not impact.ok:
-                ans = f"Cannot estimate the saving: {impact.error}."
+            if impact.status != "done":
+                ans = f"Cannot estimate the saving: {_why(impact)}."
             else:
                 d = impact.data
                 ans = (
@@ -130,7 +132,7 @@ class WarehouseAgent:
                 )
         elif "ask_knowledge" in results:
             res = results["ask_knowledge"]
-            ans = res.data["answer"] if res.ok else f"Cannot answer: {res.error}."
+            ans = res.data["answer"] if res.status == "done" else f"Cannot answer: {_why(res)}."
         elif proposed:
             ans = (
                 f"{len(proposed)} action(s) pending your approval: "
@@ -167,11 +169,16 @@ def _proposal(pending: ToolResult) -> dict[str, Any]:
     return {"proposed_action": pending.data["tool"], **pending.data["args"], "status": "PENDING_APPROVAL"}
 
 
+def _why(result: ToolResult) -> str:
+    """Why a tool produced no data: its error, or that it waits for approval."""
+    return "pending your approval" if result.status == "pending_approval" else str(result.error)
+
+
 def _saving_sentence(impact: ToolResult | None) -> str:
     if impact is None:
         return ""
-    if not impact.ok:
-        return f"Cannot estimate the saving: {impact.error}."
+    if impact.status != "done":
+        return f"Cannot estimate the saving: {_why(impact)}."
     return (
         f"Estimated annualised saving from disciplined replenishment: "
         f"≈ {impact.data['annualised_net_saving']:,} "

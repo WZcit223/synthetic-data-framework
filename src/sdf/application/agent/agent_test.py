@@ -111,3 +111,15 @@ def test_a_falsy_planner_is_still_used():
     _, reg = build_registry(GenerationSpec(n_skus=40, horizon_days=30))
     r = WarehouseAgent(WarehouseIntelligence(reg), planner=EmptyButValid()).handle("x")
     assert r["plan"] == ["get_kpis"] and r["answer"] == "Cannot answer: the plan called get_kpis."
+
+
+def test_a_gated_read_tool_is_reported_as_pending_not_read():
+    _, reg = build_registry(GenerationSpec(n_skus=40, horizon_days=30))
+    agent = WarehouseAgent(WarehouseIntelligence(reg))
+    agent.register(Tool("replenishment", "gated", lambda top_n=5: {"never": "read"}, requires_approval=True))
+    agent.register(Tool("financial_impact", "gated", lambda: {"never": "read"}, requires_approval=True))
+    r = agent.handle("should I reorder?")
+    assert r["answer"] == (
+        "Cannot check replenishment: pending your approval. Cannot estimate the saving: pending your approval."
+    )
+    assert [p["proposed_action"] for p in r["proposed_actions"]] == ["replenishment", "financial_impact"]
