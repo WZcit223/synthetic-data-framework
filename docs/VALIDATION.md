@@ -107,30 +107,30 @@ Backtest (daily, seasonal period 7, 90 points; ranked by MAE):
 
 (s,S) policy (lead time 7 days, review 7 days):
 
-| service level | z | SKUs needing an order | total safety stock (units) |
-|---|---|---|---|
-| 0.9 | 1.282 | 32 | 2,952 |
-| 0.95 | 1.645 | 38 | 3,788 |
-| 0.99 | 2.326 | 47 | 5,357 |
+| service level | z | SKUs needing an order | of which intermittent | total safety stock (units) |
+|---|---|---|---|---|
+| 0.9 | 1.282 | 44 | 24 | 3,539 |
+| 0.95 | 1.645 | 62 | 40 | 4,541 |
+| 0.99 | 2.326 | 73 | 49 | 6,421 |
 
 Economics (counterfactual, default `CostModel`):
 
 | metric | value |
 |---|---|
 | SKUs considered | 200 |
-| stockout units, naive → ours | 5,269 → 17 |
-| stockout units avoided | 5,252 |
-| annualised net saving (estimate) | 1,887,834 |
+| stockout units, naive → ours | 5,269 → 0 |
+| stockout units avoided | 5,269 |
+| annualised net saving (estimate) | 1,858,631 |
 
 Scenarios (95 % service level):
 
 | scenario | SKUs needing an order | safety stock (units) | vs baseline % |
 |---|---|---|---|
-| baseline | 38 | 3,788 | 0 |
-| promo_spike | 66 | 5,374 | 41.9 |
-| supply_disruption | 50 | 3,818 | 0.8 |
-| seasonal_downturn | 35 | 3,275 | -13.5 |
-| high_variability | 52 | 4,399 | 16.1 |
+| baseline | 62 | 4,541 | 0 |
+| promo_spike | 83 | 6,116 | 34.7 |
+| supply_disruption | 67 | 4,556 | 0.3 |
+| seasonal_downturn | 48 | 4,029 | -11.3 |
+| high_variability | 72 | 5,143 | 13.3 |
 
 Agent, "should I reorder and what is the money impact?": plan `replenishment → financial_impact`, 3 logged steps, proposed SKU-00176 × 66 (PENDING_APPROVAL).
 
@@ -322,6 +322,17 @@ The policy at 90 / 95 / 99 % service level is under
 [Reproducible numbers → Default world](#reproducible-numbers). An earlier
 hand-copied version of this table (33 / 38 / 43 SKUs, 2 626 / 3 369 / 4 764 units)
 predates the demand shocks added to the generator and no longer matched the code.
+
+**Intermittent SKUs (2026-09-23, correctness PR 4).** σ used to be the plain
+day-to-day standard deviation for every SKU. For an SKU that sells on fewer
+than half of the days that understates the risk: the danger is one large order
+on a rare selling day. Such SKUs now use `max(std, mean / (1 − zero_ratio))`,
+the average size of a selling day. On the default world this raises the SKUs
+needing an order at 95 % from 38 to 62 (40 of them intermittent) and the total
+safety stock from 3 788 to 4 541 units; the economics counterfactual now leaves
+0 instead of 17 unmet units, at a slightly lower annualised saving (1 858 631
+instead of 1 887 834) because the larger buffers cost holding. Croston/TSB
+forecasting remains the model-based replacement (ALGORITHM-HOOK C2).
 
 **Reading it:** the classic service/inventory tradeoff, quantified — raising the
 service level from 90→99 % lifts required safety stock by roughly 80 %. ALGORITHM-HOOK: a

@@ -93,7 +93,8 @@ def financial_impact(intel: WarehouseIntelligence, *, cost_model: CostModel | No
     lost_margin = 0.0
     considered = 0
     for sku in list(table.series)[:max_skus]:
-        mu, sigma = table.mean(sku), table.std(sku)
+        prof = table.profile(sku)
+        mu = prof.mean
         if mu <= 0:
             continue
         considered += 1
@@ -104,7 +105,7 @@ def financial_impact(intel: WarehouseIntelligence, *, cost_model: CostModel | No
         s_n = mu * cm.lead_time_days
         S_n = mu * protect
         # ours: safety stock sized to the service level
-        ss = cm.service_z * sigma * (protect**0.5)
+        ss = cm.service_z * prof.variability * (protect**0.5)  # same sizing as the (s,S) policy
         s_o = mu * protect + ss
         S_o = s_o
         rn = _simulate(series, s_n, S_n, cm.lead_time_days, uc, cm)
@@ -116,7 +117,7 @@ def financial_impact(intel: WarehouseIntelligence, *, cost_model: CostModel | No
         # value of a served-vs-lost unit = margin × penalty
         lost_margin += (rn["unmet_units"] - ro["unmet_units"]) * margin * cm.stockout_penalty_mult
 
-    horizon_days = max(1, table.active_days)
+    horizon_days = max(1, len(table.days))
     scale = cm.working_days_per_year / horizon_days  # annualise
     stockout_saving = lost_margin
     holding_delta = tot["ours"]["holding"] - tot["naive"]["holding"]  # +ve = we hold more

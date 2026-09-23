@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
+import pytest
+
 from sdf.foundation.schema import OutboundOrder
 from .demand import DemandTable
 
@@ -48,3 +50,15 @@ def test_default_world_has_no_empty_days(default_world):
     _, reg, _ = default_world
     t = DemandTable.from_orders(reg.stream("OutboundOrder"))
     assert len(t.days) == t.active_days == 90
+
+
+def test_profile_distinguishes_smooth_and_intermittent_demand():
+    from .demand import DemandProfile
+
+    t = DemandTable.from_orders([_order(d, "S", 4) for d in range(1, 11)] + [_order(3, "I", 20), _order(8, "I", 10)])
+    smooth, sparse = t.profile("S"), t.profile("I")
+    assert (smooth.zero_ratio, smooth.is_intermittent, smooth.variability) == (0.0, False, 0.0)
+    assert sparse.zero_ratio == 0.8 and sparse.is_intermittent
+    assert sparse.mean == 3.0
+    assert sparse.variability == pytest.approx(15.0)  # a typical selling day, larger than std 6.4
+    assert DemandProfile(mean=0.0, std=0.0, zero_ratio=1.0).variability == 0.0

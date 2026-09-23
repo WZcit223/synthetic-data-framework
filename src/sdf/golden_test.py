@@ -78,14 +78,16 @@ def test_replenishment_simulation(world):
 
 
 @pytest.mark.parametrize(
-    ("index", "service_level", "z", "needing_order", "safety_stock"),
-    [(0, 0.90, 1.282, 32, 2952.0), (1, 0.95, 1.645, 38, 3788.0), (2, 0.99, 2.326, 47, 5357.0)],
+    ("index", "service_level", "z", "needing_order", "intermittent", "safety_stock"),
+    # Before correctness PR 4 (plain std for every SKU): 32/38/47 SKUs, 2952/3788/5357 units.
+    [(0, 0.90, 1.282, 44, 24, 3539.0), (1, 0.95, 1.645, 62, 40, 4541.0), (2, 0.99, 2.326, 73, 49, 6421.0)],
 )
-def test_ss_policy(world, index, service_level, z, needing_order, safety_stock):
+def test_ss_policy(world, index, service_level, z, needing_order, intermittent, safety_stock):
     policy = world["ss_policy"][index]
     assert policy["service_level"] == approx(service_level)
     assert policy["z"] == approx(z)
     assert policy["skus_needing_order"] == needing_order
+    assert policy["intermittent_needing_order"] == intermittent
     assert policy["total_safety_stock_units"] == approx(safety_stock)
 
 
@@ -129,9 +131,10 @@ def test_backtest_on_default_world(world):
 def test_economics(world):
     eco = world["economics"]
     assert (eco["skus_considered"], eco["horizon_days"]) == (200, 90)
-    assert eco["unmet_units"] == {"naive": 5269, "ours": 17}
-    assert eco["stockout_units_avoided"] == 5252
-    assert eco["annualised_net_saving"] == approx(1887834)
+    # Before correctness PR 4: ours 17 unmet units, 5252 avoided, saving 1887834.
+    assert eco["unmet_units"] == {"naive": 5269, "ours": 0}
+    assert eco["stockout_units_avoided"] == 5269
+    assert eco["annualised_net_saving"] == approx(1858631)
 
 
 def test_agent_reorder_and_impact(world):
@@ -145,12 +148,13 @@ def test_agent_reorder_and_impact(world):
 
 def test_scenarios(world):
     rows = {r["scenario"]: r for r in world["scenarios"]}
+    # Before correctness PR 4: 38/66/50/35/52 SKUs, +41.9/+0.8/-13.5/+16.1 % vs baseline.
     expected = {
-        "baseline": (38, 3788.0, 0.0),
-        "promo_spike": (66, 5374.0, 41.9),
-        "supply_disruption": (50, 3818.0, 0.8),
-        "seasonal_downturn": (35, 3275.0, -13.5),
-        "high_variability": (52, 4399.0, 16.1),
+        "baseline": (62, 4541.0, 0.0),
+        "promo_spike": (83, 6116.0, 34.7),
+        "supply_disruption": (67, 4556.0, 0.3),
+        "seasonal_downturn": (48, 4029.0, -11.3),
+        "high_variability": (72, 5143.0, 13.3),
     }
     assert list(rows) == list(expected)
     for name, (needing, safety, pct) in expected.items():

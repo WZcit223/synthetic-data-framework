@@ -1,5 +1,12 @@
 # PR 4 — Demand profile: variability that fits the demand shape
 
+> Status: implemented (correctness sequence PR 4). Moved numbers as expected:
+> (s,S) at 90/95/99 % now 44/62/73 SKUs (24/40/49 intermittent) and
+> 3 539/4 541/6 421 units; economics 0 unmet units for "ours", 5 269 avoided,
+> annualised 1 858 631; scenarios re-based accordingly. The (s,S) result also
+> reports `intermittent_needing_order` and each row's `variability` and
+> `intermittent` flag. Nothing else moved.
+
 ## Goal
 
 Safety stock uses a variability measure that reflects how an SKU actually

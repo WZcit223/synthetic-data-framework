@@ -15,7 +15,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 
 from sdf.analytics.anomaly import residual_scale, seasonal_residual_anomalies
-from sdf.analytics.demand import DemandTable
+from sdf.analytics.demand import DemandProfile, DemandTable
 from sdf.analytics.forecast import build_series
 from sdf.foundation.registry import DataSourceRegistry
 
@@ -124,14 +124,16 @@ class WarehouseIntelligence:
     def demand_series(self, sku_id: str, forecast_days: int = 14) -> dict:
         """Daily demand history for one SKU + a naive trailing-average forecast.
 
+        ``history`` lists the days on which the SKU shipped (what the chart
+        plots). The forecast is the mean over the last 14 *calendar* days of the
+        table, zero days included, like every other daily rate in the package.
         ALGORITHM-HOOK: the forecast here is a trailing mean. Replace with a
         fitted model (DeepAR / TFT / LightGBM) to get real predictive intervals.
         """
         table = self.demand_table()
-        # Only the days on which this SKU actually shipped, as before the shared table.
-        points = [(d, q) for d, q in zip(table.days, table.series.get(sku_id, ())) if q > 0]
-        history = [{"date": d.isoformat(), "qty": int(q)} for d, q in points]
-        recent = [q for _, q in points[-14:]] or [0]
+        series = table.series.get(sku_id, ())
+        history = [{"date": d.isoformat(), "qty": int(q)} for d, q in zip(table.days, series) if q > 0]
+        recent = list(series[-14:]) or [0.0]
         forecast_avg = round(sum(recent) / len(recent), 2)
         return {
             "sku_id": sku_id,
@@ -187,23 +189,26 @@ class WarehouseIntelligence:
         key = min(self._Z, key=lambda k: abs(k - service_level))
         return self._Z[key]
 
-    def sku_daily_stats(self) -> dict:
-        """Per-SKU mean and std of daily demand (for safety-stock sizing)."""
+    def demand_profiles(self) -> dict[str, DemandProfile]:
+        """Per-SKU demand shape (mean, std, zero-day share); safety stock uses ``variability``."""
         table = self.demand_table()
-        return {sku: (table.mean(sku), table.std(sku)) for sku in table.series}
+        return {sku: table.profile(sku) for sku in table.series}
 
     def replenishment_ss_policy(
         self, *, lead_time_days: int = 7, review_days: int = 7, service_level: float = 0.95, top_n: int = 12
     ) -> dict:
         """Classic (s, S) policy sized from demand variability + a service level.
 
-        s (reorder point) = μ·(L+R) + z·σ·√(L+R);  S (order-up-to) = s.
+        s (reorder point) = μ·(L+R) + z·σ·√(L+R);  S (order-up-to) = s,
+        where μ is the SKU's mean daily demand over calendar days and σ is
+        ``DemandProfile.variability`` (the day-to-day std for smooth SKUs, at
+        least the average selling-day quantity for intermittent ones).
         ALGORITHM-HOOK: this uses a normal-demand approximation; a real system
         fits the lead-time demand distribution (incl. intermittent-demand models)
         and solves a cost-based newsvendor objective.
         """
         z = self._z_for(service_level)
-        stats = self.sku_daily_stats()
+        profiles = self.demand_profiles()
         skus = {s.sku_id: s for s in self.reg.stream("SKU")}
         avail = {}
         for snap in self.reg.stream("InventorySnapshot"):
@@ -212,21 +217,27 @@ class WarehouseIntelligence:
         protect = lead_time_days + review_days
         rows: list[dict] = []
         total_ss_units = 0.0
-        for sku, (mu, sigma) in stats.items():
+        intermittent_flagged = 0
+        for sku, prof in profiles.items():
+            mu = prof.mean
             if mu <= 0:
-                continue
-            ss = z * sigma * (protect**0.5)
+                continue  # no demand in the window: nothing to protect
+            ss = z * prof.variability * (protect**0.5)
             s = mu * protect + ss
             S = s  # order-up-to == reorder point for a single review cycle
             on_hand = avail.get(sku, 0)
             order = max(0, round(S - on_hand)) if on_hand <= s else 0
             total_ss_units += ss
+            if order > 0 and prof.is_intermittent:
+                intermittent_flagged += 1
             rows.append(
                 {
                     "sku_id": sku,
                     "name": skus[sku].name if sku in skus else "?",
                     "avg_daily_demand": round(mu, 2),
-                    "demand_std": round(sigma, 2),
+                    "demand_std": round(prof.std, 2),
+                    "variability": round(prof.variability, 2),
+                    "intermittent": prof.is_intermittent,
                     "safety_stock": round(ss, 1),
                     "reorder_point_s": round(s, 1),
                     "order_up_to_S": round(S, 1),
@@ -241,6 +252,7 @@ class WarehouseIntelligence:
             "lead_time_days": lead_time_days,
             "review_days": review_days,
             "skus_needing_order": sum(1 for r in rows if r["order_qty"] > 0),
+            "intermittent_needing_order": intermittent_flagged,
             "total_safety_stock_units": round(total_ss_units, 0),
             "rows": rows[:top_n],
         }
@@ -379,7 +391,7 @@ class WarehouseIntelligence:
         return DemandTable.from_orders(self.reg.stream("OutboundOrder"))
 
     def _daily_demand(self) -> dict[str, float]:
-        """Total demand per SKU divided by the number of days that had any order."""
+        """Total demand per SKU divided by the number of calendar days in the table."""
         table = self.demand_table()
-        horizon = max(1, table.active_days)
+        horizon = max(1, len(table.days))
         return {sku: sum(series) / horizon for sku, series in table.series.items()}

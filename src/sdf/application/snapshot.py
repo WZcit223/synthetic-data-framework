@@ -76,7 +76,16 @@ def default_world_snapshot(spec: GenerationSpec | None = None) -> dict:
         },
         "replenishment_simulation": intel.replenishment_simulation(),
         "ss_policy": [
-            {k: p[k] for k in ("service_level", "z", "skus_needing_order", "total_safety_stock_units")}
+            {
+                k: p[k]
+                for k in (
+                    "service_level",
+                    "z",
+                    "skus_needing_order",
+                    "intermittent_needing_order",
+                    "total_safety_stock_units",
+                )
+            }
             for p in (intel.replenishment_ss_policy(service_level=sl) for sl in SERVICE_LEVELS)
         ],
         "rule_anomalies": {
@@ -220,8 +229,17 @@ def _world_markdown(w: dict) -> list[str]:
     lines += _backtest_table(w["backtest"])
     lines += ["(s,S) policy (lead time 7 days, review 7 days):", ""]
     lines += _table(
-        ["service level", "z", "SKUs needing an order", "total safety stock (units)"],
-        [[p["service_level"], p["z"], p["skus_needing_order"], p["total_safety_stock_units"]] for p in w["ss_policy"]],
+        ["service level", "z", "SKUs needing an order", "of which intermittent", "total safety stock (units)"],
+        [
+            [
+                p["service_level"],
+                p["z"],
+                p["skus_needing_order"],
+                p["intermittent_needing_order"],
+                p["total_safety_stock_units"],
+            ]
+            for p in w["ss_policy"]
+        ],
     )
     lines += ["Economics (counterfactual, default `CostModel`):", ""]
     lines += _table(

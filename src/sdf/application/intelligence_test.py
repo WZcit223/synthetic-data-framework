@@ -48,3 +48,27 @@ def test_numeric_options_are_keyword_only(default_world):
         intel.replenishment_ss_policy(0.95)  # would silently mean lead_time_days=0.95
     with pytest.raises(TypeError):
         intel.stocktake_discrepancies(0.3)
+
+
+def test_demand_series_forecast_is_a_calendar_day_rate():
+    from datetime import datetime
+
+    from sdf.foundation.registry import DataSourceRegistry
+    from sdf.foundation.schema import OutboundOrder
+
+    def order(day, qty):
+        return OutboundOrder(
+            order_id=f"o{day}",
+            ts=datetime(2025, 1, day, 9),
+            sku_id="S",
+            quantity=qty,
+            channel="store",
+            priority="standard",
+            status="shipped",
+        )
+
+    reg = DataSourceRegistry()
+    reg.register("orders", "OutboundOrder", [order(1, 1), order(5, 20), order(10, 1)])
+    res = WarehouseIntelligence(reg).demand_series("S")
+    assert [h["qty"] for h in res["history"]] == [1, 20, 1]  # selling days only, for the chart
+    assert res["forecast_avg_daily"] == 2.2  # 22 units over 10 calendar days, not 22 / 3
