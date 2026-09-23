@@ -107,7 +107,7 @@ def read_retail_feature_table(path: str, limit: int = 3000) -> list[Row]:
     return rows
 
 
-def bootstrap_synthesize(real: list[Row], n: int = None, jitter: float = 0.05, seed: int = 7) -> list[Row]:
+def bootstrap_synthesize(real: list[Row], n: int | None = None, jitter: float = 0.05, seed: int = 7) -> list[Row]:
     """A minimal stdlib synthesizer: per-column bootstrap + Gaussian jitter.
 
     Stands in for a fitted generator so privacy can be measured with no heavy

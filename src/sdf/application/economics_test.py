@@ -32,6 +32,10 @@ def test_cost_model_defaults_validate():
         ("review_days", 0),
         ("working_days_per_year", 0),
         ("service_z", 0.0),
+        ("service_z", float("nan")),
+        ("order_fixed_cost", float("nan")),
+        ("lead_time_days", float("nan")),
+        ("holding_cost_annual_rate", float("inf")),
     ],
 )
 def test_cost_model_invalid_field_raises_value_error_naming_the_field(field, value):

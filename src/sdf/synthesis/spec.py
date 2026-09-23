@@ -9,6 +9,7 @@ spec without importing the generator.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -43,15 +44,18 @@ class GenerationSpec:
     )
 
     def __post_init__(self) -> None:
+        """Reject values the generator cannot run on; every message names the field."""
         for name in ("n_skus", "n_locations", "horizon_days"):
-            if getattr(self, name) < 1:
-                raise ValueError(f"{name} must be >= 1, got {getattr(self, name)!r}")
-        if len(self.abc_split) != 3 or any(p < 0 for p in self.abc_split):
-            raise ValueError(f"abc_split must have three non-negative entries, got {self.abc_split!r}")
+            v = getattr(self, name)
+            if not (math.isfinite(v) and v >= 1):
+                raise ValueError(f"{name} must be a finite number >= 1, got {v!r}")
+        if len(self.abc_split) != 3 or any(not (math.isfinite(p) and p >= 0) for p in self.abc_split):
+            raise ValueError(f"abc_split must have three finite non-negative entries, got {self.abc_split!r}")
         if abs(sum(self.abc_split) - 1.0) > 1e-9:
             raise ValueError(f"abc_split must sum to 1, got {self.abc_split!r}")
-        if self.daily_orders_per_a_sku <= 0:
-            raise ValueError(f"daily_orders_per_a_sku must be > 0, got {self.daily_orders_per_a_sku!r}")
+        if not (math.isfinite(self.daily_orders_per_a_sku) and self.daily_orders_per_a_sku > 0):
+            raise ValueError(f"daily_orders_per_a_sku must be a finite number > 0, got {self.daily_orders_per_a_sku!r}")
         for name in ("express_ratio", "stockout_pressure"):
-            if not 0.0 <= getattr(self, name) <= 1.0:
-                raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)!r}")
+            v = getattr(self, name)
+            if not (math.isfinite(v) and 0.0 <= v <= 1.0):
+                raise ValueError(f"{name} must be a finite number in [0, 1], got {v!r}")

@@ -70,7 +70,7 @@ class Pipeline:
             visit(s.name)
         return order
 
-    def run(self, ctx: dict[str, Any] = None, sink_path: str = None) -> dict[str, Any]:
+    def run(self, ctx: dict[str, Any] | None = None, sink_path: str | None = None) -> dict[str, Any]:
         ctx = dict(ctx or {})
         log = RunLogger(self.name, sink_path=sink_path)
         artifacts: dict[str, Any] = {}

@@ -94,7 +94,7 @@ class WarehouseAgent:
 
     # -- planner -----------------------------------------------------------
 
-    def handle(self, query: str, cost_model: CostModel = None) -> dict:
+    def handle(self, query: str, cost_model: CostModel | None = None) -> dict:
         """Route a query to a small plan of tool calls; return answer + trace."""
         log = RunLogger("agent", sink_path=self.sink_path)
         ql = (query or "").lower()

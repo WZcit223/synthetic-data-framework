@@ -57,6 +57,7 @@ def build_series(orders: Iterable[OutboundOrder], prefer_daily_min_days: int = 1
 
     Returns (values, granularity_label, seasonal_period).
     """
+    orders = list(orders)  # iterated twice below, so a generator must be materialised once
     days = sorted({o.ts.date() for o in orders if o.status != "cancelled"})
     if len(days) >= prefer_daily_min_days:
         return daily_demand_series(orders), "daily", 7

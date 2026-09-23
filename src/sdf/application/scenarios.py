@@ -18,7 +18,9 @@ from sdf.synthesis.spec import GenerationSpec
 from .intelligence import WarehouseIntelligence
 
 
-def run_scenarios(base_spec=None, names: list[str] = None, service_level: float = 0.95) -> dict:
+def run_scenarios(
+    base_spec: GenerationSpec | None = None, names: list[str] | None = None, service_level: float = 0.95
+) -> dict:
     """Generate each scenario world and compare KPIs + inventory stress."""
     base = base_spec or GenerationSpec()
     names = names or list(SCENARIOS)

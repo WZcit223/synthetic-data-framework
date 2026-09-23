@@ -12,6 +12,7 @@ estimate with stated assumptions, not a claim. # DATA-HOOK: real unit costs.
 
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass
 
@@ -32,16 +33,19 @@ class CostModel:
     working_days_per_year: int = 313
 
     def __post_init__(self) -> None:
+        """Reject cost assumptions the simulation cannot price; every message names the field."""
         for name in ("holding_cost_annual_rate", "stockout_penalty_mult"):
-            if not 0.0 <= getattr(self, name) <= 1.0:
-                raise ValueError(f"{name} must be in [0, 1], got {getattr(self, name)!r}")
-        if self.order_fixed_cost < 0:
-            raise ValueError(f"order_fixed_cost must be >= 0, got {self.order_fixed_cost!r}")
+            v = getattr(self, name)
+            if not (math.isfinite(v) and 0.0 <= v <= 1.0):
+                raise ValueError(f"{name} must be a finite number in [0, 1], got {v!r}")
+        if not (math.isfinite(self.order_fixed_cost) and self.order_fixed_cost >= 0):
+            raise ValueError(f"order_fixed_cost must be a finite number >= 0, got {self.order_fixed_cost!r}")
         for name in ("lead_time_days", "review_days", "working_days_per_year"):
-            if getattr(self, name) < 1:
-                raise ValueError(f"{name} must be >= 1, got {getattr(self, name)!r}")
-        if self.service_z <= 0:
-            raise ValueError(f"service_z must be > 0, got {self.service_z!r}")
+            v = getattr(self, name)
+            if not (math.isfinite(v) and v >= 1):
+                raise ValueError(f"{name} must be a finite number >= 1, got {v!r}")
+        if not (math.isfinite(self.service_z) and self.service_z > 0):
+            raise ValueError(f"service_z must be a finite number > 0, got {self.service_z!r}")
 
 
 def _simulate(demand: list[float], s: float, S: float, lead: int, unit_cost: float, cm: CostModel) -> dict[str, float]:
