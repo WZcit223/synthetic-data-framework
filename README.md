@@ -38,8 +38,9 @@ uv run uvicorn sdf.api.app:app --reload
 ```
 
 The dashboard has two views: a **framework capability overview** (for management)
-and a **replenishment closed-loop deep dive**
-(demand → forecast → reorder point → suggested order → projected service level).
+and a **replenishment deep dive**
+(demand → demand profile → (s,S) levels at a service level → order → replayed fill rate
+versus a no-safety-stock policy).
 Sliders re-drive the `GenerationSpec` to regenerate the synthetic world live.
 
 ## Layers
@@ -58,7 +59,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 |----------------------|-----------------------------|
 | Seeded rule-based generators | Fitted generative models (SDV/CTGAN/TimeGAN) |
 | Structural quality checks | Statistical fidelity / privacy / ML-utility validation |
-| Rule-based forecast & replenishment | DeepAR / TFT forecasting + (s,S) optimisation |
+| Trailing-average forecast, normal-approximation (s,S) replenishment | DeepAR / TFT forecasting + cost-based newsvendor |
 | Templated insights | LLM + knowledge-graph reasoning |
 
 ## Development

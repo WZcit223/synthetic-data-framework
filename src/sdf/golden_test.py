@@ -60,21 +60,22 @@ def test_abc_distribution(world):
     assert world["abc"] == {"A": 39, "B": 55, "C": 106}
 
 
-def test_rule_replenishment(world):
-    rule = world["rule_replenishment"]
-    assert rule["skus_flagged"] == 7
-    assert [(s["sku_id"], s["suggested_order_qty"]) for s in rule["top"]] == [
-        ("SKU-00176", 66),
-        ("SKU-00114", 19),
-        ("SKU-00093", 186),
-    ]
-
-
-def test_replenishment_simulation(world):
-    sim = world["replenishment_simulation"]
-    assert (sim["skus_total"], sim["skus_flagged"], sim["stockouts_before"], sim["stockouts_after"]) == (200, 7, 2, 0)
-    assert sim["service_level_before"] == approx(0.965)
-    assert sim["service_level_after"] == approx(1.0)
+def test_replenishment_comparison(world):
+    # Replaces the rule-based replenishment (7 SKUs flagged, top SKU-00176 × 66) and its
+    # "closed loop" (stockouts 2 → 0), removed in structure PR 3.
+    cmp = world["replenishment_comparison"]
+    assert (cmp["service_level"], cmp["horizon_days"]) == (0.95, 90)
+    naive, ours = cmp["policies"]
+    expected = {
+        "naive": (2, 0, 5269, 0.9128, 41509, 40600),
+        "service-level-95": (62, 4541, 0, 1.0, 122435, 229125),
+    }
+    for p in (naive, ours):
+        needing, safety, unmet, fill, holding, order = expected[p["policy"]]
+        assert (p["skus_needing_order"], p["safety_stock_units"], p["unmet_units"]) == (needing, safety, unmet)
+        assert p["fill_rate"] == approx(fill)
+        assert p["holding_cost"] == approx(holding)
+        assert p["order_cost"] == approx(order)
 
 
 @pytest.mark.parametrize(
@@ -142,8 +143,8 @@ def test_agent_reorder_and_impact(world):
     assert agent["plan"] == ["replenishment", "financial_impact"]
     assert agent["steps"] == 3
     assert agent["proposed_actions"] == [
-        {"proposed_action": "place_order", "sku_id": "SKU-00176", "quantity": 66, "status": "PENDING_APPROVAL"}
-    ]
+        {"proposed_action": "place_order", "sku_id": "SKU-00028", "quantity": 119, "status": "PENDING_APPROVAL"}
+    ]  # SKU-00176 × 66 (rule-based) before structure PR 3
 
 
 def test_scenarios(world):

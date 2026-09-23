@@ -28,3 +28,14 @@ def test_cost_question_on_an_empty_registry_says_so():
     agent = WarehouseAgent(WarehouseIntelligence(DataSourceRegistry()))
     assert agent.handle("what is the cost?")["answer"] == "Cannot estimate the saving: no demand."
     assert "Cannot estimate the saving: no demand." in agent.handle("should I reorder?")["answer"]
+
+
+def test_reorder_without_plan_rows_proposes_nothing():
+    from .agent import Tool
+
+    _, reg = build_registry(GenerationSpec(n_skus=40, horizon_days=30))
+    agent = WarehouseAgent(WarehouseIntelligence(reg))
+    # A count without rows (e.g. the tool asked for top_n=0) must not index an empty list.
+    agent.register(Tool("replenishment", "stub", lambda top_n=5: {"skus_needing_order": 3, "rows": []}))
+    r = agent.handle("should I reorder?")
+    assert r["proposed_actions"] == [] and r["answer"].startswith("3 SKUs need an order")

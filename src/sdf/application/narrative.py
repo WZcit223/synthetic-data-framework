@@ -5,7 +5,7 @@ from __future__ import annotations
 from sdf.foundation.registry import DataSourceRegistry
 from .anomaly_rules import rule_anomalies
 from .kpi import kpis
-from .replenishment import rule_suggestions
+from .replenishment import ss_policy
 
 
 def insights(reg: DataSourceRegistry) -> list[str]:
@@ -22,5 +22,6 @@ def insights(reg: DataSourceRegistry) -> list[str]:
         f"Managing {k.total_skus} SKUs, {k.total_on_hand:,} units on hand, inventory value ≈ {k.inventory_value:,.0f}.",
         f"Order cancel rate {k.cancel_rate:.1%}, express share {k.express_rate:.1%}.",
         f"{stockouts} active stockouts and {dead} dead-stock SKUs detected.",
-        f"{len(rule_suggestions(reg, 999))} SKUs are at/below reorder point.",
+        f"{ss_policy(reg, service_level=0.95, top_n=0)['skus_needing_order']} SKUs need an order under the "
+        "95% service-level (s,S) policy.",
     ]

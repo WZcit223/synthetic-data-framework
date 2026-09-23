@@ -55,7 +55,11 @@ class WarehouseAgent:
         i = self.intel
         self.register(Tool("get_kpis", "portfolio KPIs", lambda: i.kpis().__dict__))
         self.register(
-            Tool("replenishment", "SKUs at/below reorder point", lambda top_n=5: i.replenishment_suggestions(top_n))
+            Tool(
+                "replenishment",
+                "SKUs needing an order under the 95% service-level (s,S) policy",
+                lambda top_n=5: i.replenishment_ss_policy(service_level=0.95, top_n=top_n),
+            )
         )
         self.register(
             Tool(
@@ -107,19 +111,19 @@ class WarehouseAgent:
 
         if wants_order:
             plan = ["replenishment", "financial_impact"]
-            sugg = self.call(log, "replenishment", top_n=5)
+            repl = self.call(log, "replenishment", top_n=5)
             impact = self.call(log, "financial_impact")
-            top = sugg[0] if sugg else None
+            n = repl["skus_needing_order"]
+            top = repl["rows"][0] if n and repl["rows"] else None  # rows are sorted by order_qty, largest first
             if top:
                 # propose the action, gated by approval
-                action = self.call(log, "place_order", sku_id=top["sku_id"], quantity=top["suggested_order_qty"])
+                action = self.call(log, "place_order", sku_id=top["sku_id"], quantity=top["order_qty"])
                 proposed.append(action)
-            n = len(self.intel.replenishment_suggestions(9999))
             ans = (
-                f"{n} SKUs are at/below reorder point. "
+                f"{n} SKUs need an order under the 95% service-level (s,S) policy. "
                 + (
-                    f"Most urgent: {top['sku_id']} — propose ordering "
-                    f"{top['suggested_order_qty']} units (pending your approval). "
+                    f"Largest order: {top['sku_id']} — propose ordering "
+                    f"{top['order_qty']} units (pending your approval). "
                     if top
                     else ""
                 )

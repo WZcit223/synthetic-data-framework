@@ -58,7 +58,6 @@ def default_world_snapshot(spec: GenerationSpec | None = None) -> dict:
     wh, reg = build_registry(spec)
     intel = WarehouseIntelligence(reg)
     kpis = intel.kpis()
-    rule = intel.replenishment_suggestions(9999)
     rule_anomalies = intel.anomalies()
     demand_anomalies = intel.demand_anomalies()
     stocktake = intel.stocktake_discrepancies()
@@ -70,11 +69,7 @@ def default_world_snapshot(spec: GenerationSpec | None = None) -> dict:
         "quality": structural_quality_check(wh).to_dict(),
         "kpis": dict(kpis.__dict__),
         "abc": intel.abc_distribution(),
-        "rule_replenishment": {
-            "skus_flagged": len(rule),
-            "top": [{"sku_id": s["sku_id"], "suggested_order_qty": s["suggested_order_qty"]} for s in rule[:3]],
-        },
-        "replenishment_simulation": intel.replenishment_simulation(),
+        "replenishment_comparison": intel.replenishment_comparison(service_level=0.95),
         "ss_policy": [
             {
                 k: p[k]
@@ -179,9 +174,8 @@ def _backtest_table(bt: dict) -> list[str]:
 
 
 def _world_markdown(w: dict) -> list[str]:
-    k, sim, st, da, eco = (
+    k, st, da, eco = (
         w["kpis"],
-        w["replenishment_simulation"],
         w["stocktake"],
         w["demand_anomalies"],
         w["economics"],
@@ -201,15 +195,6 @@ def _world_markdown(w: dict) -> list[str]:
             ["cancel rate", k["cancel_rate"]],
             ["express rate", k["express_rate"]],
             ["ABC mix (A / B / C)", " / ".join(str(w["abc"].get(c, 0)) for c in "ABC")],
-            ["rule-based: SKUs at/below reorder point", w["rule_replenishment"]["skus_flagged"]],
-            [
-                "rule-based simulation: stockouts before → after",
-                f"{sim['stockouts_before']} → {sim['stockouts_after']}",
-            ],
-            [
-                "rule-based simulation: service level before → after",
-                f"{_fmt(sim['service_level_before'])} → {_fmt(sim['service_level_after'])}",
-            ],
             [
                 "rule anomalies: stockout / dead stock",
                 f"{w['rule_anomalies']['stockout']} / {w['rule_anomalies']['dead_stock']}",
@@ -239,6 +224,35 @@ def _world_markdown(w: dict) -> list[str]:
                 p["total_safety_stock_units"],
             ]
             for p in w["ss_policy"]
+        ],
+    )
+    cmp = w["replenishment_comparison"]
+    lines += [
+        f"Policy comparison (demand replayed over {cmp['horizon_days']} days, default `CostModel`, "
+        f"{_fmt(cmp['service_level'] * 100)} % service level):",
+        "",
+    ]
+    lines += _table(
+        [
+            "policy",
+            "SKUs needing an order",
+            "safety stock (units)",
+            "unmet units",
+            "fill rate",
+            "holding cost",
+            "order cost",
+        ],
+        [
+            [
+                p["policy"],
+                p["skus_needing_order"],
+                p["safety_stock_units"],
+                p["unmet_units"],
+                p["fill_rate"],
+                p["holding_cost"],
+                p["order_cost"],
+            ]
+            for p in cmp["policies"]
         ],
     )
     lines += ["Economics (counterfactual, default `CostModel`):", ""]

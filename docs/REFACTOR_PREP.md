@@ -88,6 +88,12 @@ observability       ← application.agent, workflow.pipeline
 （下表前 16 行，含 `POST /generate`），是重构期间字段必须逐个保持的契约；其余 5 个业务端点只出现在文档里，
 只需保证路径存在与返回可 JSON 化。
 
+> 2026-09-23（structure 序列 PR 3）：按项目负责人决定删除固定规则补货，`GET /application/replenishment`
+> 与 `GET /application/replenishment/simulate` 两个端点随之移除（路由由 23 个变为 22 个，其中 15 个被仪表盘直接调用）；仪表盘改用新增的
+> `GET /application/replenishment/comparison?service_level`（字段 `service_level,horizon_days,
+> policies[].{policy,skus_needing_order,safety_stock_units,unmet_units,fill_rate,holding_cost,order_cost}`）。
+> 下表保留为改前记录。
+
 | 端点 | 前端消费的字段 |
 |---|---|
 | `POST /generate?n_skus&daily_orders_per_a_sku&stockout_pressure&seed` | 仅状态；注意前端**不传** `horizon_days` |
@@ -129,7 +135,7 @@ observability       ← application.agent, workflow.pipeline
 
 ### 2.5 黄金数字快照（`GenerationSpec()` 默认世界，seed=42；bundled CSV）
 
-> 2026-09-23：本节是审计时（`main @ faf08a4`）的基线，保留为历史。当前值由 `uv run sdf validate` 生成并嵌入 `docs/VALIDATION.md`；correctness 序列 PR 3（MAPE 口径）与 PR 4（间歇 SKU 的安全库存）按计划改变了其中的 MAPE、(s,S)、经济与情景数值，逐项对照见两份 PR 与 `VALIDATION.md`。
+> 2026-09-23：本节是审计时（`main @ faf08a4`）的基线，保留为历史。当前值由 `uv run sdf validate` 生成并嵌入 `docs/VALIDATION.md`；correctness 序列 PR 3（MAPE 口径）与 PR 4（间歇 SKU 的安全库存）按计划改变了其中的 MAPE、(s,S)、经济与情景数值，逐项对照见两份 PR 与 `VALIDATION.md`。structure 序列 PR 3 删除了固定规则补货：表中"规则补货"与"simulate"两行不再存在，Agent 的提议改为 (s,S) 下订量最大的 SKU（`SKU-00028 ×119`）。
 
 在 `main @ faf08a4` 上实测，供特征化测试直接引用：
 

@@ -136,7 +136,7 @@ def warehouse_pipeline(
         ctx["_intel"] = intel
         return {
             "kpis": intel.kpis().__dict__,
-            "replenishment_flagged": len(intel.replenishment_suggestions(9999)),
+            "replenishment_flagged": intel.replenishment_ss_policy(service_level=0.95, top_n=0)["skus_needing_order"],
             "anomalies": intel.demand_anomalies().get("count", 0),
         }
 
