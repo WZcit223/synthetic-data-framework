@@ -11,8 +11,10 @@ The complete UCI *Online Retail II* 2009–2010 data (**525,460 orders, 4,631 SK
 result; the small-extract sections below are kept as honest history.
 
 > **Manual run on the full dataset, not reproducible from the repository** (the
-> full CSV is not bundled). Every other number in this file comes from
-> [Reproducible numbers](#reproducible-numbers), generated from the code.
+> full CSV is not bundled). The tables under
+> [Reproducible numbers](#reproducible-numbers) are generated from the code;
+> figures quoted in the narrative sections (for example the full-dataset privacy
+> result) are recorded history and are not checked by the drift test.
 
 | stage | metric | result |
 |-------|--------|--------|
@@ -29,9 +31,11 @@ Reproduce with any of the CLI commands below pointed at the full CSV.
 
 ## Reproducible numbers
 
-Every number below is computed by `sdf.application.snapshot` and printed by
-`uv run sdf validate`. The golden tests assert the same snapshot, and a test
-fails when this block differs from the code's output, so it cannot drift.
+Every number in the generated block below is computed by
+`sdf.application.snapshot` and printed by `uv run sdf validate`. The golden
+tests assert the same snapshot, and a test fails when this block differs from
+the code's output, so the block cannot drift. Numbers quoted elsewhere in this
+file are narrative or history and are not covered by that test.
 Refresh it after a change that moves a number:
 
 ```bash
@@ -100,7 +104,7 @@ Scenarios (95 % service level):
 
 Agent, "should I reorder and what is the money impact?": plan `replenishment → financial_impact`, 3 logged steps, proposed SKU-00176 × 66 (PENDING_APPROVAL).
 
-### Bundled sample CSV (daily) (`sample_online_retail_ii.csv`: 12 SKUs, 3,428 orders)
+### `sample_online_retail_ii.csv` (daily; 12 SKUs, 3,428 orders)
 
 Backtest (daily, seasonal period 7, 139 points; ranked by MAE):
 
@@ -125,7 +129,7 @@ Backtest (daily, seasonal period 7, 139 points; ranked by MAE):
 | privacy: clone risk % | 4.38 |
 | privacy: verdict | low leakage risk |
 
-### Real UCI extract (hourly) (`online_retail_ii_2010_10k.csv`: 2,015 SKUs, 10,000 orders)
+### `online_retail_ii_2010_10k.csv` (hourly; 2,015 SKUs, 10,000 orders)
 
 Backtest (hourly, seasonal period 11, 44 points; ranked by MAE):
 
@@ -175,7 +179,7 @@ Real *Online Retail II* extract. **Coverage caveat:** these 10k rows span only
 harness falls back to **hourly** granularity (intraday seasonality).
 
 The per-model table (MAE, RMSE, MAPE, bias) is under
-[Reproducible numbers → Real UCI extract](#reproducible-numbers).
+[Reproducible numbers → `online_retail_ii_2010_10k.csv`](#reproducible-numbers).
 Series: 44 business-hour buckets, mean 2049 units/hour, 2015 SKUs, 10k orders.
 
 **Reading it:** on a 4-day slice, **persistence (naive) wins** and no baseline is
@@ -190,7 +194,7 @@ data end-to-end and produces measured numbers — that part is proven.
 > extract lacks, so it exercises the **daily/weekly** path.
 
 The per-model table is under
-[Reproducible numbers → Bundled sample CSV](#reproducible-numbers).
+[Reproducible numbers → `sample_online_retail_ii.csv`](#reproducible-numbers).
 Series: 139 days, mean 137.6 units/day, test window 14 days.
 
 **Reading it:** with enough history, seasonal-naive wins decisively — the harness

@@ -252,9 +252,10 @@ def _world_markdown(w: dict) -> list[str]:
     return lines
 
 
-def _csv_markdown(title: str, c: dict) -> list[str]:
+def _csv_markdown(c: dict) -> list[str]:
     fid, tstr, priv = c["fidelity"], c["tstr"], c["privacy"]
-    lines = [f"### {title} (`{c['file']}`: {c['skus']:,} SKUs, {c['orders']:,} orders)", ""]
+    bt = c["backtest"]
+    lines = [f"### `{c['file']}` ({bt['granularity']}; {c['skus']:,} SKUs, {c['orders']:,} orders)", ""]
     lines += _backtest_table(c["backtest"])
     lines += _table(
         ["metric", "value"],
@@ -281,8 +282,8 @@ def render_markdown(snap: dict) -> str:
         "",
     ]
     lines += _world_markdown(snap["default_world"])
-    lines += _csv_markdown("Bundled sample CSV (daily)", snap["sample_csv"])
-    lines += _csv_markdown("Real UCI extract (hourly)", snap["retail_csv"])
+    lines += _csv_markdown(snap["sample_csv"])
+    lines += _csv_markdown(snap["retail_csv"])
     return "\n".join(lines).rstrip() + "\n"
 
 
