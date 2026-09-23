@@ -35,3 +35,8 @@ jobs:
       - run: uv run pytest
       - run: uv run sdf demo
       - run: git diff --exit-code
+      # The optional synthesis extra mounts the gaussian-copula plug-in; its tests skip without it.
+      - name: Synthesis extra (gaussian-copula plug-in)
+        run: |
+          uv sync --locked --extra synthesis
+          uv run pytest src/sdf/synthesis src/sdf/cli_test.py
