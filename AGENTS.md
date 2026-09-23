@@ -99,10 +99,11 @@ intent still applies.
    hand-rolled loops; existing pure-Python stand-ins are ported in the refactor
    step that touches them.
 3. **Layer direction is Foundation → Analytics → Synthesis → Validation →
-   Application → entry points** (`workflow`, then `cli` and `api`). Do not add
-   imports that point the other way. `src/sdf/layering_test.py` asserts the
-   direction on every module's imports (rank order `foundation < analytics <
-   synthesis, observability < validation < application < workflow < api, cli`;
+   Simulation → Application → entry points** (`workflow`, then `cli` and `api`).
+   Do not add imports that point the other way. `src/sdf/layering_test.py`
+   asserts the direction on every module's imports (rank order `foundation <
+   analytics < synthesis, observability < validation < simulation < application <
+   workflow < api, cli`;
    `api` and `cli` never import each other), so a reverse edge fails the test
    suite. The violations that existed before the refactor and how they
    were removed are recorded in `docs/REFACTOR_PREP.md` §1.2.
@@ -116,8 +117,18 @@ intent still applies.
    block is stale. When a change moves a recorded number, regenerate the block
    and update `golden_test.py` in the same PR and say why.
 6. **The agent's approval gate is a guarantee, not a convention.** A tool with
-   `requires_approval=True` must never have its function executed by the planner;
-   see `docs/REFACTOR_PREP.md` §3.2 for the current gap.
+   `requires_approval=True` or `read_only=False` must never have its function
+   executed without an explicit approval. `Executor` in
+   `src/sdf/application/agent/executor.py` enforces this for every planner, and a
+   plan can never approve itself; keep every tool call going through it.
+7. **The UI carries intent and presents results; it computes no business
+   number.** `ui/` talks to the backend only through the versioned JSON API
+   (`/api/v1`, via the `api()` helper in `ui/app.js`). It may reshape what it
+   received (sort, filter, group, pivot, chart) and it sends only user intent
+   (generation parameters, questions, experiment choices). Any number a user
+   could act on is computed in Python behind an endpoint, where it is tested.
+   `src/sdf/api/app_test.py` checks that every path the UI calls exists in the
+   OpenAPI schema and that the Python package ships no HTML.
 
 ## Required checks
 

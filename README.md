@@ -29,12 +29,13 @@ uv run sdf agent "reorder & impact?" # tool-using agent + audit trace
 
 The full command list is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
 
-Web dashboard (FastAPI + a dependency-free HTML page, works offline):
+Web dashboard: a static UI in `ui/` over the versioned JSON API (`/api/v1`,
+FastAPI; works offline):
 
 ```bash
 uv sync --extra api
-uv run uvicorn sdf.api.app:app --reload
-# open http://127.0.0.1:8000
+SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app --reload
+# open http://127.0.0.1:8000 (dashboard) or http://127.0.0.1:8000/api/v1/docs (API)
 ```
 
 The dashboard has two views: a **framework capability overview** (for management)

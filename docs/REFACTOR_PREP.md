@@ -97,6 +97,11 @@ observability       ← application.agent, workflow.pipeline
 > 2026-09-23（structure 序列 PR 6）：仪表盘的 `POST /generate` 现在传 `horizon_days`；超过上限（500 SKU、180 天）
 > 或低于下限的参数返回 422，另一生成进行中返回 409；响应新增 `generated_ms`。`/scenarios` 与 `/workflow/run`
 > 改用当前世界，不再各自重新生成。`src/sdf/api/app_test.py` 覆盖下表仍存在的每个字段。
+>
+> 2026-09-23（structure 序列 PR 7，1.0.0）：所有端点移到 `/api/v1` 下并按 `docs/refactor/structure/interfaces.md`
+> §4.3 的表改名（例如 `/application/overview` → `/api/v1/overview`，`POST /generate?…` → `POST /api/v1/world`
+> 的 JSON 请求体，`/generate/limits` → `/api/v1/world/limits`）；`/` 不再返回 HTML，仪表盘移到仓库根目录的 `ui/`。
+> 旧路径全部返回 404。`/application/kpis` 不再单独提供（KPI 在 `/api/v1/overview` 里）。
 
 | 端点 | 前端消费的字段 |
 |---|---|

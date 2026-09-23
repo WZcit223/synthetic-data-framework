@@ -47,18 +47,29 @@ uv run sdf privacy [csv]        # DCR / NNDR / clone-risk
 
 ```bash
 uv sync --extra api
-uv run uvicorn sdf.api.app:app --reload
-# open http://127.0.0.1:8000  → the live dashboard (src/sdf/api/static/dashboard.html)
+SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app --reload
+# open http://127.0.0.1:8000           → the dashboard, served from ui/
+#      http://127.0.0.1:8000/api/v1/docs → the API and its OpenAPI schema
 ```
 
-The API is stateful: `POST /generate` re-drives the synthetic world; the other
-endpoints (`/application/*`, `/validation/*`, `/agent/*`, `/economics/*`,
-`/workflow/*`, `/scenarios`) read from it. The world is an immutable snapshot
-swapped in one step, so a request never mixes two worlds. `/generate` accepts
-10–500 SKUs and 14–180 days (HTTP 422 outside those bounds; `GET /generate/limits`
-reports them) and runs one generation at a time (HTTP 409 while another runs). `create_app(limits=GenerateLimits(...))` builds
-an app with other limits; the HTTP contract tests in `src/sdf/api/app_test.py`
-need `uv sync --extra api`.
+The backend is a JSON-only API under `/api/v1`; its OpenAPI schema
+(`/api/v1/openapi.json`) is the contract with any UI. The UI in `ui/` is plain
+HTML/JS (`index.html`, `app.js`, `style.css`) and reaches the backend only
+through the `api()` helper in `app.js`. `SDF_UI_DIR=ui` (or
+`create_app(ui_dir="ui")`) serves it at `/` for development; it can be hosted
+anywhere else by setting `window.SDF_API_BASE` before `app.js` loads and allowing
+its origin with `SDF_CORS_ORIGINS=https://ui.example` (comma-separated).
+
+The API is stateful: `POST /api/v1/world` (JSON body: `n_skus`, `horizon_days`,
+`daily_orders_per_a_sku`, `stockout_pressure`, `seed`) re-drives the synthetic
+world; the other endpoints read from it. The world is an immutable snapshot
+swapped in one step, so a request never mixes two worlds. Generation accepts
+10–500 SKUs and 14–180 days (HTTP 422 outside those bounds; `GET
+/api/v1/world/limits` reports them) and runs one at a time (HTTP 409 while
+another runs). `create_app(limits=GenerateLimits(...))` builds an app with other
+limits. `POST /api/v1/experiments` runs built-in interventions × policies ×
+outcomes on the current world and returns tidy rows. The HTTP contract tests in
+`src/sdf/api/app_test.py` need `uv sync --extra api`.
 
 ## 5. Tests and linting
 
