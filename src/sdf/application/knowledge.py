@@ -18,6 +18,11 @@ from collections.abc import Callable
 from sdf.analytics.forecast import build_series, compare_models, models_for
 
 
+def _pct_text(value: float | None) -> str:
+    """A percentage for an answer; ``None`` (undefined, e.g. no sales) reads as n/a."""
+    return "n/a" if value is None else f"{value}%"
+
+
 class KnowledgeQA:
     """Intent-routed Q&A backed by WarehouseIntelligence."""
 
@@ -109,8 +114,8 @@ class KnowledgeQA:
             "intent": "forecast",
             "data": rep,
             "answer": f"On the current demand, the best model is "
-            f"'{best['model']}' (MAE {best['MAE']}, MAPE "
-            f"{best['MAPE_pct']}%) at {freq} granularity.",
+            f"'{best['model']}' (MAE {best['MAE']}, WAPE {_pct_text(best['WAPE_pct'])}, "
+            f"MAPE {_pct_text(best['MAPE_pct'])}) at {freq} granularity.",
         }
 
     def _anomaly(self) -> dict:

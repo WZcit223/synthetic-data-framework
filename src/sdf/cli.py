@@ -130,9 +130,11 @@ def cmd_backtest(path: str, date_format: str | None = None) -> int:
         print(f"  {report['error']}\n")
         return 0
     print(f"  series        : {report['series_len']} points, mean {report['series_mean']:.1f} units/bucket")
-    print(f"  {'model':<10}{'MAE':>9}{'RMSE':>9}{'MAPE%':>9}{'bias':>9}")
+    print(f"  {'model':<13}{'MAE':>10}{'RMSE':>10}{'MAPE%':>8}{'WAPE%':>8}{'bias':>10}")
     for r in report["results"]:
-        print(f"  {r['model']:<10}{r['MAE']:>9}{r['RMSE']:>9}{r['MAPE_pct']:>9}{r['bias']:>9}")
+        mape, wape = (f"{v}" if v is not None else "n/a" for v in (r["MAPE_pct"], r["WAPE_pct"]))
+        print(f"  {r['model']:<13}{r['MAE']:>10}{r['RMSE']:>10}{mape:>8}{wape:>8}{r['bias']:>10}")
+    print("  MAPE% averages |error|/actual over days with sales; WAPE% = Σ|error| / Σactual.")
     print(f"\n  best (lowest MAE): {report['best_model']}")
     print("  ALGORITHM-HOOK: beat these baselines with DeepAR/TFT/LightGBM.\n")
     return 0
