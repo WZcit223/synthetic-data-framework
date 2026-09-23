@@ -74,4 +74,4 @@ ruff format --check .       # formatting
 pytest                      # tests
 ```
 
-Both must pass before opening a PR; CI runs the same checks on Python 3.9 and 3.11.
+Both must pass before opening a PR; CI runs the same checks on Python 3.12, 3.13 and 3.14.

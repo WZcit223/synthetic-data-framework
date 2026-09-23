@@ -121,6 +121,6 @@ python -m pytest
 python demo/run_demo.py
 ```
 
-CI (`.github/workflows/ci.yml`) runs the first three on Python 3.9 and 3.11 for
+CI (`.github/workflows/ci.yml`) runs the first three on Python 3.12, 3.13 and 3.14 for
 every PR into `main`. The optional statistical extras are not installed in CI.
 Run `ruff check --fix . && ruff format .` before committing Python changes.

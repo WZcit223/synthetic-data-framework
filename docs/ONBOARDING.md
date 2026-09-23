@@ -7,7 +7,7 @@ implementation still needs see
 
 ## 1. Requirements
 
-- Python **3.9+** (CI runs 3.9 and 3.11). The core framework depends on
+- Python **3.12 to 3.14** (`.python-version` pins 3.14; CI runs 3.12, 3.13 and 3.14). The core framework depends on
   **numpy, scipy and scikit-learn**; install it once with `pip install -e .`.
 - Optional extras (API server, statistical fidelity, deep synthesis, gradient
   boosting, causal inference) are declared in `pyproject.toml` and installed on demand.

@@ -2,7 +2,7 @@
 # 合成数据工业 AI 框架（工程可复用框架）
 
 [![CI](https://github.com/WZcit223/synthetic-data-framework/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WZcit223/synthetic-data-framework/actions/workflows/ci.yml)
-![python](https://img.shields.io/badge/python-3.9%2B-blue)
+![python](https://img.shields.io/badge/python-3.12--3.14-blue)
 
 A three-layer industrial-AI framework that uses **synthetic data** to build and
 demonstrate applications before real data is available. The first validation
@@ -66,7 +66,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
 
 ```bash
 pip install -e ".[dev]"     # pytest + ruff
-ruff check . && ruff format --check . && pytest   # CI runs the same on Python 3.9 and 3.11
+ruff check . && ruff format --check . && pytest   # CI runs the same on Python 3.12, 3.13 and 3.14
 ```
 
 - **New engineers:** start with [`docs/ONBOARDING.md`](docs/ONBOARDING.md).

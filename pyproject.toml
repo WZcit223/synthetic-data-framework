@@ -7,21 +7,21 @@ name = "synthetic-data-framework"
 version = "0.1.0"
 description = "Three-layer industrial-AI framework with synthetic-data-driven AI warehouse demo"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12,<3.15"
 license = { text = "Proprietary" }
 dependencies = [
-    "numpy>=1.26",
-    "scipy>=1.11",
-    "scikit-learn>=1.4",
+    "numpy>=2.5.3",
+    "scipy>=1.18.1",
+    "scikit-learn>=1.9.1",
 ]
 
 [project.optional-dependencies]
-api = ["fastapi", "uvicorn"]
-synthesis = ["copulas", "sdmetrics", "pandas"]
-synthesis-deep = ["sdv", "faker"]  # CTGAN/TVAE (pulls torch)
-app = ["lightgbm"]
-causal = ["dowhy>=0.11", "econml>=0.15"]  # pywhy causal stack for simulation / inference backends
-dev = ["pytest>=7", "ruff>=0.16.7"]
+api = ["fastapi>=0.141.1", "uvicorn>=0.53.0"]
+synthesis = ["copulas>=0.14.1", "sdmetrics>=0.31.1", "pandas>=2.3.3,<3"]  # copulas/sdmetrics cap pandas below 3
+synthesis-deep = ["sdv>=1.38.3", "faker>=40.39.0"]  # CTGAN/TVAE (pulls torch)
+app = ["lightgbm>=4.7.0"]
+causal = ["dowhy>=0.14", "econml>=0.17.0"]  # pywhy causal stack for simulation / inference backends
+dev = ["pytest>=9.1.1", "ruff>=0.16.8"]
 
 [project.scripts]
 sdf = "sdf.cli:main"
@@ -37,14 +37,13 @@ addopts = "-q"
 testpaths = ["tests"]
 
 [tool.ruff]
-# Aligned with TsumiNa/sciloom's ruff configuration. Only `target-version`
-# (this package supports Python 3.9+) and `src` (single package) differ.
+# Aligned with TsumiNa/sciloom's ruff configuration; only `src` (single package)
+# differs. The target Python version is inferred from `requires-python`.
 include = ["*.py", "*.pyi"]
 exclude = [".venv", "venv", "__pycache__", ".git"]
 src = [".", "src"]
 line-length = 120
 indent-width = 4
-target-version = "py39"
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "I", "TID252"]

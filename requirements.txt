@@ -1,13 +1,14 @@
 # Core runtime dependencies (see pyproject.toml [project].dependencies).
+# Python 3.12 to 3.14 (.python-version pins 3.14).
 # Install the package instead of this file: pip install -e .
-numpy>=1.26
-scipy>=1.11
-scikit-learn>=1.4
+numpy>=2.5.3
+scipy>=1.18.1
+scikit-learn>=1.9.1
 
 # Optional extras, by concern (pip install ".[<extra>]"):
-#   api             fastapi uvicorn
-#   synthesis       copulas sdmetrics pandas
-#   synthesis-deep  sdv faker            (CTGAN/TVAE; pulls torch)
-#   app             lightgbm
-#   causal          dowhy econml         (pywhy causal stack)
-#   dev             pytest ruff
+#   api             fastapi>=0.141.1 uvicorn>=0.53.0
+#   synthesis       copulas>=0.14.1 sdmetrics>=0.31.1 pandas>=2.3.3,<3
+#   synthesis-deep  sdv>=1.38.3 faker>=40.39.0      (CTGAN/TVAE; pulls torch)
+#   app             lightgbm>=4.7.0
+#   causal          dowhy>=0.14 econml>=0.17.0      (pywhy causal stack)
+#   dev             pytest>=9.1.1 ruff>=0.16.8
