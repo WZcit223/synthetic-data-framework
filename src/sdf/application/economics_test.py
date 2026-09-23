@@ -5,7 +5,7 @@ from __future__ import annotations
 from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.spec import GenerationSpec
 from .economics import financial_impact
-from .warehouse_demo import WarehouseIntelligence
+from .intelligence import WarehouseIntelligence
 
 
 def test_economics_impact():

@@ -14,9 +14,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List
 
+from sdf.analytics.anomaly import seasonal_residual_anomalies
+from sdf.analytics.demand import DemandTable
+from sdf.analytics.forecast import build_series
 from sdf.foundation.registry import DataSourceRegistry
-from sdf.synthesis.anomaly import seasonal_residual_anomalies
-from sdf.synthesis.forecast import build_series
 
 
 @dataclass
@@ -126,16 +127,11 @@ class WarehouseIntelligence:
         ALGORITHM-HOOK: the forecast here is a trailing mean. Replace with a
         fitted model (DeepAR / TFT / LightGBM) to get real predictive intervals.
         """
-        out = self.reg.stream(
-            "OutboundOrder",
-            where=lambda o: o.sku_id == sku_id and o.status != "cancelled",
-        )
-        by_day: Dict = defaultdict(int)
-        for o in out:
-            by_day[o.ts.date()] += o.quantity
-        days = sorted(by_day)
-        history = [{"date": d.isoformat(), "qty": by_day[d]} for d in days]
-        recent = [by_day[d] for d in days[-14:]] or [0]
+        table = self.demand_table()
+        # Only the days on which this SKU actually shipped, as before the shared table.
+        points = [(d, q) for d, q in zip(table.days, table.series.get(sku_id, ())) if q > 0]
+        history = [{"date": d.isoformat(), "qty": int(q)} for d, q in points]
+        recent = [q for _, q in points[-14:]] or [0]
         forecast_avg = round(sum(recent) / len(recent), 2)
         return {
             "sku_id": sku_id,
@@ -193,20 +189,8 @@ class WarehouseIntelligence:
 
     def sku_daily_stats(self) -> Dict:
         """Per-SKU mean and std of daily demand (for safety-stock sizing)."""
-        out = self.reg.stream("OutboundOrder", where=lambda o: o.status != "cancelled")
-        per_sku_day: Dict = defaultdict(lambda: defaultdict(float))
-        days = set()
-        for o in out:
-            per_sku_day[o.sku_id][o.ts.date()] += o.quantity
-            days.add(o.ts.date())
-        horizon = max(1, len(days))
-        stats: Dict = {}
-        for sku, byday in per_sku_day.items():
-            series = [byday.get(d, 0.0) for d in sorted(days)]
-            mu = sum(series) / horizon
-            var = sum((x - mu) ** 2 for x in series) / horizon
-            stats[sku] = (mu, var**0.5)
-        return stats
+        table = self.demand_table()
+        return {sku: (table.mean(sku), table.std(sku)) for sku in table.series}
 
     def replenishment_ss_policy(
         self, lead_time_days: int = 7, review_days: int = 7, service_level: float = 0.95, top_n: int = 12
@@ -384,12 +368,12 @@ class WarehouseIntelligence:
 
     # -- internals ---------------------------------------------------------
 
+    def demand_table(self) -> DemandTable:
+        """Per-SKU daily demand of non-cancelled orders (the shared aggregation)."""
+        return DemandTable.from_orders(self.reg.stream("OutboundOrder"))
+
     def _daily_demand(self) -> Dict[str, float]:
-        out = self.reg.stream("OutboundOrder", where=lambda o: o.status != "cancelled")
-        totals: Dict[str, int] = defaultdict(int)
-        days = set()
-        for o in out:
-            totals[o.sku_id] += o.quantity
-            days.add(o.ts.date())
-        horizon = max(1, len(days))
-        return {sku: qty / horizon for sku, qty in totals.items()}
+        """Total demand per SKU divided by the number of days that had any order."""
+        table = self.demand_table()
+        horizon = max(1, table.active_days)
+        return {sku: sum(series) / horizon for sku, series in table.series.items()}

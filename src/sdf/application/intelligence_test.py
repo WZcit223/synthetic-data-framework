@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.spec import GenerationSpec
-from .warehouse_demo import WarehouseIntelligence
+from .intelligence import WarehouseIntelligence
 
 
 def test_application_layer_runs():

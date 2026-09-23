@@ -34,10 +34,10 @@ clean framework-first, algorithm-second delivery.
 - **Deliverable:** synthetic data that is statistically validated, not just structural.
 
 ## Phase 3 — Real application algorithms  🟡 started
-- ✅ Real forecasting model (C1): AR + seasonal OLS (`synthesis/models.py`),
+- ✅ Real forecasting model (C1): AR + seasonal OLS (`analytics/models.py`),
   verified to beat baselines on trend/noise data; in the backtest harness + dashboard.
 - ✅ **TSTR** validation (B2): synthetic-trained ≈ real-trained, ratio 0.90–1.00
-  (`synthesis/tstr.py`, `VALIDATION.md`).
+  (`validation/tstr.py`, `VALIDATION.md`).
 - ✅ (s,S) replenishment optimisation (C2): safety stock from demand variability +
   service level; live service-level selector in the dashboard (see `VALIDATION.md`).
 - ✅ Anomaly detection (C3): seasonal-residual + robust-z on the demand series;
@@ -53,7 +53,7 @@ clean framework-first, algorithm-second delivery.
   audit trace (`observability.py`) and human-in-the-loop approval for state-changing actions.
 - ✅ Data Intelligence Workflow: explicit DAG pipeline (`workflow/pipeline.py`) with a logged run record.
 - ✅ Business-outcome economics (`application/economics.py`): counterfactual £ savings — metric → money.
-- ✅ Synthetic-data privacy (`synthesis/privacy.py`): DCR / NNDR / clone-risk (B3).
+- ✅ Synthetic-data privacy (`validation/privacy.py`): DCR / NNDR / clone-risk (B3).
 - ✅ What-if scenario simulation (`synthesis/scenarios.py`): generator → simulation engine.
 - ⬜ Upgrade paths (all marked as hooks): LLM tool-use planner; Airflow/Dagster runner;
   real cost model; differential privacy; discrete-event digital twin.

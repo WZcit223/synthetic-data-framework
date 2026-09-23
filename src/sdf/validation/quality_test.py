@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from sdf.synthesis.spec import GenerationSpec
+from sdf.synthesis.warehouse import WarehouseGenerator
 from .quality import structural_quality_check
-from .spec import GenerationSpec
-from .warehouse import WarehouseGenerator
 
 
 def test_structural_quality_passes():

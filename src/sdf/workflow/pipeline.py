@@ -19,13 +19,13 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List
 
 from sdf.application.economics import financial_impact
-from sdf.application.warehouse_demo import WarehouseIntelligence
+from sdf.application.intelligence import WarehouseIntelligence
 from sdf.foundation.adapters.retail_csv import register_online_retail
 from sdf.foundation.registry import DataSourceRegistry
 from sdf.observability import RunLogger
 from sdf.synthesis.materialise import build_registry
-from sdf.synthesis.quality import structural_quality_check
 from sdf.synthesis.spec import GenerationSpec
+from sdf.validation.quality import structural_quality_check
 
 
 @dataclass

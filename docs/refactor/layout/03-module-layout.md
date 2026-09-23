@@ -1,5 +1,16 @@
 # PR 3 — Module layout: `analytics/`, `validation/`, `intelligence.py`, one demand aggregation
 
+> Status: implemented (layout sequence PR 3). Acceptance commands below pass;
+> golden numbers and `sdf demo` output unchanged. Two deviations from the text
+> below, found during implementation: (1) `analytics` ranks *below* `synthesis`
+> in `layering_test.py`, because `synthesis/fit.py` consumes
+> `analytics.forecast.hourly_business_series` while nothing in `analytics`
+> needs a generator — the order that matches the code is
+> `foundation < analytics < synthesis < validation < application < entry points`;
+> (2) `intelligence.demand_series` keeps listing only the days on which the SKU
+> shipped (filtered from the dense table), because zipping the dense axis would
+> change the history and the trailing-14-day forecast of the `/demand` endpoint.
+
 ## Goal
 
 Put each module in a package whose name says what it is, and replace the five
@@ -25,7 +36,8 @@ Colocated tests move with their modules. `synthesis/__init__.py`,
 `analytics/__init__.py` and `validation/__init__.py` export nothing beyond a
 docstring (no re-exports, so the layering test sees real edges).
 `layering_test.py` gains the ranking
-`foundation < synthesis < analytics < validation < application < entry points`.
+`foundation < analytics < synthesis < validation < application < entry points`
+(see the status note above for why `analytics` sits below `synthesis`).
 
 ### One demand aggregation
 

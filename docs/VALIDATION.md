@@ -28,7 +28,7 @@ Reproduce with any of the CLI commands below pointed at the full CSV.
 The Application Layer's demand step is no longer a hand-wave: a real transactional
 retail feed (UCI *Online Retail II* schema) is ingested through
 `foundation/adapters/retail_csv.py` and forecast baselines are backtested with a
-one-step **walk-forward** split (`synthesis/forecast.py`).
+one-step **walk-forward** split (`analytics/forecast.py`).
 
 The harness auto-selects the finest granularity the data can support (daily when
 ≥14 days, otherwise hourly), and matches the seasonal period to it.
@@ -84,7 +84,7 @@ and what we expect to reproduce once the full real dataset is loaded.
 A generator is now **fitted on the real data** (`synthesis/fit.py`) — it learns the
 intraday demand profile and residual pool and samples a synthetic series that
 reproduces the real shape. Fidelity is scored dependency-free
-(`synthesis/fidelity.py`).
+(`validation/fidelity.py`).
 
 Reproduce:
 ```bash
@@ -140,7 +140,7 @@ strict apples-to-apples delta.)
 
 ### C1 — a real model (AR + seasonal OLS)
 
-`synthesis/models.py` adds `seasonal_linear`: an autoregressive + seasonal
+`analytics/models.py` adds `seasonal_linear`: an autoregressive + seasonal
 least-squares forecaster (trend + cycle dummies + lag-1 + lag-period), solved with
 pure-Python normal equations. It plugs into the same backtest harness.
 
@@ -160,7 +160,7 @@ pure-Python normal equations. It plugs into the same backtest harness.
 
 ### C2 — (s, S) inventory optimisation
 
-`application/warehouse_demo.py` adds a classic (s, S) policy: safety stock sized
+`application/intelligence.py` adds a classic (s, S) policy: safety stock sized
 from each SKU's demand variability and a target service level
 (`s = μ·(L+R) + z·σ·√(L+R)`). Live in the dashboard with a service-level selector.
 
@@ -198,7 +198,7 @@ small/short series; the meaningful quantity is the ratio, which is robust to tha
 
 ## Phase 3/4 — anomaly detection (C3) + knowledge Q&A (C6)
 
-**C3 — demand anomaly detection** (`synthesis/anomaly.py`): seasonal-residual +
+**C3 — demand anomaly detection** (`analytics/anomaly.py`): seasonal-residual +
 robust-z (MAD-scaled) flags demand spikes/drops resistant to the outliers it
 hunts. On the demo world it recovers the injected shock days (e.g. a spike of
 ~2400 vs an expected ~740, robust-z ≫ 3.5). Live in the dashboard.
@@ -235,7 +235,7 @@ demo world (assumptions: 25% holding, 95% service, stated in the `CostModel`):
 > turning metrics into money, not a claim. DATA-HOOK: client's real unit costs +
 > current policy give the true before/after.
 
-**Synthetic-data privacy (B3)** — `synthesis/privacy.py` on the retail feature table:
+**Synthetic-data privacy (B3)** — `validation/privacy.py` on the retail feature table:
 sample → DCR median 0.09, p05 0.02, clone-risk 4.4% ("low leakage"); full dataset →
 clone-risk 9.5% ("review"). The metric discriminates and gates shareability.
 

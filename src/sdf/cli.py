@@ -12,20 +12,20 @@ from typing import List
 
 import click
 
+from sdf.analytics.forecast import build_series, compare_models, models_for
+from sdf.application.agent import WarehouseAgent
+from sdf.application.economics import financial_impact
+from sdf.application.intelligence import WarehouseIntelligence
+from sdf.application.scenarios import run_scenarios
+from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+from sdf.synthesis.fit import FittedHourlyDemand
+from sdf.synthesis.materialise import build_registry
+from sdf.synthesis.spec import GenerationSpec
+from sdf.validation.fidelity import fidelity_report
+from sdf.validation.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
+from sdf.validation.quality import structural_quality_check
+from sdf.validation.tstr import tstr_report
 from . import __version__
-from .application.agent import WarehouseAgent
-from .application.economics import financial_impact
-from .application.scenarios import run_scenarios
-from .application.warehouse_demo import WarehouseIntelligence
-from .foundation.adapters.retail_csv import load_online_retail_csv
-from .synthesis.fidelity import fidelity_report
-from .synthesis.fit import FittedHourlyDemand
-from .synthesis.forecast import build_series, compare_models, models_for
-from .synthesis.materialise import build_registry
-from .synthesis.privacy import bootstrap_synthesize, privacy_report, read_retail_feature_table
-from .synthesis.quality import structural_quality_check
-from .synthesis.spec import GenerationSpec
-from .synthesis.tstr import tstr_report
 from .workflow import warehouse_pipeline
 
 DEFAULT_CSV = os.path.join("data", "sample_online_retail_ii.csv")
@@ -163,7 +163,7 @@ def cmd_tstr(path: str) -> int:
 def cmd_sdv(path: str) -> int:
     """Phase 2.1 (full): Gaussian-copula synthesis scored by SDMetrics."""
     try:
-        from .synthesis.sdv_synth import gaussian_copula_fidelity
+        from sdf.synthesis.sdv_synth import gaussian_copula_fidelity
 
         rep = gaussian_copula_fidelity(path)
     except ImportError:

@@ -13,33 +13,22 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from datetime import date
 from typing import Callable, Dict, List, Optional
 
+from .demand import DemandTable
 from .models import seasonal_linear  # Phase 3
 
 # -- build a daily series from canonical OutboundOrders ---------------------
 
 
 def daily_demand_series(orders, sku_id: Optional[str] = None) -> List[float]:
-    """Aggregate shipped orders into a dense daily quantity series."""
-    by_day: Dict[date, float] = defaultdict(float)
-    for o in orders:
-        if o.status == "cancelled":
-            continue
-        if sku_id is not None and o.sku_id != sku_id:
-            continue
-        by_day[o.ts.date()] += o.quantity
-    if not by_day:
-        return []
-    d0, d1 = min(by_day), max(by_day)
-    out, cur = [], d0
-    from datetime import timedelta
+    """Aggregate shipped orders into a dense daily quantity series.
 
-    while cur <= d1:
-        out.append(float(by_day.get(cur, 0.0)))
-        cur += timedelta(days=1)
-    return out
+    With ``sku_id`` the axis spans that SKU's own first-to-last order day.
+    """
+    if sku_id is not None:
+        orders = [o for o in orders if o.sku_id == sku_id]
+    return list(DemandTable.from_orders(orders).total())
 
 
 def hourly_business_series(orders, lo: int = 8, hi: int = 19):

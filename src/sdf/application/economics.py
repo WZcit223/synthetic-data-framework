@@ -16,6 +16,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List
 
+from sdf.analytics.demand import DemandTable
+
 
 @dataclass
 class CostModel:
@@ -65,28 +67,21 @@ def financial_impact(intel, cost_model: CostModel = None, max_skus: int = 400) -
     the client's real current policy for a true before/after.
     """
     cm = cost_model or CostModel()
-    stats = intel.sku_daily_stats()
+    table = DemandTable.from_orders(intel.reg.stream("OutboundOrder"))
     skus = {s.sku_id: s for s in intel.reg.stream("SKU")}
-    # per-SKU demand series over the horizon
-    out = intel.reg.stream("OutboundOrder", where=lambda o: o.status != "cancelled")
-    by_sku_day: Dict = defaultdict(lambda: defaultdict(float))
-    days = set()
-    for o in out:
-        by_sku_day[o.sku_id][o.ts.date()] += o.quantity
-        days.add(o.ts.date())
-    days = sorted(days)
-    if not days:
+    if not table.days:
         return {"error": "no demand"}
     protect = cm.lead_time_days + cm.review_days
 
     tot = {"naive": defaultdict(float), "ours": defaultdict(float)}
     lost_margin = 0.0
     considered = 0
-    for sku, (mu, sigma) in list(stats.items())[:max_skus]:
+    for sku in list(table.series)[:max_skus]:
+        mu, sigma = table.mean(sku), table.std(sku)
         if mu <= 0:
             continue
         considered += 1
-        series = [by_sku_day[sku].get(d, 0.0) for d in days]
+        series = list(table.series[sku])
         uc = skus[sku].unit_cost if sku in skus else 1.0
         margin = (skus[sku].unit_price - uc) if sku in skus else uc * 0.3
         # naive: cover mean lead demand only, no safety stock
@@ -105,7 +100,7 @@ def financial_impact(intel, cost_model: CostModel = None, max_skus: int = 400) -
         # value of a served-vs-lost unit = margin × penalty
         lost_margin += (rn["unmet_units"] - ro["unmet_units"]) * margin * cm.stockout_penalty_mult
 
-    horizon_days = max(1, len(days))
+    horizon_days = max(1, table.active_days)
     scale = cm.working_days_per_year / horizon_days  # annualise
     stockout_saving = lost_margin
     holding_delta = tot["ours"]["holding"] - tot["naive"]["holding"]  # +ve = we hold more

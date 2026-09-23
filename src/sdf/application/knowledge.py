@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Tuple
 
-from sdf.synthesis.forecast import build_series, compare_models, models_for
+from sdf.analytics.forecast import build_series, compare_models, models_for
 
 
 class KnowledgeQA:

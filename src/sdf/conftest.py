@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from .application.warehouse_demo import WarehouseIntelligence
-from .synthesis.materialise import build_registry
-from .synthesis.spec import GenerationSpec
+from sdf.application.intelligence import WarehouseIntelligence
+from sdf.synthesis.materialise import build_registry
+from sdf.synthesis.spec import GenerationSpec
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"

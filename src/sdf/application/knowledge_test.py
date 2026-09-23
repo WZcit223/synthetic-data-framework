@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.spec import GenerationSpec
+from .intelligence import WarehouseIntelligence
 from .knowledge import KnowledgeQA
-from .warehouse_demo import WarehouseIntelligence
 
 
 def test_phase4_knowledge_qa_c6():
