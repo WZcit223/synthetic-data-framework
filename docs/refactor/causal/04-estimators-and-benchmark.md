@@ -56,8 +56,10 @@ on data where the truth is known.
     and `ipw` on a perfectly separating covariate (its overlap check, §3.2),
     each give an error row; `ipw` with a few extreme propensities clips them
     and reports the count in `method`;
-  - the time budget: after an estimator that uses up `MAX_ESTIMATE_SECONDS`,
-    the ones not yet started are error rows, not run;
+  - the time budget (§5): after an estimator that uses up
+    `MAX_ESTIMATE_SECONDS`, the ones not yet started are error rows, not run;
+    a runtime dataset provider that sleeps between rows is stopped with a 422
+    once the deadline passes;
     a constant outcome shared by both groups gives a finite zero-width row
     that stays;
   - the benchmark: exact truth, `confounding=0` is unconfounded, and the

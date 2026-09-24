@@ -107,6 +107,21 @@ Rules the implementation keeps:
 
   The check costs one extra generation. With it, replicate 0 equals the world
   `POST /experiments` measures, whatever the generator.
+- **Pairing buys precision, not validity.** The check proves a generator is
+  repeatable for a given spec. It cannot prove that the baseline and an
+  intervention's changed spec share one random stream, and the effects do not
+  depend on that:
+  - Each replicate's two worlds are still drawn independently of the other
+    replicates.
+  - The R differences are therefore independent, and the Student-t interval
+    is valid either way.
+  - A generator that shares its stream across specs, as `warehouse-spec`
+    does, gives narrower intervals. One that does not gives wider, still
+    correct ones.
+
+  The plug-in guide says so, and PR 1 tests `warehouse-spec`'s pairing
+  directly: the baseline and `promo_spike` share their SKU and location
+  tables for the same seed.
 - **The interval** is Student's t on the paired differences, with R − 1
   degrees of freedom (`scipy.stats.t`). When every difference is equal, the
   interval collapses to the point (zero width), which is correct for a metric
@@ -245,8 +260,9 @@ POST /api/v1/effects
   formula above is the second check world. If the projection exceeds
   `MAX_EFFECT_SECONDS = 30`, the study refuses before generating further
   (422), naming the generator, its measured time per world, and the most
-  replicates that would fit. The request therefore stays within the time
-  limit whatever the generator, with the check's own cost counted.
+  replicates that would fit, with the check's own cost counted. What this
+  guarantees, and what it does not, is set out once for both endpoints in
+  §5, "Time limits".
 - **Explore links** replay this request. The source shape is added to the
   exploration contract ([`../explore/interfaces.md`](../explore/interfaces.md)
   §3.2) by PR 2: `{ effects: { request: {...}, table: "effects" | "replicates" } }`,
@@ -585,7 +601,7 @@ GET /api/v1/estimators
 → {
     "estimators": [{"name", "description", "origin", "requires"}],
     "unavailable": {"name": "reason"},
-    "limits": {"max_rows": …, "max_estimators": 6},   // MAX_ESTIMATE_ROWS and the estimator cap (below)
+    "limits": {"max_rows": …, "max_estimators": 6, "max_seconds": 30},   // MAX_ESTIMATE_ROWS, the estimator cap and the time budget (below, §5)
     "benchmark": {
       "params": [Param, ...],        // uplift, confounding, noise, seed: the synthesizer Param shape (name, type, default, min, max, exclusive, nullable)
       "question": {...}              // the benchmark's CausalQuestion: treatment, outcome, the covariates a client may drop
@@ -621,11 +637,12 @@ POST /api/v1/causal/estimates
     bounded stream: the handler takes rows from the provider's `rows(world)`
     iterator and stops at `MAX_ESTIMATE_ROWS + 1`, without reading or counting
     the rest. The `+ 1` is only there to detect overflow. A dataset that
-    reaches it answers 422: "more than MAX_ESTIMATE_ROWS rows". Memory and
-    time are therefore bounded by that many rows of the provider, the same
-    rows `GET /datasets/{name}?limit=` already reads. The missing-value rule
-    applies to those rows. A provider that is slow per row is as slow here as
-    on `GET /datasets`, and no slower;
+    reaches it answers 422: "more than MAX_ESTIMATE_ROWS rows". The cap
+    bounds memory: that many rows are held, the same rows
+    `GET /datasets/{name}?limit=` already reads. It does not bound time. A
+    provider can be slow per row, so the stream also checks the request's
+    deadline between rows (§5), and the missing-value rule applies to the
+    rows it keeps;
   - at most 6 estimators per request.
 
   `ipw`'s 200 bootstrap fits dominate. On the largest built-in dataset
@@ -634,7 +651,7 @@ POST /api/v1/causal/estimates
   cap finish under 30 s. The limits are published in `GET /estimators` as
   `"limits": {"max_rows": …, "max_estimators": 6, "max_seconds": 30}`, and the
   page checks them before sending.
-- **The 30 s bound is guaranteed for the built-ins, and enforced between
+- **The 30 s bound (§5) is guaranteed for the built-ins, and enforced between
   estimators for plug-ins.** An estimator runs in the request's own thread,
   and Python cannot interrupt it safely, so:
   - The estimators run one after another. Before starting each one, the
@@ -670,6 +687,46 @@ difference-in-means     +38.1    …                 +30.9    no
 regression-adjustment    +7.7    …                  +0.5    yes
 ipw                      +8.1    …                  +0.9    yes
 ```
+
+---
+
+## 5. Time limits
+
+Both new endpoints run synchronously, so each has one deadline:
+`MAX_EFFECT_SECONDS = 30` for an effect study and `MAX_ESTIMATE_SECONDS = 30`
+for an estimation, from the start of the request. Python cannot safely
+interrupt a call already running in the request's thread. So the deadline is
+**cooperative**: it is checked at every step boundary, and never inside a
+call.
+
+| Endpoint | Where the deadline is checked | Past it |
+|---|---|---|
+| `POST /effects` | before each world generation and each measurement | 422 naming the step reached and the replicates done |
+| `POST /causal/estimates` | between rows of a catalogue dataset, and before each estimator | reading rows: 422 "dataset X did not deliver its rows within 30 s"; estimators: the ones not started become "not run" rows |
+
+On top of that sit the up-front refusals of §1.5 and §3.4 (the work formula,
+the timing projection, the row and estimator caps). They refuse a request
+that would clearly overrun before any work starts.
+
+What is guaranteed:
+
+- **Built-in code only.** The warehouse generator `warehouse-spec`, the
+  built-in datasets, the benchmark and the built-in estimators are measured
+  by PR 1 and PR 4. A request that passes the up-front checks finishes within
+  its deadline plus one step, and the tests assert it.
+- **Plug-in code is best effort.** A plug-in generator, dataset provider or
+  estimator is stopped at the next step boundary after the deadline. One call
+  that runs long, or runs longer on another seed or scenario than on the one
+  timed, still delays its own request by that call's length.
+
+  The published limits (`GET /experiments/catalog` under `effects`, and
+  `GET /estimators` under `limits`) say which guarantee applies. The plug-in
+  guide asks a plug-in to keep each call to a few seconds at the published
+  sizes.
+
+Making plug-in calls killable needs a worker process per call. That changes
+how plug-ins run and what they may share, and is left to a later sequence if
+it is ever needed.
 
 ---
 
