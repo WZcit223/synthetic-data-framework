@@ -24,6 +24,12 @@
 </header>
 
 <main class="wide">
+  <div class="viewtabs" role="tablist" aria-label="Views">
+    <a role="tab" id="tabSimulate" href="#" aria-controls="simulateView" aria-selected="true">Simulate an action</a>
+    <a role="tab" id="tabEstimate" href="#estimate" aria-controls="estimateView" aria-selected="false">Estimate from data</a>
+  </div>
+
+  <div id="simulateView" role="tabpanel" aria-labelledby="tabSimulate">
   <p class="lead-text">What happens if we take an action? Each intervention is compared with the baseline on
     paired replicate worlds of the dashboard's current world: every pair shares a seed, and the effect is the
     mean of the paired differences, with a confidence interval. An interval that covers 0 means the
@@ -68,6 +74,50 @@
   <section class="result" id="result" aria-live="polite">
     <div class="notice">Choose the interventions and what to measure, then run the study.</div>
   </section>
+  </div>
+
+  <div id="estimateView" role="tabpanel" aria-labelledby="tabEstimate" hidden>
+  <p class="lead-text">Observed data does not come with its effects. An estimator infers one from rows, adjusting
+    for the covariates you declare; if the set misses a cause of both treatment and outcome, the estimate is
+    biased. The promotion benchmark knows its true effect: high-demand SKUs are promoted more often, so the naive
+    difference is confounded. Compare the estimators with the truth, drop covariates to watch the bias return,
+    and sweep the confounding.</p>
+
+  <section class="card expform" aria-label="Estimation request">
+    <form id="estimateForm" novalidate>
+      <div class="expgrid estimategrid">
+        <fieldset>
+          <legend>Estimators</legend>
+          <div id="estimators" class="checks"></div>
+          <div id="unavailableEstimators" class="hint"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Promotion benchmark</legend>
+          <div id="benchmarkParams" class="paramgrid"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Adjustment set</legend>
+          <div id="covariates" class="checks"></div>
+          <div class="hint" id="questionHint"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Interval</legend>
+          <div class="ctrl"><label for="estimateConfidence">Confidence</label>
+            <select id="estimateConfidence"></select></div>
+          <div class="hint" id="estimateLimits"></div>
+        </fieldset>
+      </div>
+      <div class="exprun">
+        <button type="submit" class="primary" id="estimateRun">Estimate</button>
+        <span class="formerror" id="estimateError" aria-live="polite"></span>
+      </div>
+    </form>
+  </section>
+
+  <section class="result" id="estimateResult" aria-live="polite">
+    <div class="notice">Choose the estimators and the adjustment set, then estimate.</div>
+  </section>
+  </div>
 </main>
 
 <div class="tooltip" id="tooltip" role="tooltip" hidden></div>

@@ -201,7 +201,8 @@ separate modules; the Synthesizers page is `synthesizers.html` with
 `synthesizers.js`, its pure helpers (parameter input, distribution comparison)
 in `synthesis.js`; the Effects page is `effects.html` with `effects.js`, its pure
 helpers (reading an interval, each chart's axis, the request and its link) in
-`effects-model.js`; the sources an Explore link may name are checked by
+`effects-model.js`, and its "Estimate from data" view is `estimate.js` with
+`estimate-model.js`; the sources an Explore link may name are checked by
 `sources.js`, shared by the pages that build links and the Explore page that
 opens them. The engine, the colours and the formatting touch no DOM and
 are tested with `node --test ui/*.test.js`. No page has an inline event

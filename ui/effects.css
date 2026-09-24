@@ -53,3 +53,23 @@ table.effects tr.covers td.reading{font-style:italic}
 .section .note{margin:2px 0 8px}
 .actions{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap}
 .actions .muted{font-size:12.5px}
+
+/* The two views, and the estimation view. */
+.viewtabs{display:flex;gap:4px;margin:0 0 14px;border-bottom:1px solid var(--line)}
+.viewtabs a{color:var(--muted);text-decoration:none;padding:8px 14px;font-size:13.5px;font-weight:550;border-bottom:2px solid transparent;margin-bottom:-1px}
+.viewtabs a:hover{color:var(--ink)}
+.viewtabs a[aria-selected=true]{color:var(--ink);border-bottom-color:var(--accent)}
+@media(min-width:1100px){.estimategrid{grid-template-columns:minmax(200px,1.2fr) minmax(280px,1.4fr) minmax(180px,1fr) minmax(160px,.8fr)}}
+.paramgrid{display:grid;grid-template-columns:repeat(2,minmax(110px,1fr));gap:4px 12px}
+.paramgrid input{width:100%}
+.paramgrid .err{font-size:11px;color:var(--bad);min-height:14px}
+.checks label .desc{color:var(--muted);font-size:11.5px}
+.formerror{color:var(--bad);font-size:12.5px}
+svg.chart .truth{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:4 3}
+svg.chart .note{fill:var(--muted);font-size:10px}
+svg.chart .error{fill:var(--bad);font-size:11px}
+.sweep .pick{align-items:center}
+.checks .swatch{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none}
+table.effects td.method{color:var(--muted);white-space:normal;min-width:220px}
+table.effects tr.noresult td{color:var(--muted)}
+table.effects tr.noresult td.reading{font-style:italic}
