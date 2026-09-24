@@ -23,6 +23,7 @@ const state = {
   budgetSeq: 0, // the latest budget question; an older answer is dropped
   runSeq: 0, // the latest run; an older answer is dropped
   timer: 0,
+  budget: { pending: true }, // the budget line's last state
   budgetKey: "", // the form's request the latest budget answer is for
   running: false, // a study is in flight: Run stays disabled whatever the budget says
   drawnWidth: 0,
@@ -123,13 +124,17 @@ function formChanged() {
 }
 
 // The server's answer to "is this within budget?", asked while the user edits (check_only).
+// Resolves to that answer, or null when the form is invalid, the request fails or a later edit superseded it.
 async function checkBudget() {
   const request = readForm();
   state.budgetKey = JSON.stringify(request);
   const seq = ++state.budgetSeq;
   const problem = requestError(request, state.catalog);
   $("#replicates").setAttribute("aria-invalid", /^Replicates/.test(problem ?? "") ? "true" : "false");
-  if (problem) return showBudget({ error: problem });
+  if (problem) {
+    showBudget({ error: problem });
+    return null;
+  }
   showBudget({ pending: true });
   try {
     const answer = await api("/effects", {
@@ -137,13 +142,18 @@ async function checkBudget() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...request, check_only: true }),
     });
-    if (seq === state.budgetSeq) showBudget({ answer });
+    if (seq !== state.budgetSeq) return null;
+    showBudget({ answer });
+    return answer;
   } catch (err) {
     if (seq === state.budgetSeq) showBudget({ error: err.detail ?? err.message });
+    return null;
   }
 }
 
-function showBudget({ answer = null, error = null, pending = false }) {
+function showBudget(shown) {
+  const { answer = null, error = null, pending = false } = shown;
+  state.budget = shown; // what the budget line says, restored when a run ends
   const box = $("#budget");
   const fill = box.querySelector(".meter span");
   const text = box.querySelector(".btext");
@@ -194,7 +204,7 @@ async function run(request = readForm()) {
       state.running = false;
       result.classList.remove("busy");
       result.setAttribute("aria-busy", "false");
-      checkBudget(); // re-enables Run from the server's answer
+      showBudget(state.budget); // Run again follows the budget answer for the form as it now is
     }
   }
 }
@@ -373,11 +383,12 @@ function dotTip(r, color) {
 
 // -- wiring ---------------------------------------------------------------------------------------
 
-function loadFromAddress() {
+async function loadFromAddress() {
   const link = readRequestHash(location.hash);
   const { request, dropped } = fitRequest(link?.request ?? null, state.catalog);
   renderForm(request);
-  checkBudget();
+  const budget = checkBudget();
+  const asked = state.budgetKey; // the form as the budget question saw it
   if (link?.error) {
     $("#result").innerHTML = `<div class="notice bad"><b>This link cannot be opened:</b> ${esc(link.error)}. The form shows the default study.</div>`;
     return;
@@ -386,7 +397,13 @@ function loadFromAddress() {
     $("#result").innerHTML = `<div class="notice bad">This link names what this installation does not offer: <b>${esc(dropped.join(", "))}</b>. Check the form, then run the study.</div>`;
     return;
   }
-  if (link?.request) run(request); // a link reproduces its study
+  if (!link?.request) return;
+  // a link reproduces its study, once the server says it is within budget; else the budget line says why not
+  const answer = await budget;
+  if (answer?.within_budget && state.budgetKey === asked) run(readForm()); // unless the user edited meanwhile
+  else if (answer && !answer.within_budget) {
+    $("#result").innerHTML = `<div class="notice bad"><b>This link's study is over the work budget,</b> so it was not run. Lower the replicates or the lists, then run it.</div>`;
+  }
 }
 
 async function init() {
