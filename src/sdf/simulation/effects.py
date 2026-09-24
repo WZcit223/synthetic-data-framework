@@ -270,14 +270,17 @@ class _Run:
             base = reference if r == 0 else self._generate(seed)
             base_snapshot = (reference_snapshot if r == 0 else snapshot(base)) if custom else None
             measured: dict[str, Values] = {
-                "baseline": reference_values if r == 0 else self._measure(base, "baseline", r)
+                "baseline": reference_values
+                if r == 0
+                else _keys_like(reference_values, self._measure(base, "baseline", r), "baseline", r)
             }
             for intervention in study.interventions:
                 if _built_in(intervention):
                     world = self._apply(intervention, base, r)
                 else:
                     world = self._apply_custom(intervention, base, base_snapshot, r)
-                measured[intervention.name] = self._measure(world, intervention.name, r)
+                values = self._measure(world, intervention.name, r)
+                measured[intervention.name] = _keys_like(reference_values, values, intervention.name, r)
             per_replicate.append(measured)
             self.replicates_done = r + 1
 
@@ -343,6 +346,18 @@ def snapshot(world: World) -> Snapshot:
         (src.name, src.entity_type, tuple(dataclasses.astuple(row) for row in src.rows()))
         for src in world.registry.sources()
     )
+
+
+def _keys_like(reference: Values, values: Values, arm: str, replicate: int) -> Values:
+    """Every arm of every replicate must report the metrics replicate 0's baseline reported, for pairing."""
+    if values.keys() != reference.keys():
+        missing = sorted(f"{p}/{m}" for p, m in reference.keys() - values.keys())
+        extra = sorted(f"{p}/{m}" for p, m in values.keys() - reference.keys())
+        raise ValueError(
+            f"{arm} in replicate {replicate} reports other metrics than the baseline of replicate 0"
+            f" (missing {missing}, extra {extra}); every arm must report the same metrics"
+        )
+    return values
 
 
 def _same(a: Values, b: Values) -> bool:

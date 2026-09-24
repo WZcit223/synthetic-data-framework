@@ -344,6 +344,27 @@ def test_two_outcomes_may_not_report_the_same_metric():
         study(outcomes=[COST, CostAgain()]).run()
 
 
+@dataclass(frozen=True)
+class DropsOnPromo:
+    """Reports holding cost everywhere, and unmet units only on the baseline."""
+
+    name: str = "drops_on_promo"
+
+    def measure(self, world, policy):
+        values = {"holding_cost": 1.0}
+        if world.label != PROMO.name:
+            values["unmet_units"] = 0.0
+        return values
+
+
+def test_every_arm_must_report_the_same_metrics():
+    with pytest.raises(
+        ValueError,
+        match=r"promo_spike in replicate 0 reports other metrics .+missing \['service-level.*/unmet_units'\]",
+    ):
+        study(outcomes=[DropsOnPromo()]).run()
+
+
 def test_what_would_fit_counts_the_custom_re_applications():
     # One world takes 1 s and measuring is free. Replicate 0 still needs its custom arm and that arm's
     # second application (2 s); every later replicate needs 3 s. So 10 replicates project to
