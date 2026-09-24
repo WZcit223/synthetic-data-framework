@@ -178,14 +178,12 @@ def test_hooks_prints_the_index_and_updates_a_doc(tmp_path, monkeypatch):
     result = run("hooks")
     assert result.exit_code == 0, result.output
     assert "| C2 | Replenishment |" in result.output
-    doc = tmp_path / "checklist.md"
-    doc.write_text(
-        (ROOT / "docs" / "ALGORITHM_AND_DATA_CHECKLIST.md")
-        .read_text(encoding="utf-8")
-        .replace("| C2 | Replenishment |", "| C2 | Replenishment (stale) |", 1),
-        encoding="utf-8",
-    )
+    doc = tmp_path / "notes.md"  # holds no row table: the rows come from --checklist
+    doc.write_text("Intro\n\n<!-- sdf-hooks:begin -->\nstale\n<!-- sdf-hooks:end -->\n", encoding="utf-8")
     assert "updated" in run("hooks", "--update-doc", str(doc)).output
+    text = doc.read_text(encoding="utf-8")
+    assert "| C2 | Replenishment |" in text and "stale" not in text
+    assert f"--update-doc {doc}`" in text  # the header names the document it regenerates
     assert "already up to date" in run("hooks", "--update-doc", str(doc)).output
 
 

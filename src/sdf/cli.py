@@ -489,17 +489,18 @@ def validate(fmt: str, sample_csv: str, retail_csv: str, doc_path: str | None) -
 )
 def hooks_command(checklist: str, doc_path: str | None) -> None:
     """Print where each checklist item plugs into the code, from the hook markers in the source."""
-    with open(doc_path or checklist, encoding="utf-8") as fh:
-        text = fh.read()
+    with open(checklist, encoding="utf-8") as fh:
+        ids = hooks.checklist_ids(fh.read())
     found = hooks.scan()
-    ids = hooks.checklist_ids(text)
     bad = hooks.problems(found, ids)
     if bad:
         for line in bad:
             click.echo(line, err=True)
         raise click.exceptions.Exit(1)
-    index = hooks.render_index(found, ids)
+    index = hooks.render_index(found, ids, doc_path or DEFAULT_CHECKLIST)
     if doc_path:
+        with open(doc_path, encoding="utf-8") as fh:
+            text = fh.read()
         updated = hooks.replace_doc_block(text, index)
         if updated != text:
             with open(doc_path, "w", encoding="utf-8") as fh:

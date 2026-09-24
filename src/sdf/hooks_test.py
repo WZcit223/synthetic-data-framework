@@ -34,11 +34,14 @@ def test_checklist_ids_ignore_the_generated_block(checklist_text):
     assert ids["C2"] == "Replenishment"
 
 
+BARE = "ALGORITHM" + "-HOOK:"  # built at runtime so this file holds no bare marker
+
+
 def _package(tmp_path: Path, source: str) -> Path:
     pkg = tmp_path / "pkg"
     pkg.mkdir()
     (pkg / "mod.py").write_text(source, encoding="utf-8")
-    (pkg / "mod_test.py").write_text("# ALGORITHM-HOOK: tests are not scanned\n", encoding="utf-8")
+    (pkg / "mod_test.py").write_text(f"# {BARE} tests are not scanned\n", encoding="utf-8")
     return pkg
 
 
@@ -60,7 +63,7 @@ def test_scan_reads_ids_and_enclosing_symbols(tmp_path):
 
 
 def test_bare_and_unknown_markers_are_problems(tmp_path):
-    pkg = _package(tmp_path, "# ALGORITHM-HOOK: no id\n# DATA-HOOK[Z9]: unknown row\n")
+    pkg = _package(tmp_path, f"# {BARE} no id\n# DATA-HOOK[Z9]: unknown row\n")
     assert hooks.problems(hooks.scan(pkg), {"C1": "Demand forecast"}) == [
         "pkg/mod.py:1: ALGORITHM-HOOK without a checklist ID",
         "pkg/mod.py:2: DATA-HOOK[Z9] names no checklist row",
