@@ -280,6 +280,7 @@ function setBusy(on) {
 function fail(title, detail) {
   state.result = null;
   hideTip();
+  setBusy(false); // a failure ends the work in progress, a cancelled request's included
   $("#result").innerHTML = `<div class="failure"><b>${esc(title)}</b><div>${esc(detail)}</div></div>`;
   $("#statusline").textContent = "";
   renderSourceInfo();

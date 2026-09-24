@@ -7,8 +7,8 @@
 > discrete steps of the blue ramp, because at the middle step (`#2a78d6`)
 > neither white nor dark text reaches 4.5:1; charts fold past eight series with
 > `pivot(table, view, { maxColumns: 8 })`. Beyond the files listed here the page
-> has `ui/explore.css` and `ui/chart.js`, and `ui/common.test.js` covers the
-> number formatting. A synthesis link is read and answered with a clear message
+> has `ui/explore.css` and `ui/chart.js`; `ui/chart.test.js` covers the chart
+> drawing and `ui/common.test.js` the number formatting. A synthesis link is read and answered with a clear message
 > until PR 3 adds its endpoint.
 
 Contract: [`interfaces.md`](interfaces.md) §2.1 (the tables it reads) and §3

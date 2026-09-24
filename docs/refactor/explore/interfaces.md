@@ -320,7 +320,12 @@ median). The module also exports `timeKey(iso, grain)`,
 `partLabel(part)` (`null` reads "(blank)", `OTHER` "Other") and
 `toCsv(result, { rowFields, values })` (raw numbers, a subtotal marked
 "Subtotal", the column totals last; a text a spreadsheet would read as a
-formula is prefixed with `'`).
+formula is prefixed with `'`), `viewError(view)` (why a view from a link
+has the wrong shape, or `null`), `keyId(parts)` (a key's collision-free
+identity, the JSON of its parts) and `keptCount(values, filter)` (how many
+of a field's values a filter keeps). Rows sort by the number shown: under a
+share, by the share. A link's view is also pivoted against the loaded table
+before it is shown, so an unknown field refuses the link.
 
 The page keeps the whole view in its address, so a link reproduces it:
 `explore.html#view=` followed by the URL-encoded JSON
