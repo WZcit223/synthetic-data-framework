@@ -1,5 +1,14 @@
 # PR 2 — Data contracts: validated records, typed workflow state
 
+> Status: implemented (clean-up sequence PR 2). No number moved, no bundled
+> CSV row changed, and `sdf demo` and the workflow run record are unchanged. The
+> checks also cover `Location.level` and `InboundOrder.lead_time_days`. The
+> generator keeps its own weighted draw lists (for example two `ecommerce` in
+> four), because building them from the unordered constants would change its
+> random-number order; every record it builds passes the checks, and a test
+> rebuilds the whole default world to prove it. `schema.py` also carries the
+> checklist's `DATA-HOOK[D3]` marker.
+
 ## Goal
 
 The canonical entities reject values no warehouse can have, and the workflow's
