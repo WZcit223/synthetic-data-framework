@@ -104,6 +104,23 @@ every field a client may rely on. `create_app()` holds the current world as an
 immutable snapshot that `POST /api/v1/world` swaps in one step, and
 `POST /api/v1/experiments` exposes the simulation layer by name.
 
+**Tables.** Data leaves the backend as tables: typed fields
+(`sdf.foundation.tables.Field`: a dimension to group by, a time as an ISO date,
+or a measure with its unit and natural aggregation) plus rows, every value
+checked against its field. `sdf.application.datasets` is the dataset catalogue:
+providers mounted from the `sdf.datasets` entry-point group, the same way
+synthesizers are, with the built-ins (order lines, inventory, SKUs, the 95 %
+replenishment plan) declared in this package's own `pyproject.toml`. Each
+provider computes its business numbers (line value, stock value, the plan's
+levels), so a client only groups, filters and aggregates. `GET
+/api/v1/datasets` lists the catalogue with its fields, `GET
+/api/v1/datasets/{name}` serves one table over the current world, and the
+experiment result carries its fields too, so any of them can be pivoted.
+`create_app(datasets=…)` holds one catalogue for the app's lifetime, and
+`GET /api/v1/experiments/catalog` lists what an experiment may name, with each
+policy parameter's bounds. The contract is in
+[`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §1–2.
+
 The UI lives outside the Python package, in `ui/` (plain HTML/JS, no build
 step). It only carries user intent to the backend and presents results. It may
 reshape data it received (sort, filter, group, pivot, chart) but computes no

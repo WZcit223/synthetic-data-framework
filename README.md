@@ -39,6 +39,12 @@ SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app --reload
 # open http://127.0.0.1:8000 (dashboard) or http://127.0.0.1:8000/api/v1/docs (API)
 ```
 
+The data behind the dashboard is also served as typed tables for exploration:
+`GET /api/v1/datasets` lists them (order lines, inventory, SKUs, the
+replenishment plan) with their fields, and `GET /api/v1/datasets/{name}` returns
+one. Another package can add a table through the `sdf.datasets` entry-point
+group.
+
 The dashboard has two views: a **framework capability overview** (for management)
 and a **replenishment deep dive**
 (demand → demand profile → (s,S) levels at a service level → order → replayed fill rate

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from sdf.foundation.tables import Field
 from .intervention import Intervention
 from .outcome import Outcome
 from .policy import Policy
@@ -19,6 +20,16 @@ class OutcomeRow:
     policy: str
     metric: str
     value: float
+
+
+# The fields of an experiment's rows, so a client can pivot them like any table. A metric's value is
+# averaged when rows are combined: rates such as fill_rate cannot be summed across policies.
+OUTCOME_FIELDS = (
+    Field("intervention", "Intervention", "dimension"),
+    Field("policy", "Policy", "dimension"),
+    Field("metric", "Metric", "dimension"),
+    Field("value", "Value", "measure", aggregate="mean"),
+)
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,13 @@
 # PR 1 — Dataset catalogue and table API
 
+> Status: implemented (exploration sequence PR 1). The four built-in datasets
+> build on the default world in about 0.1 s (order lines, 28 897 rows, the
+> largest); their totals match the dashboard (outbound lines, units on hand,
+> inventory value, 62 SKUs needing an order at 95 %). No recorded number moved
+> and `sdf demo` is byte-identical. The experiment catalogue reads its policy
+> bounds from `schemas.PolicyChoice`, and the six-per-list limit is one constant,
+> `schemas.MAX_PER_LIST`.
+
 Contract: [`interfaces.md`](interfaces.md) §1 and §2.1.
 
 ## Goal

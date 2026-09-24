@@ -7,7 +7,7 @@ module-name = "sdf"
 
 [project]
 name = "synthetic-data-framework"
-version = "1.3.1"
+version = "1.4.0"
 description = "Three-layer industrial-AI framework with synthetic-data-driven AI warehouse demo"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
@@ -42,6 +42,12 @@ bootstrap-table = "sdf.synthesis.bootstrap:BootstrapTable"
 gaussian-copula = "sdf.synthesis.sdv_synth:GaussianCopulaTable"
 seasonal-profile = "sdf.synthesis.fit:FittedSeasonalDemand"
 warehouse-spec = "sdf.synthesis.warehouse:WarehouseSpecSynthesizer"
+
+[project.entry-points."sdf.datasets"]
+inventory = "sdf.application.datasets:InventoryDataset"
+order-lines = "sdf.application.datasets:OrderLinesDataset"
+replenishment-plan = "sdf.application.datasets:ReplenishmentPlanDataset"
+skus = "sdf.application.datasets:SkuDataset"
 
 [dependency-groups]
 dev = [
