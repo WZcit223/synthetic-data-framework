@@ -307,14 +307,16 @@ keyword argument whose type is `int`, `float`, `str` or `bool`; other arguments
 are supplied by the framework. A synthesizer may narrow its parameters with a
 class attribute `param_bounds: ClassVar[dict[str, tuple[float | None, float |
 None]]]`, for example `{"jitter": (0.0, 1.0)}`; without it they are unbounded. A
-`produces="warehouse"` synthesizer takes `spec: GenerationSpec`.
+`produces="warehouse"` synthesizer takes `spec: GenerationSpec | None = None`.
+The default keeps the registry's rule that every constructor argument has one,
+so `create(name)` works; `World.generate` always passes the spec.
 
 ```python
 from sdf.validation.evaluation import evaluate, sources
 
 sources()          # {'sample': 'data/sample_online_retail_ii.csv', 'retail-10k': 'data/online_retail_ii_2010_10k.csv'}
                    # (only files that exist under the data directory, default ./data or $SDF_DATA_DIR)
-run = evaluate("seasonal-profile", source="sample", params={"seed": 7})
+run = evaluate("seasonal-profile", source="sample", params={"seed": 7})   # a source ID, or a CSV path
 run.kind           # 'series'
 run.metrics        # {'ks_statistic': …, 'profile_corr': …, 'mean_delta_pct': …, 'std_delta_pct': …, 'fidelity_score': …}
                    # the same numbers `sdf synth data/sample_online_retail_ii.csv` prints
@@ -329,10 +331,14 @@ evaluate("warehouse-spec", source="sample")   # ValueError: warehouse-spec produ
 evaluate("nope", source="sample")             # KeyError listing the synthesizers
 ```
 
-`sdf synth` and `sdf privacy` call `evaluate` and print the same numbers as today.
-`evaluate` takes `registry: SynthesizerRegistry | None = None` (default
-`default_registry()`), so a caller with its own registry evaluates its own
-plug-ins.
+The full signature is `evaluate(synthesizer, *, source, params=None,
+date_format=None, registry=None)`. `source` is a source ID from `sources()` or
+a path to a CSV in the Online Retail II layout; `date_format` is passed to the
+CSV reader as the CLI's `--date-format` is today; `registry` defaults to
+`default_registry()`, so a caller with its own registry evaluates its own
+plug-ins. `sdf synth PATH [--date-format F] [--synthesizer N]` and `sdf privacy
+…` call `evaluate(N, source=PATH, date_format=F)` and print the same numbers as
+today. The HTTP endpoint accepts source IDs only, never a path.
 
 **One registry per application, and a world keeps its generator.** The API
 holds one synthesizer registry for its lifetime, and every path that creates a

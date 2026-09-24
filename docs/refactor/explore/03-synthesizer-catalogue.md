@@ -19,8 +19,9 @@ produces a warehouse.
   `bootstrap-table` declares `jitter` bounds.
 - New `sdf.validation.evaluation`: `sources()`, which lists the bundled CSVs
   present under `$SDF_DATA_DIR` (default `./data`), and `evaluate(synthesizer, *,
-  source, params=None) -> SynthesisRun(synthesizer, source, kind, metrics,
-  table)`. A series synthesizer is fitted on the source's hourly demand and
+  source, params=None, date_format=None, registry=None) -> SynthesisRun(synthesizer,
+  source, kind, metrics, table)`, where `source` is a source ID or a CSV path
+  (the CLI passes its path and `--date-format`; the API passes IDs only). A series synthesizer is fitted on the source's hourly demand and
   scored with `fidelity_report`; a table synthesizer on its feature table and
   scored with `privacy_report`. Both scorers keep their `ALGORITHM-HOOK`
   markers. `sdf synth` and `sdf privacy` call `evaluate` and print unchanged

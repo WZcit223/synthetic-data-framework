@@ -57,7 +57,7 @@ write and mount their own synthesizer or dataset.
 ## Acceptance
 
 ```bash
-uv sync --locked --extra api
+uv sync --locked --extra api --extra synthesis     # synthesis: so gaussian-copula is available
 uv run ruff check && uv run ruff format --check
 uv run pytest
 node --test ui/
@@ -65,8 +65,10 @@ node --test ui/
 
 Manual, in a browser against `SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app`:
 
-- Each built-in series and table synthesizer runs on each bundled source; the
-  scores equal `sdf synth` and `sdf privacy` for the same source and seed.
+- Each built-in series and table synthesizer runs on each bundled source
+  (`gaussian-copula` included, with the `synthesis` extra installed); the scores
+  equal `sdf synth` and `sdf privacy` for the same source and seed. Without the
+  extra, `gaussian-copula` is listed as unavailable with its reason.
 - "Open in Explore" reproduces the run's table in the pivot page.
 - Regenerating the world with the generator choice updates the dashboard and
   names the generator.
