@@ -98,7 +98,7 @@ The built-in datasets:
 |---|---|---|
 | `order-lines` | outbound order line | `date` (time), `sku_id`, `category`, `abc_class`, `channel`, `priority`, `status`, `quantity` (units), `line_value` (currency: quantity × unit price) |
 | `inventory` | inventory snapshot | `sku_id`, `category`, `abc_class`, `location_id`, `zone`, `on_hand`, `reserved`, `available`, `in_transit` (units), `stock_value` (currency: on hand × unit cost) |
-| `skus` | SKU | `sku_id`, `name`, `category`, `abc_class`, `unit_cost`, `unit_price` (currency, aggregate `mean`), `shelf_life_days` (aggregate `mean`) |
+| `skus` | SKU | `sku_id`, `name`, `category`, `abc_class`, `unit_cost` and `unit_price` (each currency, aggregate `mean`), `shelf_life_days` (days, aggregate `mean`) |
 | `replenishment-plan` | SKU with demand (`plan_orders` skips a SKU whose mean daily demand is 0) | `sku_id`, `category`, `abc_class`, `demand_pattern` (dimension, `smooth`/`intermittent`), `needs_order` (dimension, `yes`/`no`), `demand_mean`, `demand_std` (units per day, aggregate `mean`), `zero_day_share` (share of days without demand, aggregate `mean`), `safety_stock`, `reorder_point`, `order_up_to`, `available`, `order_qty` (units), under `ServiceLevelPolicy(service_level=0.95)`. The `DemandProfile` of each plan row is flattened into the three demand columns and the pattern; every value in a row is a plain string or number. |
 
 A provider is any class with this shape, the same way a synthesizer is:
@@ -269,7 +269,7 @@ const result = pivot(table, {
   values:  [{ field: "line_value", agg: "sum" }],      // agg: sum | count | count_distinct | mean | median | min | max
   filters: { status: { exclude: ["cancelled"] } },     // or { include: [...] }
   showAs:  "value",                                    // value | share_of_total | share_of_row | share_of_column
-  sort:    { by: "value", dir: "desc" },               // by: label | value (the first value's row total)
+  sort:    { by: "value", dir: "desc" },               // see the sort forms below
   subtotals: true,
 });
 
@@ -278,6 +278,13 @@ result.rows[0]        // { key: ["electronics"], depth: 0, group: false, cells: 
 result.totals         // { columns: [[…], […], […]], grand: […] }  (one entry per value)
 result.stats          // { rowsIn: 28897, rowsUsed: 28033, ms: … }
 ```
+
+`sort` takes one of three forms, each with `dir: "asc" | "desc"`:
+`{ by: "label" }` orders rows by their labels; `{ by: "value" }` by the first
+value's row total; `{ by: "column", key: ["2025-02"] }` by the first value in
+that column (the form a click on a column header produces; rows without a value
+in that column go last). Sorting applies within each group, so subtotal rows
+stay above their children.
 
 Rules the engine keeps:
 
@@ -393,12 +400,36 @@ falling back to `warehouse-spec`:
 
 ```python
 from sdf.api.app import create_app
+from typing import ClassVar
+
 from sdf.simulation.intervention import SpecIntervention
 from sdf.simulation.world import World
+from sdf.synthesis.api import SynthesizerInfo
 from sdf.synthesis.registry import default_registry
+from sdf.synthesis.spec import GenerationSpec
+from sdf.synthesis.warehouse import WarehouseGenerator
 
+
+class MyWarehouseGenerator:
+    """A warehouse plug-in; here it wraps the built-in generator."""
+
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo(
+        name="my-warehouse", produces="warehouse", needs_fit=False, description="Example warehouse generator"
+    )
+
+    def __init__(self, *, spec: GenerationSpec | None = None) -> None:
+        self.spec = spec or GenerationSpec()
+
+    def fit(self, data=None):
+        return self
+
+    def sample(self, n=None, *, seed=None):
+        return WarehouseGenerator(self.spec).generate()   # a SyntheticWarehouse
+
+
+spec = GenerationSpec(n_skus=60, horizon_days=45)
 synthesizers = default_registry()
-synthesizers.register(MyWarehouseGenerator)          # produces="warehouse", takes spec=
+synthesizers.register(MyWarehouseGenerator)
 app = create_app(synthesizers=synthesizers)          # default: default_registry(), built once
 app.state.synthesizers is synthesizers               # True
 
