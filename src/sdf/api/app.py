@@ -16,9 +16,11 @@ endpoint reads ``store.current`` once, so a request never mixes two worlds.
 # type of POST /world from a model built inside create_app(), which a string
 # annotation cannot reach.
 import csv
+import dataclasses
 import io
 import json
 import os
+import time
 from pathlib import Path
 
 try:
@@ -37,6 +39,7 @@ from sdf.application.economics import financial_impact
 from sdf.application.knowledge import KnowledgeQA
 from sdf.application.scenarios import run_scenarios
 from sdf.simulation import catalog
+from sdf.simulation.effects import MAX_EFFECT_WORK, MAX_REPLICATES, EffectStudy
 from sdf.simulation.experiment import OUTCOME_FIELDS, Experiment
 from sdf.synthesis.materialise import WarehouseRefused
 from sdf.synthesis.registry import SynthesizerRegistry, default_registry
@@ -50,6 +53,13 @@ from .state import MIN_HORIZON_DAYS, MIN_SKUS, GenerateLimits, GenerationBusy, W
 PREFIX = "/api/v1"
 _EXPORT_TABLES = ("skus", "locations", "inventory", "inbound", "outbound", "sensors")
 MAX_DATASET_ROWS = 250_000  # the most rows one dataset response carries
+
+
+def _spec_dict(spec: GenerationSpec) -> dict:
+    """A spec as JSON: its fields, the start date as ISO text."""
+    out = dataclasses.asdict(spec)
+    out["start"] = spec.start.isoformat()
+    return out
 
 
 def _policy_params(kind: str) -> list[dict]:
@@ -271,6 +281,7 @@ def create_app(
             "policies": [{"kind": k, "params": _policy_params(k)} for k in catalog.POLICY_KINDS],
             "outcomes": list(catalog.OUTCOMES),
             "max_per_list": s.MAX_PER_LIST,
+            "effects": {"max_replicates": MAX_REPLICATES},
         }
 
     @api.get("/quality", response_model=s.Quality)
@@ -374,6 +385,58 @@ def create_app(
                 raise HTTPException(status_code=422, detail=f"each {label} may appear once, got {names}")
         rows = Experiment(store.current.world, interventions, policies, outcomes).run()
         return {"rows": [r.__dict__ for r in rows], "fields": [f.to_dict() for f in OUTCOME_FIELDS]}
+
+    @api.post("/effects", response_model=s.EffectsResult | s.EffectsBudget)
+    def effects(body: s.EffectsRequest):
+        """Each intervention against the baseline over paired replicate worlds of the current world's spec.
+
+        ``check_only`` answers the work budget without generating anything; a real run
+        answers the effects and every replicate's rows. 422 for an invalid request, a
+        request over budget or time, or a generator or intervention that breaks pairing.
+        """
+        snap = store.current  # one snapshot: its world, spec, generator and registry together
+        world = snap.world
+        if world.spec is None:
+            raise HTTPException(status_code=422, detail="the current world has no GenerationSpec to replicate")
+        try:
+            study = EffectStudy(
+                world.spec,
+                [catalog.intervention(n) for n in body.interventions],
+                [catalog.policy(p.kind, **p.model_dump(exclude={"kind"})) for p in body.policies],
+                [catalog.outcome(n) for n in body.outcomes],
+                replicates=body.replicates,
+                confidence=body.confidence,
+                synthesizer=world.synthesizer,
+                synthesizers=world.synthesizers,
+                baseline=world,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=422, detail=exc.args[0]) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if body.check_only:
+            return {
+                "work": study.work(),
+                "max_work": MAX_EFFECT_WORK,
+                "within_budget": study.work() <= MAX_EFFECT_WORK,
+                "size": study.size(),
+            }
+        started = time.monotonic()
+        try:
+            result = study.run()
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {
+            "fields": [f.to_dict() for f in result.effects.info.fields],
+            "rows": [list(r) for r in result.effects.rows],
+            "replicates": {
+                "fields": [f.to_dict() for f in result.replicates.info.fields],
+                "rows": [list(r) for r in result.replicates.rows],
+            },
+            "spec": _spec_dict(world.spec),
+            "synthesizer": world.synthesizer,
+            "elapsed_ms": round((time.monotonic() - started) * 1000),
+        }
 
     @api.get("/export", response_class=Response, responses={200: {"content": {"text/csv": {}}}})
     def export(entity: str = "outbound"):

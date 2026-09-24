@@ -38,6 +38,7 @@ uv run sdf agent "should I reorder?"   # trusted agent + audit trace
 uv run sdf pipeline             # DAG workflow run record
 uv run sdf impact               # counterfactual £ economics
 uv run sdf scenarios            # what-if scenario family
+uv run sdf effects --intervention promo_spike   # effects with intervals over paired replicates
 uv run sdf privacy [csv]        # DCR / NNDR / clone-risk
 uv run sdf hooks                # where each checklist item plugs into the code
 ```

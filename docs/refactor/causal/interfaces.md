@@ -59,6 +59,14 @@ from .policy import Policy
 from .world import World
 
 MAX_REPLICATES = 20
+MAX_EFFECT_SECONDS = 30.0      # the cooperative deadline (§5)
+MEASURE_WEIGHT = 0.25          # one policy × outcome measurement, in world generations (§1.5)
+MAX_EFFECT_WORK = 1_200_000    # measured in PR 1 (§1.5)
+
+
+def effect_work(replicates, interventions, policies, outcomes, n_skus, horizon_days) -> int: ...   # the §1.5 formula
+def size_text(replicates, interventions, policies, outcomes, spec) -> str: ...   # "10 replicates × 3 arms × …"
+def snapshot(world: World) -> tuple: ...   # every source's name, entity type and astuple rows (§1.2)
 
 
 @dataclass(frozen=True)
@@ -75,7 +83,10 @@ class EffectStudy:
     synthesizers: SynthesizerRegistry | None = None
     baseline: World | None = None             # replicate 0's baseline, when the caller already holds it (the API's current world)
 
-    def run(self) -> "EffectResult": ...
+    def work(self) -> int: ...     # effect_work(...) of this study
+    def size(self) -> str: ...     # size_text(...) of this study
+    def method(self) -> str: ...   # "paired t, 95 %"
+    def run(self) -> "EffectResult": ...   # refuses a study over MAX_EFFECT_WORK before generating anything
 
 
 @dataclass(frozen=True)
@@ -140,8 +151,11 @@ Rules the implementation keeps:
     above covers it.
   - `POST /effects` accepts only these, by catalogue name.
   - A Python caller may pass any other `Intervention`. For each one that is
-    neither, the study applies it twice to replicate 0's baseline and
+    neither, the study applies it twice to every replicate's base and
     compares the two worlds source by source, as the generator check does.
+    It also checks that the base still equals its snapshot from when it was
+    generated, so a generator that changed it meanwhile is refused. Every
+    other world is measured as soon as it exists and never read again.
     If they differ, it refuses with `ValueError`: "intervention X is not
     deterministic; paired effects need the same world from the same input".
   - An intervention must also leave its input world unchanged. A `World` is
@@ -153,7 +167,9 @@ Rules the implementation keeps:
     its input world".
 
     Built-in interventions are exempt: they only build new worlds
-    (`World.generate`, `World.with_stream`). A custom intervention can only
+    (`World.generate`, `World.with_stream`). Only the exact `Baseline` and
+    `SpecIntervention` types are exempt; a subclass may override `apply`, so
+    it is checked as a custom intervention. A custom intervention can only
     come from Python, never through the API. The held snapshot is therefore
     never exposed to one, and the check protects a Python caller's own
     baseline.
@@ -259,8 +275,10 @@ POST /api/v1/effects
   "policies": [{"kind": "service-level", "service_level": 0.95}],   // PolicyChoice, 1 to 6
   "outcomes": ["simulated_cost"],                               // 1 to 6
   "replicates": 10,                                             // 2 to 20, default 10
-  "confidence": 0.95                                            // above 0.5, below 1, default 0.95
+  "confidence": 0.95,                                           // above 0.5, below 1, default 0.95
+  "check_only": false                                           // true: answer the budget only (below)
 }
+// policies default to [{"kind": "service-level"}] (95 %), outcomes to ["simulated_cost"]
 → 200
 {
   "fields": [...],            // §1.3
@@ -294,7 +312,11 @@ POST /api/v1/effects
   work = (replicates × (1 + len(interventions)) + 1) × (1 + MEASURE_WEIGHT × len(policies) × len(outcomes)) × n_skus × horizon_days
   ```
 
-  `work` must not exceed `MAX_EFFECT_WORK`. Spike on the default world:
+  `work` must not exceed `MAX_EFFECT_WORK = 1_200_000`. PR 1 measured 3 to
+  14 µs per unit of work. The slowest is the largest world the API allows
+  (500 SKUs × 180 days), where generation dominates. At that pace the cap is
+  about 17 s, which leaves room for a slower machine within 30 s. The spike
+  that set the weight, on the default world:
   - generating a world takes 110 ms;
   - one measurement takes 0 ms (`active_stockouts`), 2 to 3 ms
     (`replenishment_need`) or 11 to 24 ms (`simulated_cost`, the heaviest).
@@ -302,7 +324,7 @@ POST /api/v1/effects
   So `MEASURE_WEIGHT = 0.25` charges each pair at the cost of the heaviest
   measurement. PR 1 re-measures both costs, sets `MEASURE_WEIGHT` and
   `MAX_EFFECT_WORK` so that a request at the limit stays under 30 s whatever
-  its mix (6 policies × 6 outcomes of `simulated_cost` included), and tests
+  its mix (6 policies × all three outcomes included; an outcome may appear once, each metric may come from one outcome, and every arm must report the same metrics), and tests
   that case.
 - **The budget covers the built-in generator; a timing check covers the
   others.** The work formula is calibrated on `warehouse-spec`. A plug-in
@@ -350,11 +372,12 @@ POST /api/v1/effects
 ```text
 $ uv run sdf effects --intervention promo_spike --outcome simulated_cost --replicates 10
 promo_spike vs baseline, service-level-95, 10 paired replicates, 95 % intervals
-metric          baseline    treated     effect   interval
-holding_cost    137 600     217 400    +79 790   +72 250 … +87 330
-order_cost      240 600     242 000     +1 388      +487 … +2 288
-unmet_units        0.596      0.333     −0.263    −1.39 … +0.866   (covers 0)
-…
+metric          baseline     treated      effect   interval
+unmet_units        0.596       0.333      −0.263   −1.39 … +0.866   (covers 0)
+fill_rate              1           1   +6.79e-06   −8.95e-06 … +2.25e-05   (covers 0)
+holding_cost     137 572     217 362     +79 790   +72 247 … +87 333
+order_cost       240 572     241 960      +1 388   +487 … +2 288
+lost_margin          150        46.5        −103   −439 … +232   (covers 0)
 ```
 
 Options: `--intervention NAME` (repeatable, required), `--policy

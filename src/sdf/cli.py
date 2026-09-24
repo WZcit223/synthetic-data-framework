@@ -19,6 +19,8 @@ from .application.intelligence import WarehouseIntelligence
 from .application.scenarios import run_scenarios
 from .application.snapshot import render_markdown, replace_doc_block, snapshot
 from .foundation.adapters.retail_csv import load_online_retail_csv
+from .simulation import catalog
+from .simulation.effects import EffectStudy
 from .synthesis.materialise import build_registry
 from .synthesis.registry import default_registry
 from .synthesis.spec import GenerationSpec
@@ -295,6 +297,88 @@ def cmd_scenarios() -> int:
     return 0
 
 
+def _amount(x: float | None, *, signed: bool = False) -> str:
+    """A number as the effects table prints it: whole with space-grouped thousands from 100 up, else 3 digits."""
+    if x is None:
+        return "—"
+    sign = "+" if signed and x > 0 else ("−" if x < 0 else "")
+    ax = abs(x)
+    text = f"{ax:,.0f}".replace(",", " ") if ax >= 100 else f"{ax:.3g}"
+    return sign + text
+
+
+def cmd_effects(
+    interventions: list[str],
+    policies: list[str],
+    outcomes: list[str],
+    replicates: int,
+    confidence: float,
+    csv_path: str | None = None,
+) -> int:
+    """Effects of interventions against the baseline, over paired replicates of the default world."""
+    try:
+        study = EffectStudy(
+            GenerationSpec(),
+            [catalog.intervention(n) for n in interventions],
+            [_policy(p) for p in policies],
+            [catalog.outcome(n) for n in outcomes],
+            replicates=replicates,
+            confidence=confidence,
+        )
+        result = study.run()
+    except (KeyError, ValueError) as exc:
+        click.echo(f"sdf effects: {exc.args[0] if isinstance(exc, KeyError) else exc}", err=True)
+        return 1
+    print(
+        f"{', '.join(interventions)} vs baseline, {', '.join(p.name for p in study.policies)},"
+        f" {replicates} paired replicates, {study.confidence * 100:g} % intervals"
+    )
+    width = max(len("metric"), *(len(r[2]) for r in result.effects.rows))
+    multi = len(study.interventions) > 1 or len(study.policies) > 1
+    head = f"{'metric':<{width}}{'baseline':>12}{'treated':>12}{'effect':>12}   interval"
+    for (intervention, policy), rows in _grouped(result.effects.rows):
+        if multi:
+            print(f"\n{intervention} · {policy}")
+        print(head)
+        for r in rows:
+            low, high = r[6], r[7]
+            covers = "   (covers 0)" if low <= 0 <= high else ""
+            print(
+                f"{r[2]:<{width}}{_amount(r[3]):>12}{_amount(r[4]):>12}{_amount(r[5], signed=True):>12}"
+                f"   {_amount(low, signed=True)} … {_amount(high, signed=True)}{covers}"
+            )
+    if csv_path:
+        with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh)
+            writer.writerow([f.name for f in result.effects.info.fields])
+            writer.writerows(result.effects.rows)
+        print(f"\nwrote {csv_path}")
+    return 0
+
+
+def _grouped(rows: list[tuple]) -> list[tuple[tuple[str, str], list[tuple]]]:
+    groups: dict[tuple[str, str], list[tuple]] = {}
+    for r in rows:
+        groups.setdefault((r[0], r[1]), []).append(r)
+    return list(groups.items())
+
+
+def _policy(text: str):
+    """``naive`` or ``service-level[:LEVEL]``, as ``--policy`` takes it."""
+    kind, _, level = text.partition(":")
+    if kind == "service-level" and level:
+        try:
+            value = float(level)
+        except ValueError as exc:
+            raise click.BadParameter(f"{text!r}: the level must be a number, e.g. service-level:0.95") from exc
+        if not 0.5 < value < 1:  # the bounds POST /experiments and /effects enforce
+            raise click.BadParameter(f"{text!r}: the level must be above 0.5 and below 1")
+        return catalog.policy(kind, service_level=value)
+    if level:
+        raise click.BadParameter(f"{text!r}: only service-level takes a level")
+    return catalog.policy(kind)
+
+
 def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "bootstrap-table") -> int:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
 
@@ -430,6 +514,57 @@ def agent(query: str, audit_log: str | None) -> None:
 def pipeline(audit_log: str | None) -> None:
     """Run the Data Intelligence Workflow DAG and print its run record."""
     cmd_pipeline(audit_log)
+
+
+@main.command()
+@click.option(
+    "--intervention",
+    "interventions",
+    multiple=True,
+    required=True,
+    help="An intervention to compare with the baseline (repeatable).",
+)
+@click.option(
+    "--policy",
+    "policies",
+    multiple=True,
+    default=("service-level:0.95",),
+    show_default=True,
+    help="naive or service-level[:LEVEL] (repeatable).",
+)
+@click.option(
+    "--outcome",
+    "outcomes",
+    multiple=True,
+    default=("simulated_cost",),
+    show_default=True,
+    help="An outcome to measure (repeatable).",
+)
+@click.option("--replicates", default=10, show_default=True, type=int, help="Paired replicate worlds, 2 to 20.")
+@click.option(
+    "--confidence",
+    default=0.95,
+    show_default=True,
+    type=float,
+    help="The intervals' confidence, above 0.5 and below 1.",
+)
+@click.option(
+    "--csv",
+    "csv_path",
+    type=click.Path(dir_okay=False, writable=True),
+    help="Also write the effects table to this CSV file.",
+)
+def effects(
+    interventions: tuple[str, ...],
+    policies: tuple[str, ...],
+    outcomes: tuple[str, ...],
+    replicates: int,
+    confidence: float,
+    csv_path: str | None,
+) -> None:
+    """Effects of interventions against the baseline, with intervals, over paired replicate worlds."""
+    if cmd_effects(list(interventions), list(policies), list(outcomes), replicates, confidence, csv_path):
+        raise click.exceptions.Exit(1)
 
 
 @main.command()

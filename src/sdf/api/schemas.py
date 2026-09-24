@@ -13,6 +13,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from sdf.simulation.effects import MAX_REPLICATES
+
 
 class Model(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -402,11 +404,52 @@ class PolicyKind(Model):
     params: list[ParamModel]
 
 
+class EffectsLimits(Model):
+    max_replicates: int  # the form's input bound; the work budget is the server's (POST /effects check_only)
+
+
 class ExperimentCatalog(Model):
     interventions: list[str]
     policies: list[PolicyKind]
     outcomes: list[str]
     max_per_list: int
+    effects: EffectsLimits
+
+
+class EffectsRequest(BaseModel):
+    """An effect study: every intervention against the baseline, over paired replicate worlds."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    interventions: list[str] = Field(min_length=1, max_length=MAX_PER_LIST)
+    policies: list[PolicyChoice] = Field(
+        default_factory=lambda: [PolicyChoice(kind="service-level")], min_length=1, max_length=MAX_PER_LIST
+    )
+    outcomes: list[str] = Field(default_factory=lambda: ["simulated_cost"], min_length=1, max_length=MAX_PER_LIST)
+    replicates: int = Field(10, ge=2, le=MAX_REPLICATES)
+    confidence: float = Field(0.95, gt=0.5, lt=1.0)
+    check_only: bool = False  # validate and answer the budget, generating nothing
+
+
+class TableModel(Model):
+    fields: list[FieldModel]
+    rows: list[list[Any]]
+
+
+class EffectsResult(Model):
+    fields: list[FieldModel]
+    rows: list[list[Any]]
+    replicates: TableModel
+    spec: dict[str, Any]  # the spec replicate 0 used: the current world's
+    synthesizer: str
+    elapsed_ms: int
+
+
+class EffectsBudget(Model):
+    work: int
+    max_work: int
+    within_budget: bool
+    size: str
 
 
 # -- synthesis --------------------------------------------------------------------------------
