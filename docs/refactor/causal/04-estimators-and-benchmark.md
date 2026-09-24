@@ -41,7 +41,9 @@ on data where the truth is known.
     outcome that regression adjustment recovers exactly; balanced propensities
     where `ipw` equals the difference in means;
   - the interval methods and the seeded bootstrap;
-  - `design`: missing rows, the one-hot encoding, and every refusal;
+  - `design`: missing rows, the one-hot encoding, and every refusal (a time
+    treatment, a measure treatment with values other than 0 and 1, a time
+    covariate, a confidence of 0.5 or 1);
   - the benchmark: exact truth, `confounding=0` is unconfounded, and the
     parameter bounds;
   - `score`: a failing estimator becomes a row; without a truth the truth

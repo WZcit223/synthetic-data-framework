@@ -326,8 +326,15 @@ class Estimator(Protocol):
 - **Rows the estimate cannot use.** Before calling the estimator, the registry
   drops rows with a missing treatment, outcome or covariate, and refuses:
   - a question naming an unknown field;
-  - an outcome that is not a measure;
+  - a treatment that is neither a dimension nor a measure holding only 0 and 1
+    (a time field, or a measure with any other value, is refused, naming the
+    field and its kind);
+  - an outcome that is not a measure, or a covariate that is a time field;
+  - a `confidence` outside (0.5, 1), as for `EffectStudy`;
   - a table with fewer than two treated or two control rows.
+
+  So an estimator never sees an interval level that would give a non-finite
+  interval or fail inside a library.
 - **Covariates.** Dimension covariates are one-hot encoded, dropping the first
   level. Measure covariates are used as they are.
 - **Seeds.** `seed` is used only by estimators that resample (the `ipw`
@@ -376,7 +383,8 @@ class EstimatorRegistry(PluginRegistry[Estimator]):
         """Check the question against the table, then run ``name`` on it.
 
         Raises KeyError for an unknown or unavailable estimator, ValueError for a
-        question the table cannot answer (§3.1), and lets the estimator's own
+        question the table cannot answer or a confidence outside (0.5, 1)
+        (§3.1), and lets the estimator's own
         exception through (``score`` turns that into a row).
         """
 
@@ -485,8 +493,9 @@ POST /api/v1/causal/estimates
 → 200 {"fields": [...], "rows": [[...]], "question": {...}, "true_effect": null}   // no truth: bias and covers are null
 ```
 
-- **422** for an unknown estimator, dataset or field, an invalid question,
-  neither or both of `benchmark` and `dataset`, or a benchmark value outside
+- **422** for an unknown estimator, dataset or field, an invalid question (the
+  refusals of §3.1), a `confidence` outside (0.5, 1), neither or both of
+  `benchmark` and `dataset`, or a benchmark value outside
   the bounds `GET /estimators` publishes. The server checks each value with the
   same `Param.check` the synthesizer runs use, so the form and the server agree.
 - With `benchmark`, `question` is optional. When it is given, it may only drop
