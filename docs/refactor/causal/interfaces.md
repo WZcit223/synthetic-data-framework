@@ -448,7 +448,17 @@ class Estimator(Protocol):
     encoding is the first level present among the kept rows, so a level
     absent from them never produces a column.
 
-  These are request problems (422 through the API).
+  Every refusal above except the last concerns the question itself, whatever
+  the estimator. It is a request problem: `design` raises `ValueError`, and
+  the API answers 422. The last, identification, depends on which columns an
+  estimator uses, so it is decided per estimator:
+  - `EstimatorRegistry.estimate` on one estimator raises `ValueError`;
+  - `score`, and therefore the API, record that estimator as an error row
+    ("not identified: …", with the columns named) and still run the others.
+
+  With duplicate covariates, `difference-in-means` gives a number while
+  `regression-adjustment` gives an error row, in one 200 answer. PR 4 tests
+  that mixed case.
 - **What can still fail inside an estimator** is data the checks above cannot
   rule out: a covariate that perfectly separates treated from control (no
   overlap, for `ipw`), a computation that divides zero by zero, or a library
@@ -610,8 +620,19 @@ values. `Param` and `synthesizer_params` come from `sdf.synthesis`, a lower
 layer than `sdf.simulation`.
 
 - **Units.** SKUs with demand in the world.
-- **Observed fields.** `sku_id`, `abc_class` (dimension), `log_demand`,
-  `log_price`, `promoted` (0 or 1), `weekly_units` (measures).
+- **Observed fields**, in this order:
+
+  | Field | Label | Kind | Unit | Aggregate |
+  |---|---|---|---|---|
+  | `sku_id` | SKU | dimension | | |
+  | `abc_class` | ABC class | dimension | | |
+  | `log_demand` | Log mean daily demand | measure | | mean |
+  | `log_price` | Log (1 + unit price) | measure | | mean |
+  | `promoted` | Promoted | measure (0 or 1) | | mean |
+  | `weekly_units` | Weekly units | measure | units | mean |
+
+  `promoted` is a 0/1 measure, not a dimension. That makes it a valid
+  treatment (§3.1), and its mean in a pivot is the promoted share.
   - `log_demand` is `log(mean daily demand)`, always finite because the units
     are the SKUs with demand.
   - `log_price` is `log(1 + unit price)`, so a SKU with a unit price of 0
@@ -648,12 +669,38 @@ from sdf.analytics.causal import score
 draw = PromotionBenchmark(confounding=1.0).draw(world)
 scores = score(draw.table, draw.question, reg,
                names=["difference-in-means", "regression-adjustment", "ipw"], true_effect=draw.true_effect)
-# dataset "estimator-scores":
-#   estimator (dimension), effect, ci_low, ci_high, true_effect, bias, relative_bias, seconds (measures),
-#   covers ("yes", "no", or empty without a truth), method (dimension)
-#   seconds: how long that estimator ran, measured by score; empty for one not run
 # spike means over 50 draws, confounding 1: truth 7.2; difference-in-means 38.1, regression-adjustment 7.7, ipw 8.1
 ```
+
+The `estimator-scores` table, one row per estimator in `names` order, with
+these fields in this order:
+
+| Field | Label | Kind | Unit | Aggregate |
+|---|---|---|---|---|
+| `estimator` | Estimator | dimension | | |
+| `effect` | Estimated effect | measure | the outcome's unit | mean |
+| `ci_low` | Interval low | measure | the outcome's unit | mean |
+| `ci_high` | Interval high | measure | the outcome's unit | mean |
+| `true_effect` | True effect | measure | the outcome's unit | mean |
+| `bias` | Bias | measure | the outcome's unit | mean |
+| `relative_bias` | Relative bias | measure | share | mean |
+| `covers` | Interval covers the truth | dimension | | |
+| `n_treated` | Treated rows | measure | rows | sum |
+| `n_control` | Control rows | measure | rows | sum |
+| `seconds` | Run time | measure | s | sum |
+| `method` | Method | dimension | | |
+
+Notes:
+- **Units.** "The outcome's unit" is the outcome field's own `unit` (`units`
+  for the benchmark; none when the field has none).
+- **`covers`** is `"yes"`, `"no"`, or empty without a truth.
+- **Error rows.** An error row keeps `estimator` and `method` (the error) and
+  leaves every other field empty. `seconds` is the only exception: it is
+  filled when the estimator ran and empty when it was not run.
+- **`n_treated` and `n_control`** come from the `Estimate`.
+- **`bias`** is `effect − true_effect`, and **`relative_bias`** is
+  `bias / true_effect`. Both are empty without a truth, and `relative_bias`
+  is also empty for a zero truth.
 
 - **`score` lives in the analytics layer.** It therefore takes the table, the
   question and the truth, never a `BenchmarkDraw` from the simulation layer

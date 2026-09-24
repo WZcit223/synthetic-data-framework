@@ -54,7 +54,11 @@ on data where the truth is known.
       in the control rows, which is kept;
     - no residual degree of freedom;
     - redundant covariates do not refuse `difference-in-means`
-      (`uses_covariates = False`), and do refuse `regression-adjustment`;
+      (`uses_covariates = False`), and do refuse `regression-adjustment`:
+      `estimate` raises, while `score` and the API return a number for the
+      first and an error row for the second in one 200 answer;
+  - the promotion-benchmark and estimator-scores tables' fields, in order,
+    with kinds, units and aggregates as in the contract (§3.3);
   - the registry's guard (§3.1): an estimator returning a non-finite value,
     and `ipw` on a perfectly separating covariate (its overlap check, §3.2),
     each give an error row; `ipw` with a few extreme propensities clips them
