@@ -66,6 +66,8 @@ on data where the truth is known.
     parameter bounds;
   - `score`: a failing estimator becomes a row; without a truth the truth
     fields are empty; with a zero truth `relative_bias` is empty;
+  - one snapshot per request: a `POST /world` issued while an estimation
+    reads its dataset does not change the rows or metadata of that response;
   - the API's 422 and 500 cases, a failing estimator answered as a row in a
     200, and the benchmark's `params` and `question` in `GET /estimators`;
   - the row limit's 422, reached without reading past `MAX_ESTIMATE_ROWS + 1`

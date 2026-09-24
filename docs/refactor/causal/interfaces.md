@@ -632,6 +632,11 @@ POST /api/v1/causal/estimates
   `benchmark` and `dataset`, or a benchmark value outside
   the bounds `GET /estimators` publishes. The server checks each value with the
   same `Param.check` the synthesizer runs use, so the form and the server agree.
+- **One world per request.** The handler reads `store.current` once, at the
+  start, and uses that snapshot's world for the whole request. The benchmark
+  draw, the catalogue dataset's rows, and the response's metadata all come
+  from it, as for `POST /effects` (§1.5). A concurrent `POST /world` replaces
+  the store's snapshot, not the one this request holds.
 - **Limits.** Estimation runs synchronously, so its size is bounded like an
   effect study's:
   - at most `MAX_ESTIMATE_ROWS` rows. A catalogue dataset is read through a
