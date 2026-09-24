@@ -7,7 +7,7 @@ module-name = "sdf"
 
 [project]
 name = "synthetic-data-framework"
-version = "1.7.0"
+version = "1.8.0"
 description = "Three-layer industrial-AI framework with synthetic-data-driven AI warehouse demo"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
@@ -48,6 +48,14 @@ inventory = "sdf.application.datasets:InventoryDataset"
 order-lines = "sdf.application.datasets:OrderLinesDataset"
 replenishment-plan = "sdf.application.datasets:ReplenishmentPlanDataset"
 skus = "sdf.application.datasets:SkuDataset"
+
+# Causal effect estimators (docs/refactor/causal/interfaces.md §3). The PyWhy two need the causal extra.
+[project.entry-points."sdf.estimators"]
+difference-in-means = "sdf.analytics.causal.builtin:DifferenceInMeans"
+dowhy-backdoor = "sdf.analytics.causal.pywhy:DowhyBackdoor"
+econml-dml = "sdf.analytics.causal.pywhy:EconmlDml"
+ipw = "sdf.analytics.causal.builtin:Ipw"
+regression-adjustment = "sdf.analytics.causal.builtin:RegressionAdjustment"
 
 [dependency-groups]
 dev = [

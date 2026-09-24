@@ -1,6 +1,37 @@
 # PR 4 — Estimator plug-ins and a benchmark with a known answer
 
-> Status: planned (causal modelling sequence PR 4).
+> Status: implemented (causal modelling sequence PR 4).
+>
+> Measured on the default world (200 SKUs × 90 days):
+> - `sdf estimate --confounding 1` (seed 7, truth +6.88 units/week):
+>   difference-in-means +36.5 (no), regression-adjustment +6.29 (+2.96 to
+>   +9.61, covers), ipw +6.53 (+3.03 to +11.5, covers).
+> - Over 50 seeds at confounding 1, the acceptance measure of the contract
+>   (§3.3, the mean effect over the 50 draws): truth 7.26, difference-in-means
+>   38.5, regression-adjustment 7.42 (2 % from the truth), ipw 7.06 (3 %). One
+>   draw of 200 SKUs scatters more: the mean absolute error per draw is 26 %
+>   for regression adjustment and 24 % for ipw.
+> - With the `causal` extra on Python 3.13, on the same draw: dowhy-backdoor
+>   +6.29 (as regression adjustment) and econml-dml +6.62, both covering the truth.
+> - Timing on `order-lines` (28 897 rows, 3 dimension covariates): ipw 4.0 s,
+>   econml-dml 4.4 s (plus a first-call import of several seconds),
+>   dowhy-backdoor 0.3 s, the other two under 0.2 s. `MAX_ESTIMATE_ROWS` is set
+>   to 40 000: every built-in dataset on the default world fits, and the three
+>   built-ins at the cap take about 6 s, all five about 12 s.
+> - The adjustment set: `abc_class` is a proxy of demand (the ABC class is
+>   drawn from it), so dropping `log_demand` alone leaves the estimate near the
+>   truth (+6.63); dropping `log_demand` and `abc_class` brings the naive bias
+>   back (+35.4). PR 5's acceptance line about removing `log_demand` is
+>   corrected there to name both.
+>
+> Beyond the contract: `score` takes an optional `deadline` (a
+> `time.monotonic()` instant) for the §5 budget, and returns rows whose
+> `seconds` is empty only when an estimator was not run; `GET /estimators`
+> also publishes each estimator's `uses_covariates`; the estimate response
+> also carries `source`, `world` and `elapsed_ms`; `sdf estimate` takes
+> `--drop COVARIATE`, `--uplift`, `--noise`, `--seed` and `--confidence`; and
+> `DatasetCatalog.read(name, world, limit=, deadline=)` is the bounded,
+> deadline-checked read the endpoint uses.
 
 Contract: [`interfaces.md`](interfaces.md) §3.
 

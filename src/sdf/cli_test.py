@@ -26,6 +26,7 @@ COMMANDS = [
     "impact",
     "scenarios",
     "effects",
+    "estimate",
     "privacy",
     "validate",
     "hooks",
@@ -254,3 +255,34 @@ def test_effects_groups_by_intervention_and_policy_and_marks_intervals_covering_
 def test_effects_refuses_an_invalid_study(args, message):
     result = run("effects", *args)
     assert result.exit_code != 0 and message in result.output
+
+
+def test_estimate_scores_the_built_ins_against_the_benchmark_s_truth(tmp_path):
+    out = tmp_path / "scores.csv"
+    result = run("estimate", "--confounding", "1", "--csv", str(out))
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert lines[0].startswith("promotion benchmark: 200 SKUs, uplift 30 %, confounding 1, seed 7; true effect +")
+    assert lines[0].endswith("units/week; adjusting for log_demand, abc_class, log_price")
+    assert lines[1].split() == ["estimator", "effect", "95", "%", "interval", "bias", "covers"]
+    rows = {line.split()[0]: line.split() for line in lines[2:5]}
+    assert list(rows) == ["difference-in-means", "regression-adjustment", "ipw"]
+    assert rows["difference-in-means"][-1] == "no" and rows["regression-adjustment"][-1] == "yes"
+    header = out.read_text(encoding="utf-8").splitlines()[0]
+    assert (
+        header
+        == "estimator,effect,ci_low,ci_high,true_effect,bias,relative_bias,covers,n_treated,n_control,seconds,method"
+    )
+
+
+def test_estimate_drops_covariates_and_refuses_what_it_cannot_run():
+    result = run("estimate", "--drop", "log_demand", "--drop", "abc_class", "--estimator", "regression-adjustment")
+    assert result.exit_code == 0 and "adjusting for log_price" in result.output
+    assert result.output.splitlines()[2].split()[-1] == "no"  # without the demand proxies the bias returns
+    for args, message in (
+        (["--drop", "sku_id"], "--drop sku_id: the benchmark's covariates are"),
+        (["--estimator", "nope"], "unknown estimator 'nope'"),
+        (["--confounding", "4"], "confounding must be from 0.0 to 3.0, got 4.0"),
+    ):
+        refused = run("estimate", *args)
+        assert refused.exit_code != 0 and message in refused.output, refused.output

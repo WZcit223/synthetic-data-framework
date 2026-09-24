@@ -27,6 +27,7 @@ uv run sdf export out/               # write synthetic CSVs
 uv run sdf backtest                  # real-data forecast backtest
 uv run sdf agent "reorder & impact?" # tool-using agent + audit trace
 uv run sdf effects --intervention promo_spike   # an action's effect, with its interval
+uv run sdf estimate --confounding 1   # causal estimators scored against a known effect
 ```
 
 The full command list is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).

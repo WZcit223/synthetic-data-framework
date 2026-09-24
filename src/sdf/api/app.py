@@ -32,6 +32,13 @@ except ImportError as exc:  # pragma: no cover
     raise ImportError("FastAPI is optional. Install it with: uv sync --extra api") from exc
 
 from sdf import __version__
+from sdf.analytics.causal import (
+    MAX_ESTIMATE_SECONDS,
+    CausalQuestion,
+    EstimatorRegistry,
+    default_estimators,
+    score,
+)
 from sdf.analytics.forecast import build_series, compare_models, models_for
 from sdf.application.agent import WarehouseAgent
 from sdf.application.datasets import DatasetCatalog, default_datasets
@@ -39,6 +46,7 @@ from sdf.application.economics import financial_impact
 from sdf.application.knowledge import KnowledgeQA
 from sdf.application.scenarios import run_scenarios
 from sdf.simulation import catalog
+from sdf.simulation.benchmark import QUESTION as BENCHMARK_QUESTION, PromotionBenchmark
 from sdf.simulation.effects import MAX_EFFECT_WORK, MAX_REPLICATES, EffectStudy
 from sdf.simulation.experiment import OUTCOME_FIELDS, Experiment
 from sdf.synthesis.materialise import WarehouseRefused
@@ -53,6 +61,10 @@ from .state import MIN_HORIZON_DAYS, MIN_SKUS, GenerateLimits, GenerationBusy, W
 PREFIX = "/api/v1"
 _EXPORT_TABLES = ("skus", "locations", "inventory", "inbound", "outbound", "sensors")
 MAX_DATASET_ROWS = 250_000  # the most rows one dataset response carries
+# The most dataset rows one estimation reads. Measured: ipw (the slowest built-in, 200 bootstrap fits)
+# takes 4 s on order-lines' 28 897 rows and about 5.5 s at 40 000; the three built-ins together about
+# 6 s, and with the causal extra's two about 12 s, well within MAX_ESTIMATE_SECONDS.
+MAX_ESTIMATE_ROWS = 40_000
 
 
 def _spec_dict(spec: GenerationSpec) -> dict:
@@ -84,6 +96,26 @@ def _policy_params(kind: str) -> list[dict]:
     return params
 
 
+def _question(q: s.QuestionModel) -> CausalQuestion:
+    return CausalQuestion(q.treatment, q.outcome, tuple(q.covariates), q.treated_value)
+
+
+def _check_benchmark_question(q: CausalQuestion) -> None:
+    """With the benchmark, a question may only drop covariates from the benchmark's own."""
+    b = BENCHMARK_QUESTION
+    if (q.treatment, q.outcome, q.treated_value) != (b.treatment, b.outcome, b.treated_value):
+        raise HTTPException(
+            status_code=422,
+            detail=f"with the benchmark the question is {b.treatment} → {b.outcome}; only its covariates may be dropped",
+        )
+    extra = [c for c in q.covariates if c not in b.covariates]
+    if extra:
+        raise HTTPException(
+            status_code=422,
+            detail=f"the benchmark's covariates are {list(b.covariates)}; {extra[0]} is not one of them",
+        )
+
+
 def create_app(
     *,
     limits: GenerateLimits = GenerateLimits(),
@@ -91,6 +123,7 @@ def create_app(
     cors_origins: list[str] | None = None,
     datasets: DatasetCatalog | None = None,
     synthesizers: SynthesizerRegistry | None = None,
+    estimators: EstimatorRegistry | None = None,
 ) -> FastAPI:
     """A new app with its own world store, dataset catalogue and synthesizer registry.
 
@@ -98,7 +131,8 @@ def create_app(
     ``default_datasets()``, built once), so a provider registered on it later is
     served by later requests. ``synthesizers`` is likewise the one registry every
     synthesizer comes from (default: ``default_registry()``, built once): the
-    catalogue, runs, the initial world, ``POST /world`` and scenario regeneration. ``POST /api/v1/world`` rejects parameters outside
+    catalogue, runs, the initial world, ``POST /world`` and scenario regeneration. ``estimators``
+    is the estimator catalogue (default: ``default_estimators()``). ``POST /api/v1/world`` rejects parameters outside
     ``limits``. ``ui_dir``
     mounts a static UI at "/" for development hosting; ``cors_origins`` lets a
     UI hosted elsewhere call the API.
@@ -117,6 +151,8 @@ def create_app(
     app.state.limits = limits
     catalogue = datasets if datasets is not None else default_datasets()
     app.state.datasets = catalogue
+    estimator_reg = estimators if estimators is not None else default_estimators()
+    app.state.estimators = estimator_reg
     api = APIRouter(prefix=PREFIX)
 
     WorldRequest = create_model(  # noqa: N806 - a model class built from this app's limits
@@ -435,6 +471,118 @@ def create_app(
             },
             "spec": _spec_dict(world.spec),
             "synthesizer": world.synthesizer,
+            "elapsed_ms": round((time.monotonic() - started) * 1000),
+        }
+
+    @api.get("/estimators", response_model=s.EstimatorList)
+    def estimators_list():
+        """Every mounted estimator, the unavailable ones with the reason, the request limits and the benchmark."""
+        entries = []
+        for name in estimator_reg.names():
+            info = estimator_reg.info(name)
+            entries.append(
+                {
+                    "name": name,
+                    "description": info.description,
+                    "origin": estimator_reg.origin(name),
+                    "requires": list(info.requires),
+                    "uses_covariates": info.uses_covariates,
+                }
+            )
+        return {
+            "estimators": entries,
+            "unavailable": estimator_reg.unavailable(),
+            "limits": {
+                "max_rows": MAX_ESTIMATE_ROWS,
+                "max_estimators": s.MAX_ESTIMATORS,
+                "max_seconds": MAX_ESTIMATE_SECONDS,
+            },
+            "benchmark": {
+                "params": [p.to_dict() for p in PromotionBenchmark.params()],
+                "question": BENCHMARK_QUESTION.to_dict(),
+            },
+        }
+
+    @api.post(
+        "/causal/estimates",
+        response_model=s.EstimatesResult,
+        responses={
+            422: {"description": "an invalid request, question or benchmark value, or too many rows"},
+            500: {"description": "the benchmark draw or the dataset could not be built"},
+        },
+    )
+    def estimates(body: s.EstimatesRequest):
+        """Each chosen estimator on the same rows: the promotion benchmark, or a catalogue dataset.
+
+        A failing estimator is a row with its error in ``method``, not a failed request.
+        """
+        started = time.monotonic()
+        deadline = started + MAX_ESTIMATE_SECONDS
+        world = store.current.world  # one snapshot for the draw, the dataset rows and the metadata
+        if (body.benchmark is None) == (body.dataset is None):
+            raise HTTPException(status_code=422, detail="give exactly one of benchmark and dataset")
+        for name in body.estimators:
+            try:
+                estimator_reg.info(name)
+            except KeyError as exc:
+                raise HTTPException(status_code=422, detail=exc.args[0]) from exc
+        data = None
+        if body.benchmark is not None:
+            try:
+                bench = PromotionBenchmark(**body.benchmark.model_dump())
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=f"benchmark: {exc}") from exc
+            question = BENCHMARK_QUESTION if body.question is None else _question(body.question)
+            _check_benchmark_question(question)
+            try:
+                draw = bench.draw(world)
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"the benchmark draw failed: {exc}") from exc
+            table, truth, source = draw.table, draw.true_effect, "promotion-benchmark"
+            data = {"fields": [f.to_dict() for f in table.info.fields], "rows": [list(r) for r in table.rows]}
+        else:
+            if body.question is None:
+                raise HTTPException(status_code=422, detail=f"a question is needed for dataset {body.dataset}")
+            question = _question(body.question)
+            try:
+                catalogue.info(body.dataset)
+            except KeyError as exc:
+                raise HTTPException(status_code=422, detail=exc.args[0]) from exc
+            try:
+                table, more = catalogue.read(body.dataset, world, limit=MAX_ESTIMATE_ROWS, deadline=deadline)
+            except TimeoutError as exc:
+                detail = f"dataset {body.dataset} did not deliver its rows within {MAX_ESTIMATE_SECONDS:g} s"
+                raise HTTPException(status_code=422, detail=detail) from exc
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=500, detail=f"dataset {body.dataset} could not be built: {exc}"
+                ) from exc
+            if more:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"dataset {body.dataset} has more than MAX_ESTIMATE_ROWS ({MAX_ESTIMATE_ROWS:,}) rows",
+                )
+            truth, source = None, body.dataset
+        try:
+            scores = score(
+                table,
+                question,
+                estimator_reg,
+                names=body.estimators,
+                true_effect=truth,
+                confidence=body.confidence,
+                deadline=deadline,
+            )
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=exc.args[0] if isinstance(exc, KeyError) else str(exc)) from exc
+        return {
+            "fields": [f.to_dict() for f in scores.info.fields],
+            "rows": [list(r) for r in scores.rows],
+            "question": question.to_dict(),
+            "true_effect": truth,
+            "data": data,
+            "source": source,
+            "world": world.label,
             "elapsed_ms": round((time.monotonic() - started) * 1000),
         }
 

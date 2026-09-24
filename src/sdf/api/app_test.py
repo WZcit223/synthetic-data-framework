@@ -8,9 +8,14 @@ from __future__ import annotations
 
 import re
 import threading
+import time
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
+
+from sdf.foundation.tables import DatasetInfo, Field
+from sdf.synthesis.spec import GenerationSpec
 
 pytest.importorskip("fastapi")
 pytest.importorskip("httpx2")  # the transport starlette.testclient uses
@@ -543,7 +548,6 @@ def test_effects_study_a_runtime_generator_through_the_worlds_own_registry():
 
 
 def test_effects_refuse_a_generator_whose_first_world_differs_from_its_later_ones():
-    from typing import ClassVar
 
     from sdf.synthesis.api import SynthesizerInfo
     from sdf.synthesis.registry import default_registry
@@ -618,7 +622,6 @@ def test_the_app_serves_a_provider_registered_on_its_catalogue():
 
 
 def test_a_failing_provider_is_a_500_that_names_it_not_an_unknown_dataset():
-    from typing import ClassVar
 
     from sdf.application.datasets import DatasetCatalog
     from sdf.foundation.tables import DatasetInfo, Field
@@ -825,7 +828,6 @@ def test_the_world_refuses_a_generator_that_is_not_a_warehouse(client, name, mes
 
 
 def test_a_generator_that_returns_something_else_is_a_422_and_the_world_is_kept():
-    from typing import ClassVar
 
     from sdf.synthesis.api import SynthesizerInfo
     from sdf.synthesis.registry import default_registry
@@ -860,3 +862,297 @@ def test_a_synthesizer_that_fails_is_a_500_that_names_it():
     c = TestClient(create_app(synthesizers=synthesizers), raise_server_exceptions=False)
     res = run(c, synthesizer="broken-sample", source="sample")
     assert res.status_code == 500 and "broken-sample failed while fitting and sampling it" in res.json()["detail"]
+
+
+# -- causal estimates -------------------------------------------------------------------------------
+
+BUILT_INS = ["difference-in-means", "regression-adjustment", "ipw"]
+EXPRESS = {"treatment": "priority", "treated_value": "express", "outcome": "line_value", "covariates": ["category"]}
+
+
+def estimates(client, **body):
+    return client.post(V1 + "/causal/estimates", json=body)
+
+
+def test_the_estimator_catalogue_publishes_limits_and_the_benchmark(client):
+    from sdf.simulation.benchmark import QUESTION, PromotionBenchmark
+
+    body = get(client, "/estimators")
+    names = [e["name"] for e in body["estimators"]]
+    assert set(BUILT_INS) <= set(names)
+    for name in ("dowhy-backdoor", "econml-dml"):
+        assert name in names or body["unavailable"][name].startswith("needs ")
+    naive = next(e for e in body["estimators"] if e["name"] == "difference-in-means")
+    assert naive["origin"] == "builtin" and naive["uses_covariates"] is False
+    assert body["limits"] == {"max_rows": 40_000, "max_estimators": 6, "max_seconds": 30}
+    assert body["benchmark"]["params"] == [p.to_dict() for p in PromotionBenchmark.params()]
+    assert body["benchmark"]["question"] == QUESTION.to_dict()
+
+
+def test_the_benchmark_s_scores_equal_score_on_the_same_draw(client):
+    from sdf.analytics.causal import default_estimators, score
+    from sdf.simulation.benchmark import PromotionBenchmark
+    from sdf.simulation.world import World
+
+    res = estimates(client, estimators=BUILT_INS, benchmark={"confounding": 1.0}, confidence=0.9)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    draw = PromotionBenchmark(confounding=1.0).draw(
+        World.generate(GenerationSpec())
+    )  # the app's first world, as the CLI's
+    expected = score(
+        draw.table, draw.question, default_estimators(), names=BUILT_INS, true_effect=draw.true_effect, confidence=0.9
+    )
+    assert [r[:10] + r[11:] for r in body["rows"]] == [list(r[:10] + r[11:]) for r in expected.rows]  # all but seconds
+    assert body["true_effect"] == draw.true_effect and body["source"] == "promotion-benchmark"
+    assert [f["name"] for f in body["fields"]][:2] == ["estimator", "effect"]
+    assert body["data"]["rows"] == [list(r) for r in draw.table.rows]  # the observed table, for Explore
+    assert body["question"]["covariates"] == ["log_demand", "abc_class", "log_price"]
+
+
+def test_a_dataset_question_has_no_truth(client):
+    res = estimates(client, estimators=["regression-adjustment"], dataset="order-lines", question=EXPRESS)
+    assert res.status_code == 200, res.text
+    body = res.json()
+    (row,) = body["rows"]
+    assert row[0] == "regression-adjustment" and row[1] is not None
+    assert row[4:8] == [None, None, None, None]  # true_effect, bias, relative_bias, covers
+    assert body["true_effect"] is None and body["data"] is None and body["source"] == "order-lines"
+
+
+def test_the_benchmark_question_may_only_drop_covariates(client):
+    q = {"treatment": "promoted", "outcome": "weekly_units", "covariates": ["abc_class"]}
+    res = estimates(client, estimators=["regression-adjustment"], benchmark={}, question=q)
+    assert res.status_code == 200 and res.json()["question"]["covariates"] == ["abc_class"]
+    other = estimates(client, estimators=["ipw"], benchmark={}, question={**q, "outcome": "log_price"})
+    assert other.status_code == 422 and "only its covariates may be dropped" in other.json()["detail"]
+    extra = estimates(client, estimators=["ipw"], benchmark={}, question={**q, "covariates": ["sku_id"]})
+    assert extra.status_code == 422 and "sku_id is not one of them" in extra.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    ("body", "detail"),
+    [
+        ({"estimators": ["nope"], "benchmark": {}}, "unknown estimator 'nope'"),
+        ({"estimators": ["ipw"]}, "give exactly one of benchmark and dataset"),
+        ({"estimators": ["ipw"], "benchmark": {}, "dataset": "skus"}, "give exactly one of benchmark and dataset"),
+        (
+            {"estimators": ["ipw"], "benchmark": {"confounding": 9}},
+            "benchmark: confounding must be from 0.0 to 3.0, got 9",
+        ),
+        ({"estimators": ["ipw"], "benchmark": {}, "confidence": 1}, "confidence must be above 0.5 and below 1, got 1"),
+        ({"estimators": ["ipw"], "dataset": "nope", "question": EXPRESS}, "unknown dataset 'nope'"),
+        ({"estimators": ["ipw"], "dataset": "order-lines"}, "a question is needed for dataset order-lines"),
+        (
+            {"estimators": ["ipw"], "dataset": "order-lines", "question": {**EXPRESS, "treated_value": 1}},
+            "priority has values ['express', 'standard']; set treated_value to one of them",
+        ),
+        (
+            {"estimators": ["ipw"], "dataset": "order-lines", "question": {**EXPRESS, "outcome": "nope"}},
+            "unknown field 'nope'",
+        ),
+    ],
+)
+def test_an_invalid_estimation_request_is_a_422_that_says_why(client, body, detail):
+    res = estimates(client, **body)
+    assert res.status_code == 422 and detail in res.json()["detail"], res.text
+
+
+def test_the_request_shape_is_checked(client):
+    assert estimates(client, estimators=[], benchmark={}).status_code == 422
+    assert estimates(client, estimators=["ipw"] * 7, benchmark={}).status_code == 422  # at most 6
+    assert estimates(client, estimators=["ipw"], benchmark={"nope": 1}).status_code == 422  # extra keys are refused
+
+
+def test_a_failing_estimator_is_a_row_in_a_200():
+    from sdf.analytics.causal import default_estimators
+    from sdf.analytics.causal.causal_test import Raises
+
+    reg = default_estimators()
+    reg.register(Raises)
+    res = estimates(
+        TestClient(create_app(estimators=reg)), estimators=["raises", "regression-adjustment"], benchmark={}
+    )
+    assert res.status_code == 200
+    failed, ok = res.json()["rows"]
+    assert failed[0] == "raises" and failed[1] is None and failed[11] == "RuntimeError: library error"
+    assert ok[1] is not None
+
+
+def test_rows_that_cannot_be_built_are_a_500_that_names_the_source(monkeypatch):
+    from sdf.application.datasets import DatasetCatalog
+    from sdf.simulation.benchmark import PromotionBenchmark
+
+    datasets = DatasetCatalog()
+    datasets.register(FailsMidway)
+    c = TestClient(create_app(datasets=datasets), raise_server_exceptions=False)
+    q = {"treatment": "t", "outcome": "y"}
+    res = estimates(c, estimators=["ipw"], dataset="fails-midway", question=q)
+    assert res.status_code == 500 and res.json()["detail"] == "dataset fails-midway could not be built: provider broke"
+    monkeypatch.setattr(PromotionBenchmark, "draw", lambda self, world: (_ for _ in ()).throw(RuntimeError("no SKUs")))
+    res = estimates(c, estimators=["ipw"], benchmark={})
+    assert res.status_code == 500 and res.json()["detail"] == "the benchmark draw failed: no SKUs"
+
+
+# The providers below are module level, so a catalogue can mount them.
+TY_INFO = DatasetInfo(
+    "ty-rows", "T and Y", "a treatment and an outcome", (Field("t", "T", "measure"), Field("y", "Y", "measure"))
+)
+
+
+class FailsMidway:
+    info: ClassVar[DatasetInfo] = DatasetInfo("fails-midway", "Fails", "x", TY_INFO.fields)
+
+    def rows(self, world):
+        yield (1, 1.0)
+        raise RuntimeError("provider broke")
+
+
+class Endless:
+    info: ClassVar[DatasetInfo] = DatasetInfo("endless", "Endless", "x", TY_INFO.fields)
+    served: ClassVar[list[int]] = []
+
+    def rows(self, world):
+        i = 0
+        while True:
+            Endless.served.append(i)
+            yield (i % 2, float(i))
+            i += 1
+
+
+class SlowRows:
+    info: ClassVar[DatasetInfo] = DatasetInfo("slow-rows", "Slow", "x", TY_INFO.fields)
+
+    def rows(self, world):
+        for i in range(1000):
+            time.sleep(0.05)
+            yield (i % 2, float(i))
+
+
+def test_the_row_limit_reads_one_probe_row_and_nothing_further(monkeypatch):
+    from sdf.api import app as app_module
+    from sdf.application.datasets import DatasetCatalog
+
+    monkeypatch.setattr(app_module, "MAX_ESTIMATE_ROWS", 5)
+    datasets = DatasetCatalog()
+    datasets.register(Endless)
+    Endless.served.clear()
+    res = estimates(
+        TestClient(create_app(datasets=datasets)),
+        estimators=["ipw"],
+        dataset="endless",
+        question={"treatment": "t", "outcome": "y"},
+    )
+    assert res.status_code == 422 and res.json()["detail"] == "dataset endless has more than MAX_ESTIMATE_ROWS (5) rows"
+    assert Endless.served == [0, 1, 2, 3, 4, 5]  # five kept, one probe
+
+
+def test_a_provider_that_does_not_deliver_in_time_is_stopped(monkeypatch):
+    from sdf.api import app as app_module
+    from sdf.application.datasets import DatasetCatalog
+
+    monkeypatch.setattr(app_module, "MAX_ESTIMATE_SECONDS", 0.3)
+    datasets = DatasetCatalog()
+    datasets.register(SlowRows)
+    started = time.monotonic()
+    res = estimates(
+        TestClient(create_app(datasets=datasets)),
+        estimators=["ipw"],
+        dataset="slow-rows",
+        question={"treatment": "t", "outcome": "y"},
+    )
+    assert res.status_code == 422 and res.json()["detail"] == "dataset slow-rows did not deliver its rows within 0.3 s"
+    assert time.monotonic() - started < 2  # stopped at the next row, not after all of them
+
+
+class RegeneratesMidway:
+    """While the estimation reads it, the app's world is replaced; the rows stay the first world's."""
+
+    info: ClassVar[DatasetInfo] = DatasetInfo(
+        "regenerates", "Regenerates", "x", (*TY_INFO.fields, Field("world", "World", "dimension"))
+    )
+    store: ClassVar[object] = None
+
+    def rows(self, world):
+        for i in range(8):
+            if i == 4:
+                RegeneratesMidway.store.regenerate(GenerationSpec(n_skus=30, horizon_days=30, seed=99))
+            yield (i % 2, float(i), world.label)
+
+
+def test_one_world_serves_the_whole_estimation():
+    from sdf.application.datasets import DatasetCatalog
+
+    datasets = DatasetCatalog()
+    datasets.register(RegeneratesMidway)
+    app = create_app(datasets=datasets)
+    RegeneratesMidway.store = app.state.store
+    first = app.state.store.current.world.label
+    res = estimates(
+        TestClient(app),
+        estimators=["difference-in-means"],
+        dataset="regenerates",
+        question={"treatment": "t", "outcome": "y"},
+    )
+    assert res.status_code == 200 and res.json()["world"] == first
+    assert app.state.store.current.world.label != first  # the store moved on; this answer did not
+
+
+class AtTheLimit:
+    """MAX_ESTIMATE_ROWS rows with a dimension treatment and three covariates."""
+
+    info: ClassVar[DatasetInfo] = DatasetInfo(
+        "at-the-limit",
+        "At the limit",
+        "x",
+        (
+            Field("priority", "Priority", "dimension"),
+            Field("value", "Value", "measure"),
+            Field("category", "Category", "dimension"),
+            Field("a", "A", "measure"),
+            Field("b", "B", "measure"),
+        ),
+    )
+
+    def rows(self, world):
+        import numpy as np
+
+        from sdf.api.app import MAX_ESTIMATE_ROWS
+
+        rng = np.random.default_rng(0)
+        a, b = rng.normal(size=MAX_ESTIMATE_ROWS), rng.normal(size=MAX_ESTIMATE_ROWS)
+        cats = rng.integers(0, 5, MAX_ESTIMATE_ROWS)
+        express = rng.random(MAX_ESTIMATE_ROWS) < 1 / (1 + np.exp(-a))
+        value = 10 + 2 * express + a + 0.5 * b + cats + rng.normal(size=MAX_ESTIMATE_ROWS)
+        for i in range(MAX_ESTIMATE_ROWS):
+            yield ("express" if express[i] else "standard", float(value[i]), f"c{cats[i]}", float(a[i]), float(b[i]))
+
+
+def test_six_estimators_at_the_row_limit_finish_within_the_budget():
+    from sdf.analytics.causal import EstimatorInfo, default_estimators
+    from sdf.analytics.causal.builtin import DifferenceInMeans, RegressionAdjustment
+    from sdf.application.datasets import DatasetCatalog
+
+    reg = default_estimators()
+    for name, base in (
+        ("naive-2", DifferenceInMeans),
+        ("adjusted-2", RegressionAdjustment),
+        ("adjusted-3", RegressionAdjustment),
+    ):
+        reg.register(
+            type(name, (base,), {"info": EstimatorInfo(name, "a copy", uses_covariates=base.info.uses_covariates)})
+        )
+    datasets = DatasetCatalog()
+    datasets.register(AtTheLimit)
+    q = {"treatment": "priority", "treated_value": "express", "outcome": "value", "covariates": ["category", "a", "b"]}
+    names = [*BUILT_INS, "naive-2", "adjusted-2", "adjusted-3"]
+    started = time.monotonic()
+    res = estimates(
+        TestClient(create_app(datasets=datasets, estimators=reg)), estimators=names, dataset="at-the-limit", question=q
+    )
+    elapsed = time.monotonic() - started
+    assert res.status_code == 200, res.text
+    rows = res.json()["rows"]
+    assert all(r[1] is not None for r in rows), [r[11] for r in rows]
+    assert rows[1][1] == pytest.approx(2, abs=0.1)  # regression adjustment recovers the planted effect
+    assert elapsed < 30

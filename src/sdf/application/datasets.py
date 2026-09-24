@@ -17,6 +17,7 @@ and aggregates what it receives.
 from __future__ import annotations
 
 import inspect
+import time
 from collections.abc import Iterable
 from itertools import islice
 from typing import Any, ClassVar, Protocol
@@ -221,6 +222,28 @@ class DatasetCatalog(PluginRegistry[DatasetProvider]):
         kept = [tuple(row) for row in islice(rows, limit)]
         total = len(kept) + sum(1 for _ in rows)
         return Table(cls.info, kept), total
+
+    def read(self, name: str, world: World, *, limit: int, deadline: float | None = None) -> tuple[Table, bool]:
+        """At most ``limit`` rows of ``name`` over ``world``, checked, and whether the provider had more.
+
+        The provider is asked for at most ``limit + 1`` rows: the one past the limit is a
+        probe, never kept or checked, so nothing further is read. ``deadline`` (a
+        ``time.monotonic()`` instant) is checked between rows; once it has passed,
+        ``TimeoutError`` is raised, since a provider can be slow per row.
+        """
+        if limit < 1:
+            raise ValueError(f"limit must be at least 1, got {limit}")
+        cls = self._entry(name).cls
+        kept: list[tuple[Any, ...]] = []
+        more = False
+        for row in cls().rows(world):
+            if deadline is not None and time.monotonic() > deadline:
+                raise TimeoutError(f"dataset {name} did not deliver its rows in time")
+            if len(kept) == limit:
+                more = True  # the probe: one row past the limit exists
+                break
+            kept.append(tuple(row))
+        return Table(cls.info, kept), more
 
 
 def _takes_world(cls: type) -> bool:
