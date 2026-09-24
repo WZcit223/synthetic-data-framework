@@ -278,7 +278,7 @@ src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
 - 核心运行时依赖为 numpy / scipy / scikit-learn（2026-09-23 决定）；SDV、FastAPI、LightGBM、pywhy 因果栈与 pydantic 仍只进 extras。
 - 生成器的随机数消费顺序不变，黄金数字不变。
 - 公共方法签名不变；仪表盘不改。
-- HOOK 标记统一为 `# ALGORITHM-HOOK[C1]: …` / `# DATA-HOOK[D1]: …`，方括号内为 `CHECKLIST.md` 的行号 ID，只出现在代码注释里（docstring 中改为正文说明）。
+- HOOK 标记统一为 `ALGORITHM-HOOK[C1]: …` / `DATA-HOOK[D1]: …`，方括号内为 `docs/ALGORITHM_AND_DATA_CHECKLIST.md` 的条目编号（不是行号），可出现在注释或 docstring 中；`sdf hooks` 列出并校验全部标记（cleanup 序列 PR 1）。
 
 ---
 
