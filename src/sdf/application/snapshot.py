@@ -49,6 +49,8 @@ def _backtest(orders) -> dict:
         "granularity": freq,
         "seasonal_period": period,
         "series_len": len(series),
+        "series_mean": round(sum(series) / len(series), 1),
+        "test_len": 2 * period,
         "best_model": report["best_model"],
         "results": [{k: r[k] for k in _BACKTEST_KEYS} for r in report["results"]],
     }
@@ -168,7 +170,8 @@ def _table(header: list[str], rows: list[list]) -> list[str]:
 def _backtest_table(bt: dict) -> list[str]:
     lines = [
         f"Backtest ({bt['granularity']}, seasonal period {bt['seasonal_period']}, "
-        f"{bt['series_len']} points; ranked by MAE):",
+        f"{bt['series_len']} points averaging {_fmt(bt['series_mean'])} units, last {bt['test_len']} held out; "
+        "ranked by MAE):",
         "",
     ]
     return lines + _table(

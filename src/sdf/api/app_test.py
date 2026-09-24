@@ -1,7 +1,7 @@
 """HTTP contract tests for ``/api/v1``: every field the UI reads, the world limits, snapshot consistency,
 the experiment endpoint, the UI boundary and CORS.
 
-Needs the ``api`` extra (FastAPI) and the dev dependency ``httpx``; skipped otherwise.
+Needs the ``api`` extra (FastAPI) and the dev dependency ``httpx2``; skipped otherwise.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("fastapi")
-pytest.importorskip("httpx")
+pytest.importorskip("httpx2")  # the transport starlette.testclient uses
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -337,7 +337,9 @@ def test_ui_dir_is_mounted_for_development_hosting():
     client = TestClient(create_app(ui_dir=UI_DIR))
     page = client.get("/")
     assert page.status_code == 200 and '<script src="app.js">' in page.text
-    assert client.get("/app.js").status_code == 200
+    for asset in re.findall(r'(?:href|src)="([^":]+)"', page.text):  # every local file the page loads
+        assert client.get("/" + asset).status_code == 200, asset
+    assert 'rel="icon" href="favicon.svg"' in page.text
     assert client.get(V1 + "/health").json() == {"status": "ok"}  # API routes still win
 
 

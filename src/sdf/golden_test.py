@@ -115,6 +115,7 @@ def test_vision_stocktake(world):
 def test_backtest_on_default_world(world):
     bt = world["backtest"]
     assert (bt["granularity"], bt["seasonal_period"], bt["series_len"]) == ("daily", 7, 90)
+    assert (bt["series_mean"], bt["test_len"]) == (approx(671.6), 14)
     expected = [
         ("snaive7", 174.071, 14.69),
         ("seas_linear7", 200.903, 18.58),
@@ -177,6 +178,7 @@ def test_sample_csv(full_snapshot):
         7,
         139,
     )
+    assert (bt["series_mean"], bt["test_len"]) == (approx(137.6), 14)
     assert [r["model"] for r in bt["results"]] == ["snaive7", "seas_linear7", "mean", "ma7", "naive"]
     assert bt["results"][0]["MAE"] == approx(32.786)
     assert bt["results"][0]["MAPE_pct"] == approx(24.0)  # 20.57 before the MAPE fix (correctness PR 3)
@@ -203,6 +205,7 @@ def test_real_10k_csv(full_snapshot):
         11,
         44,
     )
+    assert (bt["series_mean"], bt["test_len"]) == (approx(2049.2), 22)
     assert [r["model"] for r in bt["results"]] == ["naive", "ma11", "snaive11", "mean", "seas_linear11"]
     assert bt["results"][0]["MAE"] == approx(950.786)
     assert bt["results"][0]["MAPE_pct"] == approx(154.07)  # 99.04 before the MAPE fix (correctness PR 3)
