@@ -1,8 +1,8 @@
-// Tests for the pivot engine: node --test ui/
+// Tests for the pivot engine: node --test ui/*.test.js
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { compareParts, distinctValues, OTHER, partLabel, pivot, timeKey, toCsv, toTable } from "./pivot.js";
+import { compareParts, distinctValues, OTHER, partLabel, pivot, timeKey, toCsv, toTable, viewError } from "./pivot.js";
 
 const FIELDS = [
   { name: "day", label: "Day", kind: "time", unit: null, aggregate: null },
@@ -226,4 +226,27 @@ test("CSV quotes separators and defuses a formula-like label", () => {
   assert.equal(csv[0], "Region,Channel,Total · Sum,Total · Count");
   assert.equal(csv[1], "'-x,\"say \"\"hi\"\"\",-2,1");
   assert.equal(csv[2], "'=HYPERLINK(1),\"a,b\",1,1");
+});
+
+test("a view from a link is checked for shape before it is used", () => {
+  assert.equal(viewError({ rows: [{ field: "region" }], values: [{ field: "qty", agg: "sum" }], sort: { by: "column", key: ["web"], dir: "desc" } }), null);
+  assert.equal(viewError({}), null);
+  const bad = [
+    [null, "must be an object"],
+    [{ rows: null }, "rows must be a list"],
+    [{ rows: [{}] }, "each of rows needs a field name"],
+    [{ columns: [{ field: "day", grain: "hour" }] }, "unknown time grain"],
+    [{ values: [{ field: "qty" }] }, "unknown aggregation"],
+    [{ filters: [] }, "filters must be an object"],
+    [{ filters: { region: { include: ["a"], exclude: [] } } }, "one include or exclude list"],
+    [{ filters: { region: { include: "a" } } }, "one include or exclude list"],
+    [{ showAs: "percent" }, "unknown showAs"],
+    [{ showAs: null }, "unknown showAs"],
+    [{ sort: null }, "sort.by"],
+    [{ sort: { by: "size" } }, "sort.by"],
+    [{ sort: { by: "column" } }, "needs the column's key"],
+    [{ subtotals: "yes" }, "subtotals must be true or false"],
+    [{ rowz: [] }, "unknown keys"],
+  ];
+  for (const [view, message] of bad) assert.match(viewError(view), new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), JSON.stringify(view));
 });

@@ -304,3 +304,46 @@ export function toCsv(result, { rowFields = [], values = [] }) {
   lines.push([...(rowFields.length ? totalLabels : []), ...result.totals.columns.flat(), ...result.totals.grand]);
   return lines.map(l => l.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
+
+const isObject = x => x != null && typeof x === "object" && !Array.isArray(x);
+
+/**
+ * Why ``view`` is not a view ``pivot`` can take, or null. A link carries a view
+ * from outside the page, so its shape is checked before any of it is used; the
+ * field names are checked against the table by ``pivot`` itself.
+ */
+export function viewError(view) {
+  if (!isObject(view)) return "the view must be an object";
+  const known = ["rows", "columns", "values", "filters", "showAs", "sort", "subtotals"];
+  const extra = Object.keys(view).filter(k => !known.includes(k));
+  if (extra.length) return `the view has unknown keys ${JSON.stringify(extra)}`;
+  for (const axis of ["rows", "columns"]) {
+    const list = axis in view ? view[axis] : []; // present means a list: null is not "none"
+    if (!Array.isArray(list)) return `${axis} must be a list`;
+    for (const a of list) {
+      if (!isObject(a) || typeof a.field !== "string") return `each of ${axis} needs a field name`;
+      if (a.grain != null && !GRAINS.includes(a.grain)) return `unknown time grain ${JSON.stringify(a.grain)}`;
+    }
+  }
+  const values = "values" in view ? view.values : [];
+  if (!Array.isArray(values)) return "values must be a list";
+  for (const v of values) {
+    if (!isObject(v) || typeof v.field !== "string") return "each value needs a field name";
+    if (!AGGREGATIONS.includes(v.agg)) return `unknown aggregation ${JSON.stringify(v.agg)}`;
+  }
+  const filters = "filters" in view ? view.filters : {};
+  if (!isObject(filters)) return "filters must be an object";
+  for (const [name, f] of Object.entries(filters)) {
+    const lists = ["include", "exclude"].filter(k => isObject(f) && k in f);
+    if (lists.length !== 1 || !Array.isArray(f[lists[0]])) return `the filter on ${name} needs one include or exclude list`;
+  }
+  if ("showAs" in view && !SHOW_AS.includes(view.showAs)) return `unknown showAs ${JSON.stringify(view.showAs)}`;
+  if ("sort" in view) {
+    const s = view.sort;
+    if (!isObject(s) || !["label", "value", "column"].includes(s.by)) return "sort.by must be label, value or column";
+    if (s.dir != null && s.dir !== "asc" && s.dir !== "desc") return "sort.dir must be asc or desc";
+    if (s.by === "column" && !Array.isArray(s.key)) return "a column sort needs the column's key";
+  }
+  if ("subtotals" in view && typeof view.subtotals !== "boolean") return "subtotals must be true or false";
+  return null;
+}

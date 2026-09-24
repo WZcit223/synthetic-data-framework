@@ -28,19 +28,24 @@ test("text on a heatmap cell always clears 4.5:1", () => {
   }
 });
 
-test("a series keeps its colour when its neighbours are filtered out", () => {
+test("a series keeps its colour when its neighbours are filtered out, and when it comes back", () => {
   const book = colorBook();
   const first = book.assign(["north", "south", "east"]);
   assert.deepEqual([...first.values()], SERIES.slice(0, 3));
   const later = book.assign(["east", "west"]); // north and south filtered out, west new
   assert.equal(later.get("east"), first.get("east"));
-  assert.equal(later.get("west"), SERIES[0]); // the first slot not on screen
+  assert.equal(later.get("west"), SERIES[3]); // a slot no name holds, so north keeps its own
+  const back = book.assign(["north", "west"]);
+  assert.equal(back.get("north"), first.get("north"));
+  assert.notEqual(back.get("north"), back.get("west"));
   assert.equal(book.assign(["a", "x"], "x").get("x"), OTHER);
 });
 
-test("more names than slots start the book again without repeating a colour on screen", () => {
+test("past eight names a new one takes the slot of a name not on screen, never one shown", () => {
   const book = colorBook();
   book.assign(SERIES.map((_, i) => `s${i}`));
-  const next = book.assign(["t0", "t1"]);
-  assert.equal(new Set(next.values()).size, 2);
+  const next = book.assign(["s0", "t0"]);
+  assert.equal(next.get("s0"), SERIES[0]);
+  assert.equal(next.get("t0"), SERIES[1]); // s1 was not on screen
+  assert.notEqual(book.assign(["s1", "t0"]).get("s1"), next.get("t0")); // s1 lost its slot: it gets another one
 });

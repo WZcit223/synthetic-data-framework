@@ -40,9 +40,10 @@ export const INK_DARK = "#0d1117";
 export const inkOn = fill => (contrast(fill, INK_LIGHT) >= contrast(fill, INK_DARK) ? INK_LIGHT : INK_DARK);
 
 // Colours that follow the series, not its position: a name keeps the slot it got
-// when first seen, so filtering out a neighbour never repaints the survivors.
-// A new name takes the first slot not used by the names on screen; the folded
-// tail (``other``) is always grey. Call reset() when the series field changes.
+// when first seen, so filtering out a neighbour never repaints the survivors and a
+// series that comes back gets its own colour again. A new name takes the first
+// slot no name holds; when all are held it takes the slot of a name not on screen.
+// The folded tail (``other``) is always grey. Call reset() when the series field changes.
 export function colorBook() {
   const slots = new Map();
   return {
@@ -51,10 +52,11 @@ export function colorBook() {
       const shown = new Set(names.filter(n => slots.has(n)).map(n => slots.get(n)));
       for (const n of names) {
         if (n === other || slots.has(n)) continue;
-        let free = SERIES.findIndex((_, i) => !shown.has(i));
-        if (free < 0) { // more distinct names over time than slots: start again from the names on screen
-          slots.clear();
-          return this.assign(names, other);
+        const held = new Set(slots.values());
+        let free = SERIES.findIndex((_, i) => !held.has(i));
+        if (free < 0) {
+          free = SERIES.findIndex((_, i) => !shown.has(i)); // at most eight names show, so one exists
+          for (const [name, i] of slots) if (i === free) slots.delete(name);
         }
         slots.set(n, free);
         shown.add(free);

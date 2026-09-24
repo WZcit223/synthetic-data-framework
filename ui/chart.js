@@ -215,6 +215,15 @@ export function bindBars(root, tips, tipEl) {
   }
 }
 
+// The x position a key moves the crosshair to: arrows step, Home and End jump; null for any other key.
+export function stepIndex(key, at, n) {
+  if (key === "Home") return 0;
+  if (key === "End") return n - 1;
+  if (key !== "ArrowLeft" && key !== "ArrowRight") return null;
+  if (at == null) return key === "ArrowRight" ? 0 : n - 1;
+  return Math.max(0, Math.min(n - 1, at + (key === "ArrowRight" ? 1 : -1)));
+}
+
 // Crosshair: a hairline snaps to the nearest x; the tooltip lists every series there.
 export function bindLine(svg, { geometry, points, series, format }, tipEl) {
   const { X, Y, left, plotW, n } = geometry;
@@ -245,9 +254,9 @@ export function bindLine(svg, { geometry, points, series, format }, tipEl) {
   hit.addEventListener("pointermove", e => show(nearest(e.clientX), e.clientX, e.clientY));
   hit.addEventListener("pointerleave", hide);
   svg.addEventListener("keydown", e => {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight" && e.key !== "Home" && e.key !== "End") return;
+    const i = stepIndex(e.key, at, n);
+    if (i == null) return;
     e.preventDefault();
-    const i = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : Math.max(0, Math.min(n - 1, (at ?? -1) + (e.key === "ArrowRight" ? 1 : -1)));
     const r = svg.getBoundingClientRect();
     const scaleX = r.width / svg.viewBox.baseVal.width;
     show(i, r.left + X(i) * scaleX, r.top + r.height / 2);

@@ -5,7 +5,7 @@
 import { $, api, compactFormatter, esc, valueFormatter } from "./common.js";
 import { barChart, bindBars, bindLine, lineChart } from "./chart.js";
 import { HEAT, colorBook, heat, inkOn } from "./palette.js";
-import { AGGREGATIONS, GRAINS, OTHER, distinctValues, partLabel, pivot, toCsv, toTable } from "./pivot.js";
+import { AGGREGATIONS, GRAINS, OTHER, distinctValues, partLabel, pivot, toCsv, toTable, viewError } from "./pivot.js";
 
 const AGG_LABEL = { sum: "Sum", count: "Count", count_distinct: "Distinct", mean: "Mean", median: "Median", min: "Min", max: "Max" };
 const GRAIN_LABEL = { day: "Day", week: "Week", month: "Month", quarter: "Quarter", year: "Year", weekday: "Weekday" };
@@ -142,10 +142,34 @@ async function fetchSource(source) {
   throw new Error("this server does not run synthesizers yet, so a synthesis link cannot be opened here");
 }
 
+// Why a link's display settings cannot be used, or null.
+function displayError(display) {
+  if (display == null) return null;
+  if (typeof display !== "object" || Array.isArray(display)) return "the display must be an object";
+  for (const [k, v] of Object.entries(display)) {
+    if (k === "as") { if (v !== "table" && v !== "chart") return "display.as must be table or chart"; }
+    else if (["heatmap", "totals", "stacked"].includes(k)) { if (typeof v !== "boolean") return `display.${k} must be true or false`; }
+    else return `the display has an unknown key ${JSON.stringify(k)}`;
+  }
+  return null;
+}
+
+// Forget the loaded source, so a failure shows an empty view and not the previous table's fields.
+function clearSource() {
+  state.source = null;
+  state.table = null;
+  state.meta = null;
+  state.result = null;
+  pivots.clear();
+}
+
 async function loadSource(source, { view = null, display = null } = {}) {
   const seq = ++state.seq;
-  const problem = sourceError(source);
-  if (problem) return fail("This link cannot be opened", problem);
+  const problem = sourceError(source) ?? (view == null ? null : viewError(view)) ?? displayError(display);
+  if (problem) {
+    clearSource();
+    return fail("This link cannot be opened", problem);
+  }
   setBusy(true);
   try {
     const { payload, meta } = await fetchSource(source);
@@ -165,9 +189,7 @@ async function loadSource(source, { view = null, display = null } = {}) {
     render();
   } catch (err) {
     if (seq !== state.seq) return;
-    state.source = source;
-    state.table = null;
-    syncSourceSelect();
+    clearSource();
     fail(`Could not load ${describeSource(source)}`, err.detail ?? err.message);
   } finally {
     if (seq === state.seq) setBusy(false);
@@ -215,7 +237,11 @@ function writeLink() {
 function openLink() {
   const link = readLink();
   if (!link) return false;
-  if (link.error) fail("This link cannot be opened", link.error);
+  if (link.error) {
+    state.seq++;
+    clearSource();
+    fail("This link cannot be opened", link.error);
+  }
   else loadSource(link.source, { view: link.view ?? null, display: link.display ?? null });
   return true;
 }
@@ -548,7 +574,7 @@ function renderChart() {
   const rows = isLine ? allRows : allRows.slice(0, MAX_BARS);
 
   let h = `<div class="chartwrap">`;
-  if (hasCols) {
+  if (hasCols && names.length > 1) { // one series needs no legend: the chart's title names it
     h += `<div class="legend" aria-label="Legend">` + names.map(n => `<span class="item"><span class="${isLine ? "ln" : "sw"}" style="background:${palette.get(n)}"></span>${esc(n)}</span>`).join("") + `</div>`;
   }
   const blocks = [];
@@ -622,8 +648,10 @@ function addToShelf(shelf, name, index = null) {
   }
 }
 
+// Dragging a chip moves it: it leaves the shelf it came from (a filter moved away drops its filter).
 function moveChip(from, i, to, index = null) {
-  if (from === to && (from === "values" || from === "rows" || from === "columns")) {
+  if (from === to) {
+    if (from === "filters") return;
     update(v => {
       const [item] = v[from].splice(i, 1);
       const at = index == null ? v[from].length : index > i ? index - 1 : index;
@@ -633,13 +661,14 @@ function moveChip(from, i, to, index = null) {
   }
   const name = chipsFor(from)[i]?.name;
   if (!name) return;
-  if (from === "filters" || to === "filters" || from === "values" || to === "values") {
-    // a filter or a value moved elsewhere is added there; a filter keeps its values, a value leaves its shelf
-    if (from === "values") update(v => v.values.splice(i, 1));
-    addToShelf(to, name, index);
+  if ((from === "rows" || from === "columns") && (to === "rows" || to === "columns")) {
+    addToShelf(to, name, index); // the axis item moves with its grain
     return;
   }
-  addToShelf(to, name, index); // rows <-> columns moves the axis item with its grain
+  if (from === "filters") delete state.view.filters[name];
+  else state.view[from].splice(i, 1);
+  if (state.view.sort?.by === "column") state.view.sort = { by: "label", dir: "asc" };
+  addToShelf(to, name, index);
 }
 
 function removeChip(shelf, i) {
@@ -933,12 +962,34 @@ function limitChecks() {
   $("#expNote").textContent = `At most ${max} of each.`;
 }
 
+// Why the form cannot be sent, or null: the checks the endpoint makes, from the catalogue's bounds.
+function experimentFormError() {
+  const body = readExperimentForm();
+  if (!body.interventions.length) return "Choose at least one intervention.";
+  if (!body.outcomes.length) return "Choose at least one outcome.";
+  for (const [n, p] of body.policies.entries()) {
+    const spec = state.catalog.policies.find(c => c.kind === p.kind);
+    for (const pr of spec.params) {
+      const v = p[pr.name];
+      const where = `Policy ${n + 1}, ${pr.name.replaceAll("_", " ")}`;
+      if (!Number.isFinite(v)) return `${where}: enter a number.`;
+      if (pr.type === "int" && !Number.isInteger(v)) return `${where}: enter a whole number.`;
+      const below = pr.min != null && (pr.exclusive ? v <= pr.min : v < pr.min);
+      const above = pr.max != null && (pr.exclusive ? v >= pr.max : v > pr.max);
+      if (below || above) {
+        return pr.exclusive ? `${where} must be between ${pr.min} and ${pr.max}, both excluded.` : `${where} must be from ${pr.min} to ${pr.max}.`;
+      }
+    }
+  }
+  return null;
+}
+
 function readExperimentForm() {
   const picked = name => [...document.querySelectorAll(`#expForm input[name=${name}]:checked`)].map(b => b.value);
   const policies = [...document.querySelectorAll("#expPolicies .policy")].map(row => {
     const p = { kind: row.querySelector(".kind-select").value };
     for (const input of row.querySelectorAll("[data-param]")) {
-      p[input.dataset.param] = input.dataset.type === "int" ? parseInt(input.value, 10) : parseFloat(input.value);
+      p[input.dataset.param] = input.value.trim() === "" ? NaN : Number(input.value);
     }
     return p;
   });
@@ -1019,7 +1070,17 @@ function bindPage() {
   });
   $("#expAddPolicy").addEventListener("click", () => addPolicyRow({}));
   $("#expForm").addEventListener("change", e => { if (e.target.name) limitChecks(); });
-  $("#expRun").addEventListener("click", () => loadSource({ experiment: readExperimentForm() }));
+  $("#expRun").addEventListener("click", () => {
+    const problem = experimentFormError();
+    if (problem) {
+      $("#expNote").textContent = problem;
+      $("#expNote").classList.add("bad");
+      return;
+    }
+    $("#expNote").classList.remove("bad");
+    limitChecks();
+    loadSource({ experiment: readExperimentForm() });
+  });
   $("#presets").addEventListener("click", e => {
     const b = e.target.closest("[data-preset]");
     if (b) applyPreset(+b.dataset.preset);
