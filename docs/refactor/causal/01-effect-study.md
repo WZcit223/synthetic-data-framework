@@ -36,6 +36,9 @@ confidence interval, and the relative change.
   - the relative effect with a zero baseline;
   - every refusal message;
   - the study leaves the API's current world unchanged;
+  - the endpoint studies a world built by a runtime-registered warehouse
+    generator, which a default registry would not know, through the
+    snapshot's own registry;
   - the budget's 422, and a request at the limit with 6 policies × 6 outcomes
     that finishes under 30 s;
   - the CLI output on a small spec.

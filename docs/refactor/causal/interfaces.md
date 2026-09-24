@@ -184,8 +184,11 @@ POST /api/v1/effects
 
 - The study runs on the **current world's spec and generator**, the ones the
   dashboard's world was built from. The handler reads `store.current` once and
-  takes both from that one snapshot (`snapshot.world.spec` and
-  `snapshot.world.synthesizer`). The store replaces its snapshot atomically, so
+  takes all three from that one snapshot: `snapshot.world.spec`,
+  `snapshot.world.synthesizer` and `snapshot.world.synthesizers`. They go to
+  `EffectStudy(spec=…, synthesizer=…, synthesizers=…)`, so a generator mounted
+  at runtime or from a plug-in resolves exactly as it did for the current
+  world. The store replaces its snapshot atomically, so
   a concurrent `POST /world` cannot mix two worlds. The
   response echoes them (`spec`, `synthesizer`), since `GET /world` does not
   publish the spec. An effect therefore answers the same question as the
