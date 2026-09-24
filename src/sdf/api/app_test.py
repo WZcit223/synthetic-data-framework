@@ -329,7 +329,7 @@ def test_every_ui_path_is_in_the_openapi_schema(client):
     assert len(used) >= 19, used
     assert {"/datasets", "/datasets/{}", "/experiments/catalog", "/experiments"} <= used
     assert {"/synthesizers", "/synthesis/sources", "/synthesis/runs", "/world"} <= used
-    assert "/effects" in used
+    assert {"/effects", "/estimators", "/causal/estimates"} <= used
     assert used <= schema_paths, used - schema_paths
     assert re.findall(r'data-export="([a-z]+)"', (UI_DIR / "index.html").read_text(encoding="utf-8"))
     assert "/export" in schema_paths  # the export links are built from API + "/export"

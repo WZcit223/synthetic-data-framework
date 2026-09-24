@@ -346,7 +346,7 @@ PR:
 
 ```javascript
 { effects: { request: {...}, table: "effects" | "replicates" } }   // POST /effects with request; served since causal PR 2
-{ estimates: { request: {...}, table: "scores" | "data" } }        // POST /causal/estimates with request; causal PR 5
+{ estimates: { request: {...}, table: "scores" | "data" } }        // POST /causal/estimates with request; served since causal PR 5
 ```
 
 `table` picks which of the response's tables the view pivots: the effects or

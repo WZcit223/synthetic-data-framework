@@ -68,6 +68,14 @@ effect with its confidence interval, one chart per metric. An interval that
 covers 0 is greyed and labelled "not distinguishable from 0". The work budget is
 the server's answer while you edit, the page address keeps the study, and "Open
 in Explore" pivots the effects or every replicate's paired difference.
+
+Its **Estimate from data** view scores causal estimators (`GET /api/v1/estimators`,
+`POST /api/v1/causal/estimates`) on the promotion benchmark, whose true effect is
+known: each estimator's estimate and interval against the truth, the adjustment
+set to edit (drop `log_demand` and `abc_class` and the naive bias returns), and a
+sweep of the bias as confounding grows. An estimator is a plug-in like a
+synthesizer; [`docs/PLUGINS.md`](docs/PLUGINS.md) shows how to write, mount and
+score one.
 Writing your own synthesizer or dataset is described in
 [`docs/PLUGINS.md`](docs/PLUGINS.md).
 

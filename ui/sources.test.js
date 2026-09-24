@@ -28,7 +28,20 @@ test("an effects source holds a request and one of its two tables", () => {
 test("a source names exactly one known shape", () => {
   assert.match(sourceError(null), /names no source/);
   assert.match(sourceError([]), /names no source/);
-  assert.match(sourceError({ dataset: "a", effects: {} }), /exactly one of dataset, experiment, synthesis or effects/);
-  assert.match(sourceError({ estimates: {} }), /unknown source "estimates"/); // not until the estimation page
+  assert.match(sourceError({ dataset: "a", effects: {} }), /exactly one of dataset, experiment, synthesis, effects or estimates/);
+  assert.match(sourceError({ nope: {} }), /unknown source "nope"/);
   assert.match(sourceError({ dataset: 3 }), /dataset must be a name/);
+});
+
+test("an estimates source holds a request and the scores or, for the benchmark, its observed rows", () => {
+  const bench = { estimators: ["ipw"], benchmark: { confounding: 1 } };
+  const data = { estimators: ["ipw"], dataset: "order-lines", question: { treatment: "priority", outcome: "line_value" } };
+  assert.equal(sourceError({ estimates: { request: bench, table: "scores" } }), null);
+  assert.equal(sourceError({ estimates: { request: bench, table: "data" } }), null);
+  assert.equal(sourceError({ estimates: { request: data, table: "scores" } }), null);
+  assert.match(sourceError({ estimates: { request: data, table: "data" } }), /"data" needs a benchmark request; a catalogue dataset opens as \{dataset: name\}/);
+  assert.match(sourceError({ estimates: { request: bench, table: "rows" } }), /estimates.table must be one of scores or data/);
+  assert.match(sourceError({ estimates: { request: bench } }), /estimates.table/);
+  assert.match(sourceError({ estimates: { table: "scores" } }), /estimates.request must be a request body/);
+  assert.match(sourceError({ estimates: { request: bench, table: "scores", view: 1 } }), /only request and table/);
 });

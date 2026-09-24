@@ -1,6 +1,27 @@
 # PR 5 — Estimation on the Effects page, and estimators in the plug-in guide
 
-> Status: planned (causal modelling sequence PR 5).
+> Status: implemented (causal modelling sequence PR 5). In Chromium, against an
+> app with one runtime-registered estimator (`median-difference`) and without
+> the `causal` extra:
+> - At confounding 1 the view shows the numbers `sdf estimate` prints:
+>   difference-in-means +36.5 (misses the truth +6.88), regression-adjustment
+>   +6.29 and ipw +6.52 (both cover it).
+> - Unchecking `log_demand` leaves regression adjustment near the truth
+>   (+6.63), because `abc_class` is a proxy of demand; unchecking `abc_class`
+>   too brings the naive bias back (+35.4, misses the truth). The acceptance
+>   line below is corrected to name both, as PR 4 measured.
+> - The sweep shows difference-in-means' bias growing from +6.4 at
+>   confounding 0 to +44.5 at 3, while regression adjustment and ipw stay
+>   within a few units of 0.
+> - `median-difference` appears and runs with no UI change, drawn as a point
+>   labelled "no interval"; DoWhy and EconML are listed "needs dowhy",
+>   "needs econml".
+> - The view reads without horizontal scrolling at 700, 1024 and 1440 px, with
+>   no failed request and no console error. The estimator colours (the first
+>   six series hues) pass the palette validator on the dark surface.
+>
+> The view lives on the Effects page as a second tab ("Estimate from data",
+> address `#estimate=…`), so each view keeps its own study and link.
 
 Contract: [`interfaces.md`](interfaces.md) §3.3 and §3.4.
 
@@ -60,7 +81,9 @@ finds in the plug-in guide how to write, mount and score their own estimator.
 - The full check list of PR 1's acceptance, and `node --test ui/*.test.js`.
 - In Chromium:
   - At confounding 1, the page shows the same numbers as `sdf estimate`.
-  - Removing `log_demand` from the adjustment set brings back the naive bias.
+  - Removing `log_demand` and `abc_class` (a proxy of demand) from the
+    adjustment set brings back the naive bias; removing `log_demand` alone
+    does not, which the view makes visible.
   - The sweep shows the naive estimator's bias growing with confounding.
   - A runtime-registered estimator appears and runs with no UI change.
   - Without the `causal` extra, DoWhy and EconML are listed with "needs …".

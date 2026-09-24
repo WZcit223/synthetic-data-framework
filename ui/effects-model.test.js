@@ -183,3 +183,116 @@ test("an Explore link names the effects source and round-trips through Explore's
     assert.deepEqual(source, { effects: { request: defaultRequest(CATALOG), table } }); // check_only is never carried
   }
 });
+
+// -- the "Estimate from data" view ---------------------------------------------------------------
+
+import {
+  SWEEP, defaultEstimateRequest, estimateHash, estimateRequestError, estimatesLink, estimatorColors, fitEstimateRequest,
+  readEstimateHash, scoreReading, sweepRequests, sweepSeries,
+} from "./estimate-model.js";
+import { OTHER, SERIES } from "./palette.js";
+
+const ESTIMATORS = {
+  estimators: ["difference-in-means", "ipw", "regression-adjustment", "median-difference"].map(name => ({ name, description: name })),
+  unavailable: { "dowhy-backdoor": "needs dowhy" },
+  limits: { max_rows: 40000, max_estimators: 6, max_seconds: 30 },
+  benchmark: {
+    params: [
+      { name: "uplift", type: "float", default: 0.3, min: -0.9, max: 3, exclusive: false, nullable: false },
+      { name: "confounding", type: "float", default: 1, min: 0, max: 3, exclusive: false, nullable: false },
+      { name: "noise", type: "float", default: 0.25, min: 0, max: 1, exclusive: false, nullable: false },
+      { name: "seed", type: "int", default: 7, min: 0, max: null, exclusive: false, nullable: false },
+    ],
+    question: { treatment: "promoted", outcome: "weekly_units", covariates: ["log_demand", "abc_class", "log_price"], treated_value: 1 },
+  },
+};
+
+test("the view starts from the mounted built-ins, the benchmark's defaults and its whole adjustment set", () => {
+  const r = defaultEstimateRequest(ESTIMATORS);
+  assert.deepEqual(r.estimators, ["difference-in-means", "regression-adjustment", "ipw"]);
+  assert.deepEqual(r.benchmark, { uplift: 0.3, confounding: 1, noise: 0.25, seed: 7 });
+  assert.deepEqual(r.question.covariates, ["log_demand", "abc_class", "log_price"]);
+  r.question.covariates.pop();
+  assert.equal(ESTIMATORS.benchmark.question.covariates.length, 3); // a copy: editing the request never edits the catalogue
+});
+
+test("each estimator keeps the colour of its place in the catalogue", () => {
+  const colors = estimatorColors([...ESTIMATORS.estimators.map(e => e.name), "a", "b", "c", "d", "e"]);
+  assert.equal(colors.get("difference-in-means"), SERIES[0]);
+  assert.equal(colors.get("median-difference"), SERIES[3]);
+  assert.equal(colors.get("e"), OTHER); // a ninth folds to grey, never a generated hue
+});
+
+test("a linked estimation is fitted to the catalogue, naming what it drops", () => {
+  const { request, dropped } = fitEstimateRequest(
+    {
+      estimators: ["ipw", "econml-dml", "ipw"],
+      benchmark: { confounding: 2, seed: 3 },
+      question: { covariates: ["log_price", "sku_id", "log_demand"] },
+      confidence: 0.9,
+    },
+    ESTIMATORS,
+  );
+  assert.deepEqual(request.estimators, ["ipw"]);
+  assert.deepEqual(request.benchmark, { uplift: 0.3, confounding: 2, noise: 0.25, seed: 3 });
+  assert.deepEqual(request.question.covariates, ["log_demand", "log_price"]); // the benchmark's order
+  assert.equal(request.confidence, 0.9);
+  assert.deepEqual(dropped, ["econml-dml", "sku_id"]);
+  assert.deepEqual(fitEstimateRequest(null, ESTIMATORS).request, defaultEstimateRequest(ESTIMATORS));
+});
+
+test("the view refuses what the server would, from the published bounds", () => {
+  const ok = defaultEstimateRequest(ESTIMATORS);
+  assert.equal(estimateRequestError(ok, ESTIMATORS), null);
+  assert.match(estimateRequestError({ ...ok, estimators: [] }, ESTIMATORS), /at least one estimator/);
+  assert.match(estimateRequestError({ ...ok, estimators: Array(7).fill("ipw") }, ESTIMATORS), /At most 6 estimators/);
+  assert.match(estimateRequestError({ ...ok, benchmark: { ...ok.benchmark, confounding: 3.5 } }, ESTIMATORS), /Benchmark confounding: from 0 to 3/);
+  assert.match(estimateRequestError({ ...ok, benchmark: { ...ok.benchmark, seed: -1 } }, ESTIMATORS), /Benchmark seed: at least 0/);
+  assert.match(estimateRequestError({ ...ok, benchmark: { ...ok.benchmark, noise: "" } }, ESTIMATORS), /Benchmark noise: enter a value/);
+});
+
+test("the view's address keeps its request, and tells the effects view's apart", () => {
+  const r = defaultEstimateRequest(ESTIMATORS);
+  assert.deepEqual(readEstimateHash(estimateHash(r)), { request: r });
+  assert.deepEqual(readEstimateHash("#estimate"), {});
+  assert.equal(readEstimateHash("#request=%7B%7D"), null);
+  assert.equal(readEstimateHash(""), null);
+  assert.deepEqual(readEstimateHash("#estimate=%7B"), { error: "the request in this link is not valid JSON" });
+});
+
+test("a score row reads in words", () => {
+  const row = over => ({ effect: 6.3, ci_low: 3, ci_high: 9.6, covers: "yes", seconds: 0.01, ...over });
+  assert.equal(scoreReading(row()), "covers the truth");
+  assert.equal(scoreReading(row({ covers: "no" })), "misses the truth");
+  assert.equal(scoreReading(row({ ci_low: null, ci_high: null, covers: null })), "no interval");
+  assert.equal(scoreReading(row({ covers: null })), "no truth to compare");
+  assert.equal(scoreReading(row({ effect: null, ci_low: null, ci_high: null, covers: null })), "error");
+  assert.equal(scoreReading(row({ effect: null, seconds: null })), "not run");
+});
+
+test("the sweep varies only the confounding and reads each step's bias from the scores", () => {
+  const r = defaultEstimateRequest(ESTIMATORS);
+  const requests = sweepRequests(r);
+  assert.deepEqual(requests.map(q => q.benchmark.confounding), SWEEP);
+  assert.deepEqual(SWEEP, [0, 0.75, 1.5, 2.25, 3]);
+  assert.ok(requests.every(q => q.benchmark.seed === 7 && q.estimators === r.estimators));
+  assert.equal(r.benchmark.confounding, 1); // the view's own request is untouched
+  const steps = [
+    [{ estimator: "a", bias: 0.1 }, { estimator: "b", bias: 1 }],
+    [{ estimator: "a", bias: null }, { estimator: "b", bias: 5 }],
+  ];
+  assert.deepEqual(sweepSeries(steps, ["a", "b", "c"]), [
+    { name: "a", values: [0.1, null] },
+    { name: "b", values: [1, 5] },
+    { name: "c", values: [null, null] },
+  ]);
+});
+
+test("an Explore link to the scores or the observed rows round-trips through Explore's validator", () => {
+  const request = defaultEstimateRequest(ESTIMATORS);
+  for (const table of ["scores", "data"]) {
+    const { source } = JSON.parse(decodeURIComponent(estimatesLink(request, table).slice("explore.html#view=".length)));
+    assert.equal(sourceError(source), null);
+    assert.deepEqual(source, { estimates: { request, table } });
+  }
+});

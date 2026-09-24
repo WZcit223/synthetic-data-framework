@@ -1,6 +1,6 @@
-# Plug-ins: your own synthesizer or dataset
+# Plug-ins: your own synthesizer, dataset or estimator
 
-The framework has two plug-in points. Both are found through Python entry
+The framework has three plug-in points. Both are found through Python entry
 points, so a plug-in is an ordinary installed package; nothing in this
 repository changes when you add one.
 
@@ -8,12 +8,14 @@ repository changes when you add one.
 |---|---|---|
 | A **synthesizer** (an algorithm that generates a series, a table or a whole warehouse world) | `sdf.synthesizers` | `GET /api/v1/synthesizers`, the Synthesizers page, `sdf synth` / `sdf privacy` / `sdf tstr --synthesizer NAME`, and the dashboard's Generator choice for a warehouse generator |
 | A **dataset provider** (a table computed from the current world, for the Explore page) | `sdf.datasets` | `GET /api/v1/datasets`, the Explore page's source list |
+| An **estimator** (a method that estimates an average treatment effect from observed rows) | `sdf.estimators` | `GET /api/v1/estimators`, the Effects page's "Estimate from data" view, `sdf estimate --estimator NAME` |
 
 The built-ins are declared the same way, in this repository's `pyproject.toml`.
 The contracts behind this guide are in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §2
-(synthesizers) and [`refactor/explore/interfaces.md`](refactor/explore/interfaces.md)
-§1 and §4 (datasets, parameters, runs).
+(synthesizers), [`refactor/explore/interfaces.md`](refactor/explore/interfaces.md)
+§1 and §4 (datasets, parameters, runs) and
+[`refactor/causal/interfaces.md`](refactor/causal/interfaces.md) §3 (estimators).
 
 ## A synthesizer
 
@@ -177,6 +179,94 @@ class StockByZone:
             yield cat, z, units
 ```
 
+Yield the rows rather than returning a built list: the estimation endpoint reads
+at most its row limit plus one and stops, so a provider that yields stays within
+the limit's memory and time, while one that returns a list has built it whole
+first.
+
+## An estimator
+
+An estimator answers one question about a table: the average effect of a
+treatment on an outcome, adjusting for a declared set of covariates. It is a
+class with an `info` class attribute and one method:
+
+- `info = EstimatorInfo(name, description, requires=(), uses_covariates=True)`.
+  Set `uses_covariates=False` for a method that ignores the covariates (like
+  `difference-in-means`), so redundant covariates never refuse it.
+- `estimate(table, question, *, confidence=0.95, seed=7)` returns an
+  `Estimate(estimator, effect, ci_low, ci_high, n_treated, n_control, method)`:
+  - `estimator` is `self.info.name`: a result under another name is refused;
+  - both bounds are numbers, or both are `None` for a method without an
+    interval;
+  - `seed` is for a method that resamples, so every estimate is repeatable.
+
+Start from `design(table, question)`, the shared preparation. It drops the rows
+with a missing value, one-hot encodes dimension covariates, and refuses every
+question the table cannot answer, with the reason. It returns the arrays
+`treated` (bool), `outcome` and `covariates` (2-D, one column per encoded
+covariate, named in `columns`). Before calling your estimator, the registry has
+also checked that the design identifies the effect with the columns you use.
+
+What your estimator returns is checked once more: an effect or bound that is not
+a finite number becomes an error row naming the value, and so does an exception.
+Neither ever hides the other estimators' results.
+
+This example is a median difference with a seeded bootstrap interval, run by the
+test suite as written:
+
+```python
+# plugins-example: estimator
+from typing import ClassVar
+
+import numpy as np
+
+from sdf.analytics.causal import CausalQuestion, Estimate, EstimatorInfo, design
+
+
+class MedianDifference:
+    """Treated median minus control median, ignoring the covariates; a percentile bootstrap interval."""
+
+    info: ClassVar[EstimatorInfo] = EstimatorInfo(
+        "median-difference",
+        "Difference of the groups' medians, with a bootstrap interval",
+        uses_covariates=False,
+    )
+
+    def estimate(self, table, question: CausalQuestion, *, confidence=0.95, seed=7) -> Estimate:
+        d = design(table, question)
+        y1, y0 = d.outcome[d.treated], d.outcome[~d.treated]
+        effect = float(np.median(y1) - np.median(y0))
+        rng = np.random.default_rng(seed)
+        draws = [
+            np.median(rng.choice(y1, len(y1))) - np.median(rng.choice(y0, len(y0))) for _ in range(200)
+        ]
+        alpha = (1 - confidence) / 2
+        low, high = (float(q) for q in np.quantile(draws, [alpha, 1 - alpha]))
+        method = f"median difference, 200 bootstrap resamples, {confidence * 100:g} %"
+        return Estimate(self.info.name, effect, low, high, len(y1), len(y0), method)
+```
+
+**Keep it fast.** A request runs its estimators one after another within 30 s,
+and the budget is checked only between estimators, so one slow estimator delays
+its whole request. Aim for a few seconds at the published row limit
+(`GET /api/v1/estimators` → `limits.max_rows`). The Effects page shows each
+estimator's run time.
+
+**Score it** on the promotion benchmark, whose true effect is known:
+
+```python
+from sdf.analytics.causal import default_estimators, score
+from sdf.simulation.benchmark import PromotionBenchmark
+from sdf.simulation.world import World
+from sdf.synthesis.spec import GenerationSpec
+
+estimators = default_estimators()
+estimators.register(MedianDifference)
+draw = PromotionBenchmark(confounding=1.0).draw(World.generate(GenerationSpec()))
+scores = score(draw.table, draw.question, estimators,
+               names=["median-difference", "regression-adjustment"], true_effect=draw.true_effect)
+```
+
 ## Declaring and installing a plug-in
 
 Put the class in a package and declare it in that package's `pyproject.toml`.
@@ -188,6 +278,9 @@ moving-average = "my_plugins.series:MovingAverageSeries"
 
 [project.entry-points."sdf.datasets"]
 stock-by-zone = "my_plugins.tables:StockByZone"
+
+[project.entry-points."sdf.estimators"]
+median-difference = "my_plugins.causal:MedianDifference"
 ```
 
 Then add the package to the environment that runs the API or the CLI, for
@@ -198,6 +291,7 @@ API or the CLI starts, the plug-in is mounted.
 For a quick experiment without packaging, register the class at runtime:
 
 ```python
+from sdf.analytics.causal import default_estimators
 from sdf.api.app import create_app
 from sdf.application.datasets import default_datasets
 from sdf.synthesis.registry import default_registry
@@ -206,7 +300,9 @@ synthesizers = default_registry()
 synthesizers.register(MovingAverageSeries)
 datasets = default_datasets()
 datasets.register(StockByZone)
-app = create_app(synthesizers=synthesizers, datasets=datasets)   # serve it with uvicorn
+estimators = default_estimators()
+estimators.register(MedianDifference)
+app = create_app(synthesizers=synthesizers, datasets=datasets, estimators=estimators)   # serve it with uvicorn
 ```
 
 ## When a plug-in does not load
@@ -214,9 +310,13 @@ app = create_app(synthesizers=synthesizers, datasets=datasets)   # serve it with
 A broken plug-in installed through an entry point never breaks the registry,
 the catalogue or the API. It is left out and listed with the reason:
 
-- `default_registry().unavailable()` and `default_datasets().unavailable()`;
-- `"unavailable"` in `GET /api/v1/synthesizers` and `GET /api/v1/datasets`;
-- the Synthesizers page, under **Unavailable**.
+- `default_registry().unavailable()`, `default_datasets().unavailable()` and
+  `default_estimators().unavailable()`;
+- `"unavailable"` in `GET /api/v1/synthesizers`, `GET /api/v1/datasets` and
+  `GET /api/v1/estimators`;
+- the Synthesizers page and the Effects page's estimation form, under
+  **Unavailable**. The built-in `dowhy-backdoor` and `econml-dml` are listed
+  there ("needs dowhy", "needs econml") until the `causal` extra is installed.
 
 The usual reasons:
 
@@ -225,7 +325,7 @@ The usual reasons:
 - the name is already taken, for example by a built-in (the reason names the
   holder: "name already provided by a builtin dataset (…)");
 - a constructor argument has no default;
-- `rows` does not take the world;
+- `rows` does not take the world, or an estimator has no `estimate` method;
 - the parameter bounds are malformed, or a default breaks its own bounds.
 
 A class registered at runtime with `register()` is checked the same way, but
@@ -241,6 +341,10 @@ quick experiment fails where it is set up.
   `POST /api/v1/synthesis/runs` with `{"synthesizer": "moving-average", "source": "sample", "params": {"window": 7}}`.
   The Synthesizers page does the same with a form and charts.
 - **Dataset:** `GET /api/v1/datasets/stock-by-zone`, or choose it in the Explore page's source list.
+- **Estimator:** `uv run sdf estimate --estimator median-difference --estimator regression-adjustment`
+  (installed plug-ins), or `POST /api/v1/causal/estimates` with
+  `{"estimators": ["median-difference"], "benchmark": {"confounding": 1.0}}`, or tick it in
+  the Effects page's "Estimate from data" view; each shows its score against the true effect.
 - **In Python:**
 
   ```python

@@ -33,11 +33,12 @@ def example(tag: str) -> type:
 
 
 def test_the_guide_declares_its_examples_under_their_own_names():
-    synth, dataset = example("synthesizer"), example("dataset")
+    synth, dataset, estimator = example("synthesizer"), example("dataset"), example("estimator")
     blocks = re.findall(r"```toml\n(.*?)```", GUIDE.read_text(encoding="utf-8"), re.S)
     toml = tomllib.loads(blocks[0])["project"]["entry-points"]
     assert toml["sdf.synthesizers"] == {synth.info.name: "my_plugins.series:MovingAverageSeries"}
     assert toml["sdf.datasets"] == {dataset.info.name: "my_plugins.tables:StockByZone"}
+    assert toml["sdf.estimators"] == {estimator.info.name: "my_plugins.causal:MedianDifference"}
 
 
 def test_the_synthesizer_example_mounts_publishes_its_parameters_and_runs():
@@ -61,16 +62,40 @@ def test_the_dataset_example_mounts_and_adds_up():
     assert sum(r[2] for r in table.rows) == kpis(world.registry).total_on_hand
 
 
+def test_the_estimator_example_mounts_and_scores_against_the_truth():
+    from .analytics.causal import default_estimators, score
+    from .simulation.benchmark import PromotionBenchmark
+
+    estimators = default_estimators()
+    estimators.register(example("estimator"))
+    draw = PromotionBenchmark(confounding=1.0).draw(World.generate(GenerationSpec()))
+    rows = score(
+        draw.table,
+        draw.question,
+        estimators,
+        names=["median-difference", "regression-adjustment"],
+        true_effect=draw.true_effect,
+    ).rows
+    median, adjusted = rows
+    assert median[0] == "median-difference" and median[2] < median[1] < median[3]
+    assert median[11] == "median difference, 200 bootstrap resamples, 95 %"
+    assert adjusted[7] == "yes"
+    again = score(draw.table, draw.question, estimators, names=["median-difference"]).rows[0]
+    assert again[1:4] == median[1:4]  # seeded: the same interval every time
+
+
 def test_the_examples_are_served_by_the_api():
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
+    from .analytics.causal import default_estimators
     from .api.app import create_app
 
-    synthesizers, datasets = default_registry(), default_datasets()
+    synthesizers, datasets, estimators = default_registry(), default_datasets(), default_estimators()
     synthesizers.register(example("synthesizer"))
     datasets.register(example("dataset"))
-    client = TestClient(create_app(synthesizers=synthesizers, datasets=datasets))
+    estimators.register(example("estimator"))
+    client = TestClient(create_app(synthesizers=synthesizers, datasets=datasets, estimators=estimators))
     listed = {s["name"]: s for s in client.get("/api/v1/synthesizers").json()["synthesizers"]}
     assert [p["name"] for p in listed["moving-average"]["params"]] == ["seed", "window"]
     res = client.post(
@@ -78,3 +103,6 @@ def test_the_examples_are_served_by_the_api():
     )
     assert res.status_code == 200 and res.json()["repeatable"] is True
     assert client.get("/api/v1/datasets/stock-by-zone").status_code == 200
+    assert "median-difference" in [e["name"] for e in client.get("/api/v1/estimators").json()["estimators"]]
+    res = client.post("/api/v1/causal/estimates", json={"estimators": ["median-difference"], "benchmark": {}})
+    assert res.status_code == 200 and res.json()["rows"][0][1] is not None

@@ -9,6 +9,8 @@ import {
   CONFIDENCES, COVERS, amount, axisFor, budgetView, byMetric, coversZero, exploreLink, fitRequest, intervalText, nextPolicy,
   reading, readRequestHash, records, relativeText, replicateRows, requestError, requestHash, rowLabel,
 } from "./effects-model.js";
+import { routeEstimate } from "./estimate.js";
+import { readEstimateHash } from "./estimate-model.js";
 
 // Two colours: an interval that excludes 0 in the first series hue, one that covers 0 in
 // the neutral grey. Each row also says its reading in text, so colour is never the only cue.
@@ -189,6 +191,7 @@ async function run(request = readForm()) {
   const seq = ++state.runSeq;
   state.written = requestHash(request);
   if (location.hash !== state.written) history.replaceState(null, "", state.written);
+  rememberAddress();
   const result = $("#result");
   result.classList.add("busy");
   result.setAttribute("aria-busy", "true");
@@ -391,6 +394,7 @@ async function loadFromAddress() {
   // a new address is a new study: the previous result, and any run still in flight, no longer apply
   const load = ++state.loadSeq;
   state.written = location.hash; // the address this page now shows: going back to an earlier one reloads it
+  rememberAddress();
   state.runSeq++;
   state.running = false;
   state.result = null;
@@ -446,16 +450,46 @@ async function init() {
       if (state.result && box && box.clientWidth !== state.drawnWidth) drawCharts();
     });
   }).observe($("#result"));
-  addEventListener("hashchange", () => {
-    if (location.hash !== state.written) loadFromAddress();
-  });
-  try {
-    state.catalog = await api("/experiments/catalog");
-  } catch (err) {
-    $("#result").innerHTML = `<div class="notice bad"><b>Could not load the catalogue.</b> ${esc(err.detail ?? err.message)}</div>`;
+  addEventListener("hashchange", route);
+  route();
+}
+
+// -- the two views --------------------------------------------------------------------------------
+
+// The address picks the view: #estimate… is the estimation view, anything else this one.
+// Each view keeps its own last address, so switching tabs returns to where it was.
+async function route() {
+  if (readEstimateHash(location.hash) !== null) {
+    showView("estimate");
+    routeEstimate({ onAddress: hash => ($("#tabEstimate").href = hash) });
     return;
   }
-  loadFromAddress();
+  showView("simulate");
+  if (!state.catalog) {
+    try {
+      state.catalog = await api("/experiments/catalog");
+    } catch (err) {
+      $("#result").innerHTML = `<div class="notice bad"><b>Could not load the catalogue.</b> ${esc(err.detail ?? err.message)}</div>`;
+      return;
+    }
+    loadFromAddress();
+  } else if (location.hash !== state.written) {
+    loadFromAddress();
+  }
+}
+
+function showView(which) {
+  const estimate = which === "estimate";
+  $("#simulateView").hidden = estimate;
+  $("#estimateView").hidden = !estimate;
+  $("#tabSimulate").setAttribute("aria-selected", String(!estimate));
+  $("#tabEstimate").setAttribute("aria-selected", String(estimate));
+  if (estimate) $("#tabEstimate").href = location.hash;
+  $("#tooltip").hidden = true;
+}
+
+function rememberAddress() {
+  $("#tabSimulate").href = state.written || "#";
 }
 
 init();
