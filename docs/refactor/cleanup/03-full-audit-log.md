@@ -29,6 +29,7 @@ stays short.
 ```bash
 uv run ruff check && uv run ruff format --check
 uv run pytest
+SCRATCH=$(mktemp -d)
 uv run sdf agent "should I reorder?" --audit-log "$SCRATCH/agent.jsonl"   # full entries in the file
 uv run sdf pipeline --audit-log "$SCRATCH/pipeline.jsonl"                  # full step outputs in the file
 ```

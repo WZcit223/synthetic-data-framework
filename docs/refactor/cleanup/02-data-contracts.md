@@ -11,7 +11,9 @@ steps share their data through a typed object instead of underscore keys.
   and raises `ValueError` naming the entity and field. Rules:
   - identifiers are non-empty strings;
   - quantities, capacities, costs, prices, weights and volumes are finite and
-    not negative; order quantities are positive;
+    not negative, and so are `Location.level` and `InboundOrder.lead_time_days`
+    (0 is a real ground level and a same-day lead time); order quantities are
+    positive;
   - `SKU.abc_class` ∈ {A, B, C, ?}: `?` is "unclassified", the value the CSV
     adapter gives an imported SKU whose velocity class the source does not
     carry; `shelf_life_days` is `None` or positive;
