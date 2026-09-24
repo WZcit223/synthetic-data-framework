@@ -90,7 +90,7 @@ The built-in datasets:
 | `order-lines` | outbound order line | `date` (time), `sku_id`, `category`, `abc_class`, `channel`, `priority`, `status`, `quantity` (units), `line_value` (currency: quantity × unit price) |
 | `inventory` | inventory snapshot | `sku_id`, `category`, `abc_class`, `location_id`, `zone`, `on_hand`, `reserved`, `available`, `in_transit` (units), `stock_value` (currency: on hand × unit cost) |
 | `skus` | SKU | `sku_id`, `name`, `category`, `abc_class`, `unit_cost`, `unit_price` (currency, aggregate `mean`), `shelf_life_days` (aggregate `mean`) |
-| `replenishment-plan` | SKU | `sku_id`, `category`, `abc_class`, `demand_profile`, `needs_order` (dimension, `yes`/`no`), `safety_stock`, `reorder_point`, `order_up_to`, `available`, `order_qty` (units), under `ServiceLevelPolicy(service_level=0.95)` |
+| `replenishment-plan` | SKU | `sku_id`, `category`, `abc_class`, `demand_pattern` (dimension, `smooth`/`intermittent`), `needs_order` (dimension, `yes`/`no`), `demand_mean`, `demand_std` (units per day, aggregate `mean`), `zero_day_share` (share of days without demand, aggregate `mean`), `safety_stock`, `reorder_point`, `order_up_to`, `available`, `order_qty` (units), under `ServiceLevelPolicy(service_level=0.95)`. The `DemandProfile` of each plan row is flattened into the three demand columns and the pattern; every value in a row is a plain string or number. |
 
 A provider is any class with this shape, the same way a synthesizer is:
 
@@ -324,10 +324,13 @@ or one of those or `None` (`seed: int | None = None` becomes
 `Param(name='seed', type='int', default=None, nullable=True)`); other arguments
 are supplied by the framework.
 
-**Runs are repeatable.** When a synthesizer has a `seed` parameter and a run
-leaves it out or sets it to `None`, `evaluate` uses `EVALUATION_SEED = 7`; the
-run reports every parameter it used in `run.params`, so repeating a run with
-those parameters gives the same table. A synthesizer may narrow its parameters with a
+**Seeded runs are repeatable.** When a synthesizer has a `seed` parameter and a
+run leaves it out or sets it to `None`, `evaluate` uses `EVALUATION_SEED = 7`;
+the run reports every parameter it used in `run.params` and `run.repeatable`
+(`True` exactly when the synthesizer has a `seed` parameter). For a repeatable
+run, repeating it with those parameters gives the same table; a synthesizer
+without a seed parameter gives `repeatable: False`, and a client must not offer
+to reproduce its run. Every built-in has a seed parameter. A synthesizer may narrow its parameters with a
 class attribute `param_bounds: ClassVar[dict[str, tuple[float | None, float |
 None]]]`, for example `{"jitter": (0.0, 1.0)}`; without it they are unbounded. A
 `produces="warehouse"` synthesizer takes `spec: GenerationSpec | None = None`.
@@ -338,7 +341,9 @@ so `create(name)` works; `World.generate` always passes the spec.
 from sdf.validation.evaluation import evaluate, sources
 
 sources()          # {'sample': 'data/sample_online_retail_ii.csv', 'retail-10k': 'data/online_retail_ii_2010_10k.csv'}
-                   # (only files that exist under the data directory, default ./data or $SDF_DATA_DIR)
+                   # the two sample CSVs in the repository's data/ directory (they are not part of the
+                   # installed package); resolved under $SDF_DATA_DIR, default ./data, and only the ones
+                   # that exist are listed, so an API started elsewhere lists none until SDF_DATA_DIR is set
 run = evaluate("seasonal-profile", source="sample", params={"seed": 7})   # a source ID, or a CSV path
 run.kind           # 'series'
 run.params         # {'seed': 7}: every parameter actually used, defaults included
@@ -366,8 +371,11 @@ today. The HTTP endpoint accepts source IDs only, never a path.
 
 **One registry per application, and a world keeps its generator.** The API
 holds one synthesizer registry for its lifetime, and every path that creates a
-synthesizer uses it: the catalogue, runs, `POST /world`, and the regeneration
-a scenario does. A world remembers which synthesizer built it and from which
+synthesizer uses it: the catalogue, runs, the world the app starts with, `POST
+/world`, and the regeneration a scenario does. `WorldStore(spec, *,
+synthesizers)` and `build_snapshot(spec, *, synthesizer, synthesizers)` take the
+registry, so the first snapshot and every regeneration are built from it. A
+world remembers which synthesizer built it and from which
 registry, so a scenario regenerates it with the same generator instead of
 falling back to `warehouse-spec`:
 
@@ -407,7 +415,7 @@ curl -s localhost:8000/api/v1/synthesis/sources
 
 curl -s -X POST localhost:8000/api/v1/synthesis/runs -H 'content-type: application/json' \
      -d '{"synthesizer": "seasonal-profile", "source": "sample", "params": {"seed": 7}}'
-# {"synthesizer": "seasonal-profile", "source": "sample", "kind": "series", "params": {"seed": 7},
+# {"synthesizer": "seasonal-profile", "source": "sample", "kind": "series", "params": {"seed": 7}, "repeatable": true,
 #  "metrics": {"fidelity_score": …, …}, "fields": [...], "rows": [...]}
 
 curl -s -X POST localhost:8000/api/v1/world -H 'content-type: application/json' \

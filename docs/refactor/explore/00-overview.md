@@ -49,7 +49,7 @@ users:
 4. **Synthesizers describe their own parameters.** The registry reads each
    synthesizer's keyword arguments and their defaults (`seed`, `jitter`, …), so
    the UI builds a form for any plug-in without new metadata. A synthesizer is
-   evaluated on a bundled real dataset with the checks the CLI already runs:
+   evaluated on one of the repository's sample real datasets with the checks the CLI already runs:
    fidelity for a series synthesizer, privacy for a table synthesizer. The CLI
    and the API share that one evaluation.
 5. **The UI stays plain HTML and JavaScript modules, with no build step and no

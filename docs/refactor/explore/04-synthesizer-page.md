@@ -32,7 +32,12 @@ write and mount their own synthesizer or dataset.
     Explore" link opens the run's table in the pivot page. The link carries the
     run request with the parameters the run reported (`params`, seed included)
     as a `synthesis` source (`interfaces.md` §3), and the Explore page repeats
-    it, so it shows the same table.
+    it, so it shows the same table. The link is offered only for a run that
+    reports `repeatable: true`; for a synthesizer without a seed parameter the
+    page says why its run cannot be reopened.
+  - *No sources.* When `GET /synthesis/sources` lists none (the API runs
+    outside the checkout without `SDF_DATA_DIR`), the run panel says so and
+    names the setting.
 - **Dashboard.** The generation controls gain a "Generator" choice listing the
   synthesizers that produce a warehouse; the regenerate request sends it, and
   the page shows which generator built the current world.
@@ -66,7 +71,7 @@ node --test ui/
 
 Manual, in a browser against `SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app`:
 
-- Each built-in series and table synthesizer runs on each bundled source
+- Each built-in series and table synthesizer runs on each sample source
   (`gaussian-copula` included, with the `synthesis` extra installed); the scores
   equal `sdf synth` and `sdf privacy` for the same source and seed. Without the
   extra, `gaussian-copula` is listed as unavailable with its reason.

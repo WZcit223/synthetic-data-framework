@@ -65,8 +65,12 @@ not from cells.
   422 or 404 from the API: each has its own message.
 
 **Shared UI code.** `api()`, `esc()` and the number formatting move from
-`ui/app.js` into `ui/common.js`, used by the dashboard and the Explore page. A
-navigation bar (Dashboard, Explore) is added to both pages.
+`ui/app.js` into `ui/common.js`, used by the dashboard and the Explore page. The
+dashboard becomes a module page: `index.html` loads `app.js` with
+`<script type="module">`, and its three inline `onclick` handlers (regenerate,
+ask, agent run) become listeners registered in `app.js`, because a module's
+functions are not globals. A navigation bar (Dashboard, Explore) is added to
+both pages.
 
 **Tests and CI.**
 
@@ -105,6 +109,9 @@ Manual, in a browser against `SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app`:
   replenishment panel at 95 %.
 - A 180-day, 500-SKU world (the largest the API allows) pivots by date and
   category without the page freezing.
+- The dashboard still works as a module page: every panel renders, and
+  regenerate, ask, the agent run, the service-level choice and the export links
+  work.
 - No failed request and no console error.
 
 ## Version

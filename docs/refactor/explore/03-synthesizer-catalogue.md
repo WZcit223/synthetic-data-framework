@@ -6,7 +6,7 @@ Contract: [`interfaces.md`](interfaces.md) §4.
 
 A client can list every mounted synthesizer with its parameters, see which
 declared ones are unavailable and why, run any series or table synthesizer
-against a bundled real dataset and get its quality scores plus a
+against one of the repository's sample real datasets and get its quality scores plus a
 real-against-synthetic table, and generate the world with any synthesizer that
 produces a warehouse.
 
@@ -18,8 +18,10 @@ produces a warehouse.
   reads the keyword arguments of the synthesizer's constructor (resolving string
   annotations) and an optional `param_bounds` class attribute.
   `bootstrap-table` declares `jitter` bounds.
-- New `sdf.validation.evaluation`: `sources()`, which lists the bundled CSVs
-  present under `$SDF_DATA_DIR` (default `./data`), and `evaluate(synthesizer, *,
+- New `sdf.validation.evaluation`: `sources()`, which lists the two sample CSVs
+  of the repository's `data/` directory that exist under `$SDF_DATA_DIR`
+  (default `./data`; the CSVs are not part of the installed package, so an API
+  started outside the checkout sets `SDF_DATA_DIR` or lists no source), and `evaluate(synthesizer, *,
   source, params=None, date_format=None, registry=None) -> SynthesisRun(synthesizer,
   source, kind, params, metrics, table)`, which fills a missing or `None` seed
   with `EVALUATION_SEED` and reports every parameter it used, where `source` is a source ID or a CSV path
@@ -36,13 +38,15 @@ produces a warehouse.
   regenerates with both, so a scenario never silently switches generator.
 - `create_app(synthesizers=…)`: the app holds one synthesizer registry for its
   lifetime (default `default_registry()`, built once), and the catalogue, runs,
-  `POST /world` and the scenario regeneration all use it. `evaluate` takes the
+  the initial world, `POST /world` and the scenario regeneration all use it:
+  `WorldStore` and `build_snapshot` take the registry and the synthesizer name. `evaluate` takes the
   registry as an argument.
 - API: `GET /api/v1/synthesizers`, `GET /api/v1/synthesis/sources`,
   `POST /api/v1/synthesis/runs`; `POST /api/v1/world` and the world snapshot
   accept and report `synthesizer`. The run endpoint validates parameter names,
   types and bounds before creating the synthesizer and answers 422 otherwise.
-  Only the bundled source IDs are accepted; a client never sends a path.
+  Only the source IDs `sources()` lists are accepted; a client never sends a
+  path.
 - Tests:
   - `params` for each built-in (`gaussian-copula`'s nullable seed included) and
     for a plug-in with bounds;
@@ -61,7 +65,8 @@ produces a warehouse.
 - No UI; the Synthesizers page is PR 4.
 - No new synthesizer and no new metric: runs are scored by the fidelity and
   privacy checks that exist today.
-- No user upload or arbitrary file path; the sources are the bundled CSVs.
+- No user upload or arbitrary file path, and no packaging of the sample CSVs
+  into the wheel; the sources are the repository's sample CSVs.
 
 ## Acceptance
 
