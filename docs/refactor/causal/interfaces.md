@@ -131,6 +131,18 @@ Rules the implementation keeps:
     compares the two worlds source by source, as the generator check does.
     If they differ, it refuses with `ValueError`: "intervention X is not
     deterministic; paired effects need the same world from the same input".
+  - An intervention must also leave its input world unchanged. A `World` is
+    frozen, but its registry's rows are mutable lists. So before applying a
+    custom intervention, the study records the input's sources (name, entity
+    type and a tuple of its rows). It compares them after each application.
+    If they changed, it refuses with `ValueError`: "intervention X modified
+    its input world".
+
+    Built-in interventions are exempt: they only build new worlds
+    (`World.generate`, `World.with_stream`). A custom intervention can only
+    come from Python, never through the API. The held snapshot is therefore
+    never exposed to one, and the check protects a Python caller's own
+    baseline.
 
   These extra applications count in the timing projection.
 - **What the interval assumes.** The Student-t interval is valid when the R
