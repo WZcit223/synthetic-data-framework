@@ -205,7 +205,10 @@ with a missing value, one-hot encodes dimension covariates, and refuses every
 question the table cannot answer, with the reason. It returns the arrays
 `treated` (bool), `outcome` and `covariates` (2-D, one column per encoded
 covariate, named in `columns`). Before calling your estimator, the registry has
-also checked that the design identifies the effect with the columns you use.
+also checked that the design identifies the effect: the intercept, the treatment
+and, unless `uses_covariates` is `False`, every encoded covariate must be
+linearly independent, with more rows than columns. An estimator that fails this
+is an error row ("not identified: …"), and the others still run.
 
 What your estimator returns is checked once more: an effect or bound that is not
 a finite number becomes an error row naming the value, and so does an exception.

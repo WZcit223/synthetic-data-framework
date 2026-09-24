@@ -225,8 +225,8 @@ function scoresTable(rows) {
     + `<th class="num">Relative bias</th><th>Reading</th><th class="num">Run time</th><th>Method</th>`;
   const body = rows.map(r => {
     const reading = scoreReading(r);
-    const muted = r.effect == null || reading === "misses the truth";
-    return `<tr class="${muted ? "covers" : ""}"><td>${esc(r.estimator)}</td><td class="num">${amount(r.effect, { signed: true })}</td>`
+    // only a row without a result is greyed: missing the truth is the finding, not a detail to fade
+    return `<tr class="${r.effect == null ? "noresult" : ""}"><td>${esc(r.estimator)}</td><td class="num">${amount(r.effect, { signed: true })}</td>`
       + `<td class="num">${r.ci_low == null ? "–" : intervalText(r)}</td><td class="num">${amount(r.bias, { signed: true })}</td>`
       + `<td class="num">${relativeText(r.relative_bias)}</td><td class="reading">${esc(reading)}</td>`
       + `<td class="num">${r.seconds == null ? "–" : `${r.seconds.toFixed(2)} s`}</td><td class="method">${esc(r.method ?? "")}</td></tr>`;

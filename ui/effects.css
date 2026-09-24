@@ -71,3 +71,5 @@ svg.chart .error{fill:var(--bad);font-size:11px}
 .sweep .pick{align-items:center}
 .checks .swatch{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none}
 table.effects td.method{color:var(--muted);white-space:normal;min-width:220px}
+table.effects tr.noresult td{color:var(--muted)}
+table.effects tr.noresult td.reading{font-style:italic}
