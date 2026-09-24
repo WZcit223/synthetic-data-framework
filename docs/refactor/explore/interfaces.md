@@ -507,7 +507,10 @@ of the wrong type, an unknown source, or a synthesizer that is unavailable.
 ## 5. Later
 
 These shapes are fixed now so the next sequences plug in without changing the
-pivot page or the table contract.
+pivot page or the table contract. The causal modelling sequence details its
+part in [`../causal/interfaces.md`](../causal/interfaces.md), which governs
+where the two differ: simulated effects are `POST /api/v1/effects`, and
+estimates from observational rows are `POST /api/v1/causal/estimates`.
 
 - **Causal modelling.** Experiment rows (§2.1) are already the treatment and
   outcome table: `intervention` is the treatment, each `metric` an outcome. An
