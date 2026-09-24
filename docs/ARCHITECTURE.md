@@ -115,12 +115,34 @@ metric. The (s,S) plan, the economics counterfactual and the scenario runner
 all run through it. The contract is in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §1.
 
+An `EffectStudy` (`sdf.simulation.effects`) answers "what happens if we take
+this action" with the simulator itself. It runs each intervention and the
+baseline on R replicate worlds, every arm of one replicate generated from that
+replicate's seed. The effect is the mean of the R paired differences, with a
+Student-t interval.
+
+Before any replicate runs, the study checks that the generator gives the same
+world for the same spec, and that custom interventions are deterministic and
+leave their input alone. It compares copies of the rows taken before the next
+call.
+
+Its size is bounded twice:
+- a work budget, fixed before any world is generated;
+- a cooperative 30 s deadline, checked before every generation and
+  measurement.
+
+The contract is in
+[`refactor/causal/interfaces.md`](refactor/causal/interfaces.md) §1 and §5.
+
 ### API and UI
 `src/sdf/api` is a JSON-only, versioned API (`/api/v1`). Its OpenAPI schema
 (`/api/v1/openapi.json`) is the contract with any UI; response models declare
 every field a client may rely on. `create_app()` holds the current world as an
 immutable snapshot that `POST /api/v1/world` swaps in one step, and
 `POST /api/v1/experiments` exposes the simulation layer by name.
+`POST /api/v1/effects` runs an effect study on the current world's spec and
+generator, with the held world as replicate 0. With `check_only`, it answers
+the work budget without generating anything.
 
 **Tables.** Data leaves the backend as tables: typed fields
 (`sdf.foundation.tables.Field`: a dimension to group by, a time as an ISO date,

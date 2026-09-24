@@ -54,6 +54,20 @@ A warehouse generator takes `spec: GenerationSpec | None = None`.
 `World.generate` passes the spec of the world being built, so the dashboard's
 size and seed controls apply to it too.
 
+An effect study (`sdf effects`, `POST /api/v1/effects`) compares worlds
+generated from the same seed, so a warehouse generator must keep three rules:
+
+- **Deterministic in its spec.** The same spec gives the same world: take all
+  randomness from `spec.seed`, and none from global or remembered state.
+- **Independent across seeds.** Different seeds give independent worlds. The
+  intervals assume it, and it cannot be checked from a few draws.
+- **No reuse of returned rows.** Never change a world you already returned;
+  build new row objects on every call.
+
+The study checks the first and the third rules and refuses a generator that
+breaks them, naming it. The second is the generator's promise.
+`warehouse-spec` keeps all three.
+
 This example is a series synthesizer: a moving average of the fitted series,
 plus residuals drawn from the same position in the cycle (the same hour of the
 day) on a random day, so the daily shape is kept. The test suite runs it exactly as written.

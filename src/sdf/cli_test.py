@@ -25,6 +25,7 @@ COMMANDS = [
     "pipeline",
     "impact",
     "scenarios",
+    "effects",
     "privacy",
     "validate",
     "hooks",
@@ -216,3 +217,38 @@ def test_audit_log_option_writes_the_full_run(tmp_path, args, kind):
     entries, summary = lines[:-1], lines[-1]
     assert entries and all(e["record"] == "entry" and e["kind"] == kind for e in entries)
     assert summary["record"] == "summary" and summary["steps"] == len(entries)
+
+
+def test_effects_prints_each_effect_with_its_interval_and_writes_csv(tmp_path):
+    out = tmp_path / "effects.csv"
+    result = run("effects", "--intervention", "promo_spike", "--replicates", "2", "--csv", str(out))
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert lines[0] == "promo_spike vs baseline, service-level-95, 2 paired replicates, 95 % intervals"
+    assert lines[1].split() == ["metric", "baseline", "treated", "effect", "interval"]
+    assert any(line.startswith("holding_cost") and " … " in line for line in lines)
+    header = out.read_text(encoding="utf-8").splitlines()[0]
+    assert header.startswith("intervention,policy,metric,baseline,treated,effect,ci_low,ci_high")
+
+
+def test_effects_groups_by_intervention_and_policy_and_marks_intervals_covering_zero():
+    args = ["--intervention", "promo_spike", "--intervention", "supply_disruption"]
+    result = run("effects", *args, "--policy", "naive", "--outcome", "active_stockouts", "--replicates", "2")
+    assert result.exit_code == 0, result.output
+    assert "promo_spike · naive" in result.output and "supply_disruption · naive" in result.output
+    assert "(covers 0)" in result.output
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (["--intervention", "baseline"], "baseline is what every intervention is compared with"),
+        (["--intervention", "nope"], "unknown intervention 'nope'"),
+        (["--intervention", "promo_spike", "--replicates", "1"], "replicates must be from 2 to 20"),
+        (["--intervention", "promo_spike", "--policy", "naive:0.9"], "only service-level takes a level"),
+        (["--intervention", "promo_spike", "--policy", "service-level:high"], "the level must be a number"),
+    ],
+)
+def test_effects_refuses_an_invalid_study(args, message):
+    result = run("effects", *args)
+    assert result.exit_code != 0 and message in result.output

@@ -444,6 +444,126 @@ def test_experiment_endpoint_validates_the_body(client):
     assert client.post(V1 + "/experiments", json={"policies": [], "outcomes": ["active_stockouts"]}).status_code == 422
 
 
+# -- POST /effects (docs/refactor/causal/interfaces.md §1.5) ------------------------------------
+
+
+@pytest.fixture(scope="module")
+def small_client():
+    c = TestClient(create_app())
+    assert post_world(c, n_skus=30, horizon_days=30).status_code == 200
+    return c
+
+
+def test_effects_answer_the_study_on_the_current_world(small_client):
+    from sdf.simulation.catalog import intervention, outcome, policy
+    from sdf.simulation.effects import EffectStudy
+
+    body = {"interventions": ["promo_spike"], "outcomes": ["simulated_cost"], "replicates": 3}
+    res = small_client.post(V1 + "/effects", json=body)
+    assert res.status_code == 200, res.text
+    out = res.json()
+    world = small_client.app.state.store.current.world
+    expected = EffectStudy(
+        world.spec,
+        [intervention("promo_spike")],
+        [policy("service-level", service_level=0.95)],
+        [outcome("simulated_cost")],
+        replicates=3,
+        baseline=world,
+    ).run()
+    assert out["rows"] == [list(r) for r in expected.effects.rows]
+    assert out["replicates"]["rows"] == [list(r) for r in expected.replicates.rows]
+    assert [f["name"] for f in out["fields"]][:3] == ["intervention", "policy", "metric"]
+    assert out["spec"]["n_skus"] == 30 and out["spec"]["seed"] == world.spec.seed
+    assert out["synthesizer"] == "warehouse-spec" and out["elapsed_ms"] >= 0
+
+
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [
+        ({"interventions": ["nope"]}, "unknown intervention 'nope'"),
+        ({"interventions": ["baseline"]}, "baseline is what every intervention is compared with"),
+        ({"interventions": ["promo_spike", "promo_spike"]}, "each may appear once"),
+        ({"interventions": ["promo_spike"], "outcomes": ["nope"]}, "unknown outcome"),
+        ({"interventions": ["promo_spike"], "replicates": 1}, "greater than or equal to 2"),
+        ({"interventions": ["promo_spike"], "confidence": 1}, "less than 1"),
+        ({"interventions": ["promo_spike"], "extra": 1}, "Extra inputs are not permitted"),
+    ],
+)
+def test_effects_refuse_an_invalid_request(small_client, body, message):
+    res = small_client.post(V1 + "/effects", json=body)
+    assert res.status_code == 422 and message in str(res.json()["detail"])
+
+
+def test_effects_check_only_answers_the_budget_without_generating(small_client, monkeypatch):
+    from sdf.simulation import effects
+
+    monkeypatch.setattr(effects.EffectStudy, "run", lambda self: pytest.fail("check_only ran the study"))
+    body = {"interventions": ["promo_spike", "supply_disruption"], "check_only": True}
+    budget = small_client.post(V1 + "/effects", json=body).json()
+    assert budget == {
+        "work": effects.effect_work(10, 2, 1, 1, 30, 30),
+        "max_work": effects.MAX_EFFECT_WORK,
+        "within_budget": True,
+        "size": "10 replicates × 3 arms × 1 policy × 1 outcome × 30 SKUs × 30 days",
+    }
+    bad = small_client.post(V1 + "/effects", json={"interventions": ["baseline"], "check_only": True})
+    assert bad.status_code == 422  # the same refusal as a real run
+
+
+def test_effects_over_budget_agree_between_check_only_and_a_run():
+    c = TestClient(create_app())
+    assert post_world(c, n_skus=500, horizon_days=180).status_code == 200
+    body = {"interventions": ["promo_spike", "supply_disruption"], "replicates": 20}
+    budget = c.post(V1 + "/effects", json={**body, "check_only": True}).json()
+    assert budget["within_budget"] is False and budget["work"] > budget["max_work"]
+    res = c.post(V1 + "/effects", json=body)
+    assert res.status_code == 422 and "exceeds MAX_EFFECT_WORK" in res.json()["detail"]
+
+
+def test_the_experiment_catalog_publishes_the_replicate_bound(client):
+    assert get(client, "/experiments/catalog")["effects"] == {"max_replicates": 20}
+
+
+def test_effects_study_a_runtime_generator_through_the_worlds_own_registry():
+    from sdf.simulation.world_test import MyWarehouseGenerator
+    from sdf.synthesis.registry import default_registry
+
+    synthesizers = default_registry()
+    synthesizers.register(MyWarehouseGenerator)
+    c = TestClient(create_app(synthesizers=synthesizers))
+    assert post_world(c, synthesizer="my-warehouse", n_skus=30, horizon_days=30).status_code == 200
+    res = c.post(V1 + "/effects", json={"interventions": ["promo_spike"], "replicates": 2})
+    assert res.status_code == 200, res.text
+    assert res.json()["synthesizer"] == "my-warehouse"
+
+
+def test_effects_refuse_a_generator_whose_first_world_differs_from_its_later_ones():
+    from typing import ClassVar
+
+    from sdf.synthesis.api import SynthesizerInfo
+    from sdf.synthesis.registry import default_registry
+    from sdf.synthesis.warehouse import WarehouseGenerator, WarehouseSpecSynthesizer
+
+    class FirstDiffers(WarehouseSpecSynthesizer):
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("first-differs", "warehouse", False, "stateful")
+        calls: ClassVar[list] = []
+
+        def sample(self, n=None, *, seed=None):
+            FirstDiffers.calls.append(1)
+            wh = WarehouseGenerator(self.spec).generate()
+            if len(FirstDiffers.calls) == 1:
+                wh.skus[0].name += " (first call)"  # only an unmeasured field differs
+            return wh
+
+    synthesizers = default_registry()
+    synthesizers.register(FirstDiffers)
+    c = TestClient(create_app(synthesizers=synthesizers))
+    assert post_world(c, synthesizer="first-differs", n_skus=30, horizon_days=30).status_code == 200
+    res = c.post(V1 + "/effects", json={"interventions": ["promo_spike"], "replicates": 2})
+    assert res.status_code == 422 and "not deterministic in its spec" in res.json()["detail"]
+
+
 # -- datasets (docs/refactor/explore/interfaces.md §1–2) ---------------------------------------
 
 

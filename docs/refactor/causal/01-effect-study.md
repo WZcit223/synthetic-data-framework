@@ -1,6 +1,17 @@
 # PR 1 — Effect study: replicated interventions with intervals
 
-> Status: planned (causal modelling sequence PR 1).
+> Status: implemented (causal modelling sequence PR 1). On the default world,
+> `promo_spike` over 10 replicates raises holding cost by 79 790 (95 %
+> interval 72 247 to 87 333) and moves unmet units by −0.26 (−1.39 to 0.87,
+> covering 0), in about 5 s.
+>
+> Measured cost: a world generation takes 110 ms, a copy of its rows 0.14 s,
+> and a policy × outcome measurement up to 24 ms. That is 3 to 14 µs per unit
+> of work, the slowest on the largest API world (500 SKUs × 180 days), so
+> `MAX_EFFECT_WORK` is set to 1.2 M units (about 17 s at the slowest pace).
+> A request at the budget with 6 policies × 3 outcomes (the most there are)
+> takes about 4 s. `POST /effects` also accepts `check_only` and defaults its
+> policies and outcomes, as the contract now records.
 
 Contract: [`interfaces.md`](interfaces.md) §1.
 
@@ -67,7 +78,7 @@ confidence interval, and the relative change.
     snapshot's own registry;
   - `check_only` equal to a real run's budget decision, and generating
     nothing;
-  - the budget's 422, and a request at the limit with 6 policies × 6 outcomes
+  - the budget's 422, and a request at the limit with 6 policies × 3 outcomes (all three there are)
     that finishes under 30 s;
   - the CLI output on a small spec.
 - Docs: the plug-in guide (`docs/PLUGINS.md`) states that a warehouse
