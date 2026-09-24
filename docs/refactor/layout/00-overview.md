@@ -1,6 +1,7 @@
 # Layout refactor — overview
 
-Status: accepted by the project lead on 2026-09-23. Companion to
+Status: implemented by layout PRs 1–4 (#4–#7, 2026-09-23); followed by
+[`correctness/`](../correctness/00-overview.md). Accepted by the project lead on 2026-09-23. Companion to
 [`docs/REFACTOR_PREP.md`](../../REFACTOR_PREP.md) (the audit) and the first
 sequence of the nine steps listed there (§5). Later steps (splitting the
 `WarehouseIntelligence` facade, the API state model, the agent executor,
