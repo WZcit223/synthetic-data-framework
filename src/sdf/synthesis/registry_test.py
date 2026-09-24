@@ -52,6 +52,13 @@ def test_built_ins_are_mounted_from_our_entry_points():
             reg.create("gaussian-copula")
 
 
+def test_loading_the_entry_points_again_changes_nothing():
+    reg = default_registry()
+    before = (reg.names(), reg.unavailable())
+    assert reg.load_entry_points() == []
+    assert (reg.names(), reg.unavailable()) == before
+
+
 def _fake_entry_points(*specs):
     from importlib.metadata import EntryPoint
 
@@ -61,10 +68,11 @@ def _fake_entry_points(*specs):
 
 def test_a_packaged_plug_in_mounts_like_a_built_in(monkeypatch):
     monkeypatch.setattr(
-        registry_module, "entry_points", _fake_entry_points(("shuffle-series", f"{__name__}:ShuffleSeries"))
+        registry_module, "entry_points", _fake_entry_points(("shuffle-series", f"{__name__}:ShuffleSeries [extra]"))
     )
     reg = default_registry()
     assert reg.names() == ["shuffle-series"] and reg.origin("shuffle-series") == "plugin"
+    assert reg.load_entry_points() == [] and reg.unavailable() == {}  # loading again, extras included, changes nothing
     assert sorted(reg.create("shuffle-series").fit(SeriesData(values=[1.0, 2.0], period=1)).sample()) == [1.0, 2.0]
 
 
@@ -208,7 +216,11 @@ def test_duplicate_name_needs_replace():
 
 @pytest.mark.parametrize(
     ("name", "produces", "message"),
-    [("Bad Name", "series", "lower-case words joined by dashes"), ("ok-name", "image", "produces must be one of")],
+    [
+        ("Bad Name", "series", "lower-case words joined by dashes"),
+        ("ok-name\n", "series", "lower-case words joined by dashes"),
+        ("ok-name", "image", "produces must be one of"),
+    ],
 )
 def test_metadata_is_validated(name, produces, message):
     bad = type("Bad", (ShuffleSeries,), {"info": SynthesizerInfo(name, produces, True, "x")})  # type: ignore[arg-type]

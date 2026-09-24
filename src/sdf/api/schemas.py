@@ -303,6 +303,44 @@ class Scenarios(Model):
     scenarios: list[ScenarioRow]
 
 
+# -- tables ----------------------------------------------------------------------------------
+
+
+class FieldModel(Model):
+    """A table column: dimension (group by it), time (an ISO date) or measure (a number)."""
+
+    name: str
+    label: str
+    kind: Literal["dimension", "time", "measure"]
+    unit: str | None = None
+    aggregate: Literal["sum", "mean", "min", "max"] | None = None
+
+
+class DatasetEntry(Model):
+    name: str
+    label: str
+    description: str
+    origin: Literal["builtin", "plugin", "runtime"]
+    fields: list[FieldModel]
+
+
+class DatasetList(Model):
+    datasets: list[DatasetEntry]
+    unavailable: dict[str, str]
+
+
+class DatasetTable(Model):
+    """One dataset over the current world; each row is an array in field order."""
+
+    name: str
+    label: str
+    world: str
+    fields: list[FieldModel]
+    rows: list[list[Any]]
+    total_rows: int
+    truncated: bool
+
+
 # -- experiments ------------------------------------------------------------------------------
 
 
@@ -317,12 +355,15 @@ class PolicyChoice(BaseModel):
     review_days: int = Field(7, ge=1, le=90)
 
 
+MAX_PER_LIST = 6  # interventions, policies and outcomes per experiment
+
+
 class ExperimentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    interventions: list[str] = Field(default_factory=lambda: ["baseline"], min_length=1, max_length=6)
-    policies: list[PolicyChoice] = Field(min_length=1, max_length=6)
-    outcomes: list[str] = Field(min_length=1, max_length=6)
+    interventions: list[str] = Field(default_factory=lambda: ["baseline"], min_length=1, max_length=MAX_PER_LIST)
+    policies: list[PolicyChoice] = Field(min_length=1, max_length=MAX_PER_LIST)
+    outcomes: list[str] = Field(min_length=1, max_length=MAX_PER_LIST)
 
 
 class OutcomeRowModel(Model):
@@ -334,3 +375,28 @@ class OutcomeRowModel(Model):
 
 class ExperimentResult(Model):
     rows: list[OutcomeRowModel]
+    fields: list[FieldModel]
+
+
+class ParamModel(Model):
+    """One parameter a form can set: its type, default and bounds (``null`` when unbounded)."""
+
+    name: str
+    type: Literal["int", "float", "str", "bool"]
+    default: Any = None
+    min: int | float | None = None
+    max: int | float | None = None
+    exclusive: bool = False  # the bounds themselves are not allowed
+    nullable: bool = False
+
+
+class PolicyKind(Model):
+    kind: str
+    params: list[ParamModel]
+
+
+class ExperimentCatalog(Model):
+    interventions: list[str]
+    policies: list[PolicyKind]
+    outcomes: list[str]
+    max_per_list: int

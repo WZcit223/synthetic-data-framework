@@ -402,8 +402,9 @@ def test_experiment_response_passes_extra_fields_through():
     from .schemas import ExperimentResult
 
     row = {"intervention": "baseline", "policy": "naive", "metric": "m", "value": 1.0, "unit": "units"}
-    dumped = ExperimentResult.model_validate({"rows": [row], "world": "w"}).model_dump()
-    assert dumped == {"rows": [row], "world": "w"}
+    field = {"name": "value", "label": "Value", "kind": "measure", "unit": None, "aggregate": "mean"}
+    dumped = ExperimentResult.model_validate({"rows": [row], "fields": [field], "world": "w"}).model_dump()
+    assert dumped == {"rows": [row], "fields": [field], "world": "w"}
 
 
 def test_experiment_endpoint_validates_the_body(client):
@@ -411,3 +412,129 @@ def test_experiment_endpoint_validates_the_body(client):
         client.post(V1 + "/experiments", json={"policies": [{"kind": "magic"}], "outcomes": ["x"]}).status_code == 422
     )
     assert client.post(V1 + "/experiments", json={"policies": [], "outcomes": ["active_stockouts"]}).status_code == 422
+
+
+# -- datasets (docs/refactor/explore/interfaces.md §1–2) ---------------------------------------
+
+
+def test_datasets_are_listed_with_their_fields(client):
+    body = get(client, "/datasets")
+    assert [d["name"] for d in body["datasets"]] == ["inventory", "order-lines", "replenishment-plan", "skus"]
+    assert body["unavailable"] == {}
+    lines = next(d for d in body["datasets"] if d["name"] == "order-lines")
+    assert lines["origin"] == "builtin" and lines["label"] == "Outbound order lines"
+    assert lines["fields"][0] == {
+        "name": "date",
+        "label": "Order date",
+        "kind": "time",
+        "unit": None,
+        "aggregate": None,
+    }
+    assert lines["fields"][-1]["unit"] == "currency" and lines["fields"][-1]["aggregate"] == "sum"
+
+
+def test_a_dataset_is_served_as_rows_in_field_order(client):
+    body = get(client, "/datasets/order-lines")
+    assert body["world"] == "GenerationSpec(seed=42)"
+    assert (body["total_rows"], body["truncated"], len(body["rows"])) == (28897, False, 28897)
+    assert len(body["rows"][0]) == len(body["fields"]) and body["rows"][0][0] == "2025-01-01"
+    few = get(client, "/datasets/order-lines?limit=100")
+    assert (len(few["rows"]), few["total_rows"], few["truncated"]) == (100, 28897, True)
+    assert few["rows"] == body["rows"][:100]
+
+
+def test_an_unknown_dataset_or_a_bad_limit_is_rejected(client):
+    res = client.get(V1 + "/datasets/nope")
+    assert res.status_code == 404 and "unknown dataset 'nope'" in res.json()["detail"]
+    assert client.get(V1 + "/datasets/skus?limit=0").status_code == 422
+
+
+def test_the_app_serves_a_provider_registered_on_its_catalogue():
+    from sdf.application.datasets import default_datasets
+    from sdf.application.datasets_test import ChannelMix
+
+    datasets = default_datasets()
+    app = create_app(datasets=datasets)
+    assert app.state.datasets is datasets
+    datasets.register(ChannelMix)  # after the app was built: later requests still see it
+    c = TestClient(app)
+    assert "channel-mix" in [d["name"] for d in get(c, "/datasets")["datasets"]]
+    rows = get(c, "/datasets/channel-mix")["rows"]
+    assert [r[0] for r in rows] == ["ecommerce", "store", "wholesale"]
+
+
+def test_a_failing_provider_is_a_500_that_names_it_not_an_unknown_dataset():
+    from typing import ClassVar
+
+    from sdf.application.datasets import DatasetCatalog
+    from sdf.foundation.tables import DatasetInfo, Field
+
+    class Broken:
+        info: ClassVar[DatasetInfo] = DatasetInfo("broken", "Broken", "x", (Field("n", "N", "measure"),))
+
+        def rows(self, world):
+            return [{}["missing"]]
+
+    datasets = DatasetCatalog()
+    datasets.register(Broken)
+    res = TestClient(create_app(datasets=datasets), raise_server_exceptions=False).get(V1 + "/datasets/broken")
+    assert res.status_code == 500 and res.json()["detail"] == "dataset broken could not be built: 'missing'"
+
+
+def test_the_row_limit_applies_while_a_provider_is_read():
+    from sdf.application.datasets import DatasetCatalog
+    from sdf.application.datasets_test import Counter
+
+    datasets = DatasetCatalog()
+    datasets.register(Counter)  # its last row is invalid: a capped response never stores or checks it
+    body = get(TestClient(create_app(datasets=datasets)), "/datasets/counter?limit=5")
+    assert (body["rows"], body["total_rows"], body["truncated"]) == ([[0], [1], [2], [3], [4]], 100_000, True)
+
+
+def test_the_experiment_catalogue_lists_names_and_parameter_bounds(client):
+    body = get(client, "/experiments/catalog")
+    assert body["interventions"][0] == "baseline" and "promo_spike" in body["interventions"]
+    assert body["outcomes"] == ["replenishment_need", "active_stockouts", "simulated_cost"]
+    assert body["max_per_list"] == 6
+    kinds = {p["kind"]: p["params"] for p in body["policies"]}
+    assert [p["name"] for p in kinds["naive"]] == ["lead_time_days", "review_days"]
+    assert kinds["service-level"][0] == {
+        "name": "service_level",
+        "type": "float",
+        "default": 0.95,
+        "min": 0.5,
+        "max": 1.0,
+        "exclusive": True,
+        "nullable": False,
+    }
+    assert kinds["naive"][0] == {
+        "name": "lead_time_days",
+        "type": "int",
+        "default": 7,
+        "min": 1,
+        "max": 90,
+        "exclusive": False,
+        "nullable": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("policy", "status"),
+    [
+        ({"kind": "service-level", "service_level": 1.0}, 422),  # exclusive bound
+        ({"kind": "service-level", "service_level": 0.99}, 200),
+        ({"kind": "naive", "lead_time_days": 90}, 200),  # inclusive bound
+        ({"kind": "naive", "lead_time_days": 91}, 422),
+    ],
+)
+def test_the_catalogue_bounds_are_the_ones_the_experiment_endpoint_enforces(client, policy, status):
+    body = {"interventions": ["baseline"], "policies": [policy], "outcomes": ["replenishment_need"]}
+    assert client.post(V1 + "/experiments", json=body).status_code == status
+
+
+def test_the_experiment_result_carries_its_fields(client):
+    body = {"interventions": ["baseline"], "policies": [{"kind": "naive"}], "outcomes": ["replenishment_need"]}
+    res = client.post(V1 + "/experiments", json=body).json()
+    assert [f["name"] for f in res["fields"]] == ["intervention", "policy", "metric", "value"]
+    assert res["fields"][-1]["kind"] == "measure" and res["fields"][-1]["aggregate"] == "mean"
+    assert set(res["rows"][0]) == {"intervention", "policy", "metric", "value"}  # rows stay objects

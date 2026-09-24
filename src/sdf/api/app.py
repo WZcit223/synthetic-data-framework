@@ -4,7 +4,8 @@
     SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app --reload
     # open http://127.0.0.1:8000 (the dashboard from ui/) or /api/v1/docs
 
-``create_app()`` builds an app with its own ``WorldStore`` (``app.state.store``);
+``create_app()`` builds an app with its own ``WorldStore`` (``app.state.store``)
+and dataset catalogue (``app.state.datasets``);
 the module-level ``app`` reads ``SDF_UI_DIR`` (mount a UI directory at "/") and
 ``SDF_CORS_ORIGINS`` (comma-separated origins allowed to call the API). Every
 endpoint reads ``store.current`` once, so a request never mixes two worlds.
@@ -30,11 +31,12 @@ except ImportError as exc:  # pragma: no cover
 from sdf import __version__
 from sdf.analytics.forecast import build_series, compare_models, models_for
 from sdf.application.agent import WarehouseAgent
+from sdf.application.datasets import DatasetCatalog, default_datasets
 from sdf.application.economics import financial_impact
 from sdf.application.knowledge import KnowledgeQA
 from sdf.application.scenarios import run_scenarios
 from sdf.simulation import catalog
-from sdf.simulation.experiment import Experiment
+from sdf.simulation.experiment import OUTCOME_FIELDS, Experiment
 from sdf.synthesis.spec import GenerationSpec
 from sdf.validation.quality import structural_quality_check
 from sdf.workflow import warehouse_pipeline
@@ -43,6 +45,29 @@ from .state import MIN_HORIZON_DAYS, MIN_SKUS, GenerateLimits, GenerationBusy, W
 
 PREFIX = "/api/v1"
 _EXPORT_TABLES = ("skus", "locations", "inventory", "inbound", "outbound", "sensors")
+MAX_DATASET_ROWS = 250_000  # the most rows one dataset response carries
+
+
+def _policy_params(kind: str) -> list[dict]:
+    """The form parameters of a policy kind, with the bounds ``POST /experiments`` enforces."""
+    names = ("lead_time_days", "review_days") if kind == "naive" else ("service_level", "lead_time_days", "review_days")
+    params = []
+    for name in names:
+        info = s.PolicyChoice.model_fields[name]
+        bounds = {type(m).__name__: m for m in info.metadata}
+        lower, upper = bounds.get("Gt") or bounds.get("Ge"), bounds.get("Lt") or bounds.get("Le")
+        params.append(
+            {
+                "name": name,
+                "type": info.annotation.__name__,
+                "default": info.default,
+                "min": getattr(lower, "gt", getattr(lower, "ge", None)),
+                "max": getattr(upper, "lt", getattr(upper, "le", None)),
+                "exclusive": "Gt" in bounds or "Lt" in bounds,
+                "nullable": False,
+            }
+        )
+    return params
 
 
 def create_app(
@@ -50,10 +75,14 @@ def create_app(
     limits: GenerateLimits = GenerateLimits(),
     ui_dir: str | Path | None = None,
     cors_origins: list[str] | None = None,
+    datasets: DatasetCatalog | None = None,
 ) -> FastAPI:
-    """A new app with its own world store.
+    """A new app with its own world store and dataset catalogue.
 
-    ``POST /api/v1/world`` rejects parameters outside ``limits``. ``ui_dir``
+    ``datasets`` is the catalogue the app serves for its lifetime (default:
+    ``default_datasets()``, built once), so a provider registered on it later is
+    served by later requests. ``POST /api/v1/world`` rejects parameters outside
+    ``limits``. ``ui_dir``
     mounts a static UI at "/" for development hosting; ``cors_origins`` lets a
     UI hosted elsewhere call the API.
     """
@@ -67,6 +96,8 @@ def create_app(
     store = WorldStore()
     app.state.store = store
     app.state.limits = limits
+    catalogue = datasets if datasets is not None else default_datasets()
+    app.state.datasets = catalogue
     api = APIRouter(prefix=PREFIX)
 
     WorldRequest = create_model(  # noqa: N806 - a model class built from this app's limits
@@ -103,6 +134,59 @@ def create_app(
         return {
             "n_skus": {"min": MIN_SKUS, "max": limits.max_skus},
             "horizon_days": {"min": MIN_HORIZON_DAYS, "max": limits.max_horizon_days},
+        }
+
+    @api.get("/datasets", response_model=s.DatasetList)
+    def datasets_list():
+        """Every dataset the catalogue serves, with its fields; and the declared ones that could not be mounted."""
+        entries = []
+        for name in catalogue.names():
+            info = catalogue.info(name)
+            entries.append(
+                {
+                    "name": info.name,
+                    "label": info.label,
+                    "description": info.description,
+                    "origin": catalogue.origin(name),
+                    "fields": [f.to_dict() for f in info.fields],
+                }
+            )
+        return {"datasets": entries, "unavailable": catalogue.unavailable()}
+
+    @api.get(
+        "/datasets/{name}",
+        response_model=s.DatasetTable,
+        responses={404: {"description": "unknown dataset"}, 500: {"description": "the provider failed"}},
+    )
+    def dataset(name: str, limit: int | None = Query(None, ge=1, le=MAX_DATASET_ROWS)):
+        """One dataset over the current world; rows are arrays in field order."""
+        world = store.current.world
+        try:
+            catalogue.info(name)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=exc.args[0]) from exc
+        try:
+            table, total = catalogue.head(name, world, min(limit or MAX_DATASET_ROWS, MAX_DATASET_ROWS))
+        except Exception as exc:  # a provider's own failure, a KeyError included, is not an unknown dataset
+            raise HTTPException(status_code=500, detail=f"dataset {name} could not be built: {exc}") from exc
+        return {
+            "name": table.info.name,
+            "label": table.info.label,
+            "world": world.label,
+            "fields": [f.to_dict() for f in table.info.fields],
+            "rows": [list(r) for r in table.rows],
+            "total_rows": total,
+            "truncated": total > len(table.rows),
+        }
+
+    @api.get("/experiments/catalog", response_model=s.ExperimentCatalog)
+    def experiments_catalog():
+        """The interventions, policies (with their parameters and bounds) and outcomes an experiment may name."""
+        return {
+            "interventions": catalog.intervention_names(),
+            "policies": [{"kind": k, "params": _policy_params(k)} for k in catalog.POLICY_KINDS],
+            "outcomes": list(catalog.OUTCOMES),
+            "max_per_list": s.MAX_PER_LIST,
         }
 
     @api.get("/quality", response_model=s.Quality)
@@ -205,7 +289,7 @@ def create_app(
             if len(set(names)) != len(names):
                 raise HTTPException(status_code=422, detail=f"each {label} may appear once, got {names}")
         rows = Experiment(store.current.world, interventions, policies, outcomes).run()
-        return {"rows": [r.__dict__ for r in rows]}
+        return {"rows": [r.__dict__ for r in rows], "fields": [f.to_dict() for f in OUTCOME_FIELDS]}
 
     @api.get("/export", response_class=Response, responses={200: {"content": {"text/csv": {}}}})
     def export(entity: str = "outbound"):
