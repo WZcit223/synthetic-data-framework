@@ -575,14 +575,21 @@ class PromotionBenchmark:
     noise: float = 0.25          # lognormal sigma of weekly units; 0 to 1
     seed: int = 7
 
+    # The bounds, declared once, in the shape synthesizers use (§4.1 of the exploration contract).
+    param_bounds: ClassVar[dict[str, tuple[float | None, float | None]]] = {
+        "uplift": (-0.9, 3.0),
+        "confounding": (0.0, 3.0),
+        "noise": (0.0, 1.0),
+    }
+
+    @classmethod
+    def params(cls) -> tuple[Param, ...]:
+        """The four fields as Params: synthesizer_params(cls), the reader the synthesizer registry uses."""
+
     def __post_init__(self) -> None:
-        """Refuse a value outside its bounds, naming the field, as GenerationSpec does."""
+        """Run each value through its Param's check(), raising ValueError that names the field."""
 
     def draw(self, world: World) -> "BenchmarkDraw": ...
-
-    # The same bounds are declared once, as param_bounds, and published as
-    # benchmark.params (§3.4), so the Python constructor, the API's Param.check
-    # and the page's form cannot disagree.
 
 
 @dataclass(frozen=True)
@@ -591,6 +598,16 @@ class BenchmarkDraw:
     question: CausalQuestion     # promoted → weekly_units, adjusting for log_demand, abc_class, log_price
     true_effect: float           # the mean over SKUs of y(1) − y(0): exact, because both are generated
 ```
+
+`params()` is the single source of the bounds:
+- `__post_init__` checks against it;
+- `GET /estimators` publishes it as `benchmark.params`
+  (`[p.to_dict() for p in PromotionBenchmark.params()]`);
+- the API's `Param.check` and the page's `readParam` apply it.
+
+So a direct Python caller, the API and the form refuse exactly the same
+values. `Param` and `synthesizer_params` come from `sdf.synthesis`, a lower
+layer than `sdf.simulation`.
 
 - **Units.** SKUs with demand in the world.
 - **Observed fields.** `sku_id`, `abc_class` (dimension), `log_demand`,
