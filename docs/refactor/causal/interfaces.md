@@ -114,21 +114,21 @@ Rules the implementation keeps:
   therefore the held world itself, not a regeneration that might differ from
   it. A generator whose output changed since the world was built (stateful
   across calls) is refused by the comparison, not trusted.
-- **Pairing buys precision, not validity.** The check proves a generator is
-  repeatable for a given spec. It cannot prove that the baseline and an
-  intervention's changed spec share one random stream, and the effects do not
-  depend on that:
-  - Each replicate's two worlds are still drawn independently of the other
-    replicates.
-  - The R differences are therefore independent, and the Student-t interval
-    is valid either way.
-  - A generator that shares its stream across specs, as `warehouse-spec`
-    does, gives narrower intervals. One that does not gives wider, still
-    correct ones.
-
-  The plug-in guide says so, and PR 1 tests `warehouse-spec`'s pairing
-  directly: the baseline and `promo_spike` share their SKU and location
-  tables for the same seed.
+- **What the interval assumes.** The Student-t interval is valid when the R
+  replicate differences are independent draws. That holds when different
+  seeds give independent worlds, which is a requirement of the warehouse
+  generator's contract. PR 1 adds it next to the determinism requirement,
+  and the plug-in guide states both. It cannot be checked from a few draws,
+  so the effects are exactly as trustworthy as that requirement:
+  - `warehouse-spec` meets it: every draw comes from `random.Random(seed)`.
+  - A plug-in that correlates its seeds gives intervals that are too narrow.
+    The contract says so rather than claiming validity for any generator.
+- **Pairing buys precision.** Given independent replicates, a generator that
+  shares its random stream between the baseline and an intervention's changed
+  spec gives narrower intervals. One that does not gives wider, still correct
+  ones. PR 1 tests `warehouse-spec`'s sharing directly: the baseline and
+  `promo_spike` share their SKU, location and inventory tables for the same
+  seed.
 - **The interval** is Student's t on the paired differences, with R − 1
   degrees of freedom (`scipy.stats.t`). When every difference is equal, the
   interval collapses to the point (zero width), which is correct for a metric
@@ -192,10 +192,15 @@ result = EffectStudy(
 | `policy` | Policy | dimension | | |
 | `metric` | Metric | dimension | | |
 | `value` | Value | measure | | mean |
+| `difference` | Difference from baseline | measure | | mean |
 
 `replicate` and `seed` are dimensions, so they hold text (`"0"`, `"42"`), as
 every dimension does. The baseline appears here as the arm `baseline`, so a
 pivot of `intervention` against `replicate` shows each paired draw.
+`difference` is `value` minus the same replicate's baseline value for that
+policy and metric, computed by the study: the paired difference the interval
+is built from, so the page never subtracts. It is empty on the baseline's own
+rows.
 
 ### 1.5 Target (after PR 1): HTTP and CLI
 
@@ -375,6 +380,7 @@ class EstimatorInfo:
     name: str                              # lower-case words joined by dashes
     description: str
     requires: tuple[str, ...] = ()         # modules; missing ones list the estimator as unavailable
+    uses_covariates: bool = True           # False for an estimator that ignores them, e.g. difference-in-means
 
 
 @dataclass(frozen=True)
@@ -401,11 +407,21 @@ class Estimator(Protocol):
     (a time field, or a measure with any other value, is refused, naming the
     field and its kind);
   - an outcome that is not a measure, or a covariate that is a time field;
+  - a covariate that is the treatment or the outcome itself, or a duplicate
+    covariate name. Adjusting for the outcome would leak it into the
+    estimate. Whether a covariate is measured before the treatment cannot be
+    read from a table, so that stays the user's claim, as the whole
+    adjustment set is;
   - a `confidence` outside (0.5, 1), as for `EffectStudy`;
   - a table with fewer than two treated or two control rows;
   - a design that cannot identify the effect: an intercept, treatment and
     encoded covariates of rank below their number, or no more rows than
-    columns plus one, so no residual degree of freedom is left. Rank is
+    columns plus one, so no residual degree of freedom is left. The check
+    uses the columns the estimator uses: for one with
+    `info.uses_covariates = False` (`difference-in-means`), only the
+    intercept and the treatment, so redundant covariates never refuse the
+    naive estimate. `score` runs the check once per estimator on the same
+    kept rows. Rank is
     `numpy.linalg.matrix_rank` of that matrix on the kept rows, so a covariate
     that is constant within one group but varies in the other is kept. The
     message names the encoded columns of a dependency, for example
@@ -554,6 +570,10 @@ class BenchmarkDraw:
 - **Units.** SKUs with demand in the world.
 - **Observed fields.** `sku_id`, `abc_class` (dimension), `log_demand`,
   `log_price`, `promoted` (0 or 1), `weekly_units` (measures).
+  - `log_demand` is `log(mean daily demand)`, always finite because the units
+    are the SKUs with demand.
+  - `log_price` is `log(1 + unit price)`, so a SKU with a unit price of 0
+    (valid in the schema) gives 0 instead of an infinite value.
 - **The mechanism.** The standardised log demand is z. The probability of
   promotion is `1 / (1 + exp(0.5 − confounding × z))`.
   - Unpromoted units are `y(0) = 7 × mean daily demand × e`, with `e` lognormal
@@ -587,8 +607,9 @@ draw = PromotionBenchmark(confounding=1.0).draw(world)
 scores = score(draw.table, draw.question, reg,
                names=["difference-in-means", "regression-adjustment", "ipw"], true_effect=draw.true_effect)
 # dataset "estimator-scores":
-#   estimator (dimension), effect, ci_low, ci_high, true_effect, bias, relative_bias (measures),
+#   estimator (dimension), effect, ci_low, ci_high, true_effect, bias, relative_bias, seconds (measures),
 #   covers ("yes", "no", or empty without a truth), method (dimension)
+#   seconds: how long that estimator ran, measured by score; empty for one not run
 # spike means over 50 draws, confounding 1: truth 7.2; difference-in-means 38.1, regression-adjustment 7.7, ipw 8.1
 ```
 

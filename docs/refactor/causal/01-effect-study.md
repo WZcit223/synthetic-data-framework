@@ -29,6 +29,8 @@ confidence interval, and the relative change.
 - CLI: `sdf effects`, as in the contract (§1.5), with `--csv`.
 - Tests:
   - replicate 0 equals `Experiment` on the same world;
+  - the replicate table's `difference` equals each arm's value minus the same
+    replicate's baseline, and its mean is the effect;
   - pairing: the baseline and the intervention of a replicate share the seed;
   - the interval against a hand computation on fixed differences;
   - the zero-width interval of an unmoved metric (`active_stockouts` under

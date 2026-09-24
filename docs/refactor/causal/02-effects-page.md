@@ -37,7 +37,8 @@ opens in Explore like any other table.
   - **The table** has the effect, the interval, the relative change and the
     baseline and treated means, with the same formatting as Explore.
   - **A replicate view** for one metric shows each replicate's paired
-    difference as a dot, with the mean.
+    difference as a dot, with the mean, read from the replicate table's
+    `difference` field (contract §1.4); the page subtracts nothing.
   - **Hover** shows a tooltip with the numbers, and every chart has a table
     view.
 - **Open in Explore** for the effects table and for the replicate rows. This

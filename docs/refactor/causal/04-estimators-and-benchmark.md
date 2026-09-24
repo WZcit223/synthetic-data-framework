@@ -45,13 +45,16 @@ on data where the truth is known.
   - the interval methods and the seeded bootstrap;
   - `design`: missing rows, the one-hot encoding, and every refusal:
     - a time treatment, or a measure treatment with values other than 0 and 1;
-    - a time covariate;
+    - a time covariate, the treatment or outcome among the covariates, and a
+      duplicate covariate;
     - a confidence of 0.5 or 1;
     - a rank-deficient design by `matrix_rank`, for example two covariates
       that are exact copies, or dummies that with the intercept are
       collinear; and a covariate constant within the treated rows but varying
       in the control rows, which is kept;
     - no residual degree of freedom;
+    - redundant covariates do not refuse `difference-in-means`
+      (`uses_covariates = False`), and do refuse `regression-adjustment`;
   - the registry's guard (§3.1): an estimator returning a non-finite value,
     and `ipw` on a perfectly separating covariate (its overlap check, §3.2),
     each give an error row; `ipw` with a few extreme propensities clips them
@@ -62,8 +65,9 @@ on data where the truth is known.
     once the deadline passes;
     a constant outcome shared by both groups gives a finite zero-width row
     that stays;
-  - the benchmark: exact truth, `confounding=0` is unconfounded, and the
-    parameter bounds;
+  - the benchmark: exact truth, `confounding=0` is unconfounded, the
+    parameter bounds, and a SKU with unit price 0 giving `log_price` 0;
+  - `score`'s `seconds` per estimator, empty for one not run;
   - `score`: a failing estimator becomes a row; without a truth the truth
     fields are empty; with a zero truth `relative_bias` is empty;
   - one snapshot per request: a `POST /world` issued while an estimation
