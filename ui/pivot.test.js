@@ -48,6 +48,9 @@ test("each time grain gives the contract's key", () => {
   assert.equal(timeKey("2025-01-06", "weekday"), "Mon");
   assert.equal(timeKey("2025-01-12", "weekday"), "Sun");
   assert.equal(timeKey(null, "month"), null);
+  // a year below 100 is that year, not 19xx: 0050-01-04 was a Tuesday in ISO week 1 (as Python's calendar says)
+  assert.equal(timeKey("0050-01-04", "weekday"), "Tue");
+  assert.equal(timeKey("0050-01-04", "week"), "0050-W01");
   assert.throws(() => timeKey("2025-01-01", "hour"), /unknown time grain "hour"/);
 });
 

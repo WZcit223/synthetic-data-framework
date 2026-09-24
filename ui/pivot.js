@@ -22,6 +22,13 @@ export function toTable(payload) {
   return { ...payload, fields, rows };
 }
 
+// Milliseconds of a UTC calendar date. Date.UTC reads a year below 100 as 19xx, so the year is set on its own.
+function utcDay(y, m, d) {
+  const t = new Date(0);
+  t.setUTCFullYear(y, m - 1, d);
+  return t.getTime();
+}
+
 // The key of an ISO date ("YYYY-MM-DD") at a time grain; null stays null.
 export function timeKey(iso, grain = "day") {
   if (iso == null) return null;
@@ -31,14 +38,14 @@ export function timeKey(iso, grain = "day") {
     case "month": return iso.slice(0, 7);
     case "year": return iso.slice(0, 4);
     case "quarter": return `${iso.slice(0, 4)}-Q${Math.floor((m - 1) / 3) + 1}`;
-    case "weekday": return WEEKDAYS[(new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7];
+    case "weekday": return WEEKDAYS[(new Date(utcDay(y, m, d)).getUTCDay() + 6) % 7];
     case "week": {
       // ISO 8601: the week belongs to the year of its Thursday.
-      const t = Date.UTC(y, m - 1, d);
+      const t = utcDay(y, m, d);
       const thursday = new Date(t + (3 - ((new Date(t).getUTCDay() + 6) % 7)) * DAY_MS);
       const ty = thursday.getUTCFullYear();
-      const week = Math.floor((thursday - Date.UTC(ty, 0, 1)) / DAY_MS / 7) + 1;
-      return `${ty}-W${String(week).padStart(2, "0")}`;
+      const week = Math.floor((thursday - utcDay(ty, 1, 1)) / DAY_MS / 7) + 1;
+      return `${String(ty).padStart(4, "0")}-W${String(week).padStart(2, "0")}`;
     }
     default: throw new Error(`unknown time grain ${JSON.stringify(grain)}; choose from ${GRAINS.join(", ")}`);
   }
