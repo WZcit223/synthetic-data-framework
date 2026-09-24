@@ -86,7 +86,10 @@ class WarehouseAgent:
 
     def handle(self, query: str, cost_model: CostModel | None = None) -> dict:
         """Plan the query, execute the plan, propose any follow-up action; return answer + trace."""
-        log = RunLogger("agent", sink_path=self.sink_path)
+        with RunLogger("agent", sink_path=self.sink_path) as log:
+            return self._handle(query, log)
+
+    def _handle(self, query: str, log: RunLogger) -> dict:
         calls = self.planner.plan(query)
         executed = [(c, self.executor.run_planned(log, c)) for c in calls]
         results: dict[str, ToolResult] = {}

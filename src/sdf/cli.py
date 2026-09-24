@@ -214,11 +214,11 @@ def cmd_sdv(path: str) -> int:
     return 0
 
 
-def cmd_agent(query: str) -> int:
+def cmd_agent(query: str, audit_log: str | None = None) -> int:
     """Phase 4: tool-using warehouse agent with an audit trace."""
 
     _wh, reg = build_registry(GenerationSpec())
-    agent = WarehouseAgent(WarehouseIntelligence(reg))
+    agent = WarehouseAgent(WarehouseIntelligence(reg), sink_path=audit_log)
     res = agent.handle(query)
     print("=" * 64)
     print("  Warehouse Agent — tool calls + audit trace (Phase 4)")
@@ -234,14 +234,17 @@ def cmd_agent(query: str) -> int:
             f"    #{e['seq']} {e['name']:<16} {e['status']:<5} {e['duration_ms']}ms"
             + ("  [approval]" if "approval" in e.get("note", "") else "")
         )
-    print(f"  run: {res['run']['run_id']}  steps={res['run']['steps']}\n")
+    print(f"  run: {res['run']['run_id']}  steps={res['run']['steps']}")
+    if audit_log:
+        print(f"  full audit log appended to {audit_log}")
+    print()
     return 0
 
 
-def cmd_pipeline() -> int:
+def cmd_pipeline(audit_log: str | None = None) -> int:
     """Run the Data Intelligence Workflow (DAG) and print its run record."""
 
-    result = warehouse_pipeline(GenerationSpec()).run()
+    result = warehouse_pipeline(GenerationSpec()).run(sink_path=audit_log)
     print("=" * 64)
     print("  Data Intelligence Workflow — DAG run record")
     print("=" * 64)
@@ -250,7 +253,10 @@ def cmd_pipeline() -> int:
         print(f"    {e['seq']}. {e['name']:<14} {e['status']:<5} {e['duration_ms']}ms")
     econ = result["artifacts"].get("report", {}).get("economics", {})
     econ_text = f"annual_saving≈{econ['annual_saving']}" if "annual_saving" in econ else f"economics: {econ}"
-    print(f"  run: {result['run']['run_id']}  total={result['run']['total_ms']}ms  {econ_text}\n")
+    print(f"  run: {result['run']['run_id']}  total={result['run']['total_ms']}ms  {econ_text}")
+    if audit_log:
+        print(f"  full audit log appended to {audit_log}")
+    print()
     return 0
 
 
@@ -405,17 +411,27 @@ def sdv(csv_path: str) -> None:
         raise click.exceptions.Exit(1)
 
 
+_audit_log_option = click.option(
+    "--audit-log",
+    "audit_log",
+    type=click.Path(dir_okay=False, writable=True),
+    help="Append the run's full log (every input and output whole, then a summary line) to this JSONL file.",
+)
+
+
 @main.command()
 @click.argument("query", default="what can you do?")
-def agent(query: str) -> None:
+@_audit_log_option
+def agent(query: str, audit_log: str | None) -> None:
     """Phase 4: tool-using agent with an audit trace, answering QUERY."""
-    cmd_agent(query)
+    cmd_agent(query, audit_log)
 
 
 @main.command()
-def pipeline() -> None:
+@_audit_log_option
+def pipeline(audit_log: str | None) -> None:
     """Run the Data Intelligence Workflow DAG and print its run record."""
-    cmd_pipeline()
+    cmd_pipeline(audit_log)
 
 
 @main.command()

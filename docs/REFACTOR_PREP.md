@@ -203,7 +203,7 @@ observability       ← application.agent, workflow.pipeline
 | 上帝对象 | `warehouse_demo.py` 全文 | KPI / 补货 ×2 / 异常 ×2 / 视觉 / 叙事 / 内部聚合混在一个类；`economics` 与 `knowledge` 直接依赖其私有细节 | 拆为 `kpi.py`、`replenishment.py`、`anomaly_rules.py`、`vision.py`、`narrative.py`，`WarehouseIntelligence` 退化为门面（保持现有公共方法签名以保护 API/前端） |
 | 导入副作用 | `sdf/__init__.py:18-20`；`api/app.py:20-24` | 顶层 eager import；缺 `fastapi` 时 `raise SystemExit`（不是 `ImportError`），任何试图 `import sdf.api.app` 的测试/工具都会被杀掉 | `__init__` 只导出版本或用惰性 `__getattr__`；`app.py` 抛 `ImportError` 并让 CLI 决定退出 |
 | 可选依赖测试 | `tests/test_generators.py:128-140` | 缺 `copulas/sdmetrics` 时 `return`，pytest 计为 **passed**，CI 从未真正跑过这条 | `pytest.importorskip` |
-| 审计有损 | `observability.py:28-39` | `_summarise` 把 dict 截到 12 键、list 截到 3 项；"可核查审计轨迹"实际不可完整回放 | 摘要仅用于展示，sink 落盘写完整 JSON |
+| 审计有损 | `observability.py:28-39` | `_summarise` 把 dict 截到 12 键、list 截到 3 项；"可核查审计轨迹"实际不可完整回放 | 摘要仅用于展示，sink 落盘写完整 JSON。**已处理**（清理 PR 3）：sink 写完整 JSON 与收尾摘要行，`agent`/`pipeline` 有 `--audit-log` |
 
 ### 3.3 记录在案、本轮不动
 

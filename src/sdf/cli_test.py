@@ -201,3 +201,18 @@ def test_hooks_fails_on_an_unknown_row(tmp_path):
     doc.write_text("| # | Item |\n|---|---|\n| C1 | Demand forecast |\n", encoding="utf-8")
     result = run("hooks", "--checklist", str(doc))
     assert result.exit_code == 1 and "names no checklist row" in result.output
+
+
+@pytest.mark.parametrize(
+    ("args", "kind"),
+    [(("agent", "should I reorder?"), "tool"), (("pipeline",), "step")],
+)
+def test_audit_log_option_writes_the_full_run(tmp_path, args, kind):
+    sink = tmp_path / "audit.jsonl"
+    result = run(*args, "--audit-log", str(sink))
+    assert result.exit_code == 0, result.output
+    assert f"full audit log appended to {sink}" in result.output
+    lines = [json.loads(line) for line in sink.read_text(encoding="utf-8").splitlines()]
+    entries, summary = lines[:-1], lines[-1]
+    assert entries and all(e["record"] == "entry" and e["kind"] == kind for e in entries)
+    assert summary["record"] == "summary" and summary["steps"] == len(entries)
