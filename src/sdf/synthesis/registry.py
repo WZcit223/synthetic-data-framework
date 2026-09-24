@@ -177,10 +177,13 @@ def synthesizer_params(cls: type) -> tuple[Param, ...]:
             or not all(b is None or (isinstance(b, (int, float)) and not isinstance(b, bool)) for b in pair)
         ):
             raise TypeError(f"{name}: param_bounds[{key!r}] must be a (min, max) pair of numbers or None")
+        lo, hi = pair
+        if lo is not None and hi is not None and lo > hi:
+            raise TypeError(f"{name}: param_bounds[{key!r}] has min {lo} above max {hi}")
     params = []
     for p in inspect.signature(cls).parameters.values():
-        if p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD):
-            continue
+        if p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD, p.POSITIONAL_ONLY):
+            continue  # a parameter is passed by keyword: create(name, **params)
         kind, nullable = _param_type(hints.get(p.name))
         if kind is None:
             continue

@@ -53,7 +53,7 @@ class Param:
             return f"must be a number, got {value!r}"
         if self.type == "int" and not isinstance(value, int):
             return f"must be a whole number, got {value!r}"
-        if not math.isfinite(value):
+        if isinstance(value, float) and not math.isfinite(value):  # an int is exact at any size
             return f"must be finite, got {value!r}"
         below = self.min is not None and (value <= self.min if self.exclusive else value < self.min)
         above = self.max is not None and (value >= self.max if self.exclusive else value > self.max)

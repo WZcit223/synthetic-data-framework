@@ -362,6 +362,7 @@ def test_params_of_a_plug_in_with_bounds_and_string_annotations():
         ({"nope": (0, 1)}, "names 'nope'"),
         ({"scale": (0,)}, "must be a (min, max) pair"),
         ({"scale": ("0", 1)}, "must be a (min, max) pair"),
+        ({"scale": (1.0, 0.0)}, "has min 1.0 above max 0.0"),
         ([("scale", (0, 1))], "must be a dict"),
     ],
 )
@@ -371,6 +372,20 @@ def test_register_refuses_malformed_bounds(bounds, message):
     )
     with pytest.raises(TypeError, match=message.replace("(", r"\(").replace(")", r"\)")):
         SynthesizerRegistry().register(bad)
+
+
+def test_a_positional_only_argument_is_not_a_parameter():
+    class PositionalOnly(ShuffleSeries):
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("positional-only", "series", True, "x")
+
+        def __init__(self, scale: float = 1.0, /, *, seed: int = 0) -> None:
+            super().__init__(seed=seed)
+            self.scale = scale
+
+    reg = SynthesizerRegistry()
+    reg.register(PositionalOnly)
+    assert reg.params("positional-only") == (Param("seed", "int", 0),)
+    assert reg.create("positional-only", **{p.name: p.default for p in reg.params("positional-only")})
 
 
 def test_an_annotation_that_cannot_be_read_is_not_a_parameter():

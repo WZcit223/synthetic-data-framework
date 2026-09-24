@@ -122,6 +122,19 @@ def test_a_source_id_whose_file_is_missing_names_the_folder(monkeypatch, tmp_pat
         evaluate("seasonal-profile", source="sample")
 
 
+def test_a_file_of_returns_only_has_no_demand_to_fit(tmp_path):
+    lines = open(SAMPLE, encoding="utf-8").read().splitlines()[:30]
+    returns = [lines[0]]
+    for line in lines[1:]:
+        cells = line.split(",")
+        cells[0], cells[3] = "C" + cells[0], "-" + cells[3]  # a cancellation: invoice C…, negative quantity
+        returns.append(",".join(cells))
+    path = tmp_path / "returns.csv"
+    path.write_text("\n".join(returns) + "\n", encoding="utf-8")
+    with pytest.raises(NoUsableRows, match="no demand left after removing cancelled lines"):
+        evaluate("seasonal-profile", source=str(path))
+
+
 @pytest.mark.parametrize("name", ["seasonal-profile", "bootstrap-table"])
 def test_a_source_without_usable_rows_is_refused(tmp_path, name):
     empty = tmp_path / "empty.csv"

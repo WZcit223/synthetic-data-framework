@@ -25,6 +25,7 @@ def test_to_dict_is_the_published_shape():
     ("param", "value"),
     [
         (Param("seed", "int", 7), 3),
+        (Param("seed", "int", 7), 10**400),  # an unbounded int of any size
         (Param("seed", "int", None, nullable=True), None),
         (Param("jitter", "float", 0.05, min=0.0, max=1.0), 0),  # an int is a valid float
         (Param("jitter", "float", 0.05, min=0.0, max=1.0), 1.0),  # inclusive bounds
@@ -45,6 +46,7 @@ def test_check_accepts(param, value):
         (Param("seed", "int", 7), True, "must be a number"),  # a bool is not a number here
         (Param("seed", "int", 7), "7", "must be a number"),
         (Param("jitter", "float", 0.05), math.inf, "must be finite"),
+        (Param("seed", "int", 7, max=100), 10**400, "must be from -inf to 100"),  # a huge int, no overflow
         (Param("jitter", "float", 0.05, min=0.0, max=1.0), 1.5, "must be from 0.0 to 1.0, got 1.5"),
         (Param("jitter", "float", 0.05, min=0.0), -1, "must be from 0.0 to inf"),
         (Param("level", "float", 0.95, min=0.5, max=1.0, exclusive=True), 1.0, "between 0.5 and 1.0, both excluded"),

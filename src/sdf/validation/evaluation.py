@@ -116,6 +116,8 @@ def evaluate(
         if not load.rows_kept:
             raise NoUsableRows(path, load.summary(), load)
         fitted = FittedHourlyDemand(model).fit(orders)
+        if not fitted.real_series:  # the fit keeps demand only: a file of returns or cancellations has none
+            raise NoUsableRows(path, f"{load.summary()}; no demand left after removing cancelled lines", load)
         synth = fitted.generate()
         metrics = fidelity_report(fitted.real_series, synth, fitted.ppd)
         rows = [(str(i), "real", round(v, 4)) for i, v in enumerate(fitted.real_series)]
