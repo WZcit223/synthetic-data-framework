@@ -53,6 +53,13 @@ returns its quality scores (fidelity for a series, privacy for a table) with the
 real and synthetic data side by side. `POST /api/v1/world` accepts a
 `synthesizer` that produces a warehouse, to build the world with it.
 
+The **Synthesizers** page lists them, runs any series or table synthesizer on
+the sample data with the parameters you choose, and shows its scores with real
+and synthetic data charted together; "Open in Explore" pivots the same run. The
+dashboard's **Generator** choice picks the synthesizer that builds the world.
+Writing your own synthesizer or dataset is described in
+[`docs/PLUGINS.md`](docs/PLUGINS.md).
+
 The **Explore** page pivots any of these tables, or the result of a policy
 experiment: drag fields onto Rows, Columns, Values and Filters; choose the
 aggregation (sum, count, distinct count, mean, median, min, max), the time grain
@@ -109,5 +116,6 @@ uv run ruff check && uv run ruff format --check && uv run pytest   # CI runs the
 - [Algorithm & Data Checklist / 算法与数据清单](docs/ALGORITHM_AND_DATA_CHECKLIST.md)
 - [Validation Results / 验证结果](docs/VALIDATION.md)
 - [Reference & Open Datasets / 数据集](docs/DATASETS.md)
+- [Plug-ins: your own synthesizer or dataset / 插件](docs/PLUGINS.md)
 - [Roadmap / 路线图](docs/ROADMAP.md)
 - [Refactor Preparation / 重构准备](docs/REFACTOR_PREP.md)

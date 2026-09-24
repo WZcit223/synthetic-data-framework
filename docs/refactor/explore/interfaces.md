@@ -336,7 +336,7 @@ The page keeps the whole view in its address, so a link reproduces it:
 ```javascript
 { dataset: "order-lines" }                                   // GET /datasets/order-lines
 { experiment: { interventions: [...], policies: [...], outcomes: [...] } }   // POST /experiments with this body
-{ synthesis: { synthesizer: "seasonal-profile", source: "sample", params: { seed: 7 } } }  // POST /synthesis/runs (after PR 3)
+{ synthesis: { synthesizer: "seasonal-profile", source: "sample", params: { seed: 7 } } }  // POST /synthesis/runs (served since PR 4)
 ```
 
 Opening a link repeats that one request against the current world and applies

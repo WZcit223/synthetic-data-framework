@@ -1,0 +1,50 @@
+/* The Synthesizers page. Colours come from the tokens in style.css; charts share explore.css. */
+.lead-text{color:var(--muted);max-width:980px;margin:0 0 16px}
+.synth-layout{display:grid;grid-template-columns:330px minmax(0,1fr);gap:14px;align-items:start}
+@media(max-width:900px){.synth-layout{grid-template-columns:minmax(0,1fr)}}
+.catalogue{display:flex;flex-direction:column;gap:8px}
+.scard{display:block;width:100%;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;color:var(--ink);cursor:pointer;font:inherit}
+.scard:hover{border-color:#3a4656}
+.scard[aria-current=true]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.scard .name{font:600 13.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.scard .desc{color:var(--muted);font-size:12.5px;margin-top:4px}
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.tag2{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--panel2)}
+.tag2.series{color:#86b6ef;border-color:#2b4d77}
+.tag2.table{color:#9fd8c2;border-color:#23574a}
+.tag2.warehouse{color:#e0c27a;border-color:#5b4a1f}
+.unavail{margin-top:14px;border:1px dashed var(--line);border-radius:12px;padding:10px 14px;font-size:12.5px}
+.unavail h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 6px;font-weight:600}
+.unavail li{margin:4px 0;color:var(--muted)}
+.unavail b{color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-weight:600}
+.panel{padding:18px 20px;min-height:320px}
+.panel h2{margin:0;font-size:18px;text-transform:none;letter-spacing:0;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.panel .about{color:var(--muted);margin:6px 0 14px}
+.runform{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.runform .ctrl{min-width:140px}
+.runform input[type=number],.runform input[type=text]{width:140px}
+.runform .hint{font-size:11px;color:var(--muted);min-height:15px}
+.runform .err{font-size:11.5px;color:var(--bad);min-height:15px}
+.runform input[aria-invalid=true]{border-color:var(--bad)}
+.runform .go{align-self:center;margin-top:6px}
+.checkline{display:flex;gap:8px;align-items:center;font-size:13px;padding-top:8px}
+.notice{padding:14px 16px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);margin:12px 0}
+.notice.bad{border-color:var(--bad)}
+.notice code{font-size:12px}
+.result{margin-top:16px}
+.result.busy>*{opacity:.45;transition:opacity .15s}
+.runline{font-size:12.5px;color:var(--muted);margin-bottom:10px}
+.runline b{color:var(--ink);font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.tile .v{font-size:24px;font-weight:650;letter-spacing:-.01em}
+.tile .k{font-size:12px;color:var(--ink);margin-top:2px}
+.tile .h{font-size:11px;color:var(--muted);margin-top:2px}
+.charts{margin-top:14px}
+.charts .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
+@media(max-width:1100px){.charts .grid2{grid-template-columns:1fr}}
+.charts h3{font-size:12.5px;margin:12px 4px 0;font-weight:600}
+.actions{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.actions .muted{font-size:12.5px}
+a.button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}

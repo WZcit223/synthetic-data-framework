@@ -38,6 +38,13 @@ const PRESETS = {
   skus: [
     { label: "Mean unit price by category and ABC class", view: { rows: [{ field: "category" }], columns: [{ field: "abc_class" }], values: [{ field: "unit_price", agg: "mean" }] }, display: { heatmap: true } },
   ],
+  "synthesis-series": [
+    { label: "Real and synthetic side by side", view: { rows: [{ field: "origin" }], values: [{ field: "value", agg: "mean" }, { field: "value", agg: "median" }, { field: "value", agg: "max" }, { field: "value", agg: "sum" }] } },
+  ],
+  "synthesis-table": [
+    { label: "Real and synthetic side by side", view: { rows: [{ field: "origin" }], values: [{ field: "qty", agg: "mean" }, { field: "price", agg: "mean" }, { field: "hour", agg: "mean" }, { field: "weekday", agg: "mean" }] } },
+    { label: "Spread of price and quantity", view: { rows: [{ field: "origin" }], values: [{ field: "price", agg: "min" }, { field: "price", agg: "median" }, { field: "price", agg: "max" }, { field: "qty", agg: "median" }, { field: "qty", agg: "max" }] } },
+  ],
   experiment: [
     { label: "Outcomes by metric, intervention and policy", view: { rows: [{ field: "metric" }, { field: "intervention" }], columns: [{ field: "policy" }], values: [{ field: "value", agg: "mean" }] } },
   ],
@@ -146,8 +153,24 @@ async function fetchSource(source) {
       meta: { title: "Policy experiment", description: "Each intervention replayed under each policy; one row per outcome metric.", world: null, total: d.rows.length, truncated: false },
     };
   }
-  // interfaces.md §3: the synthesis source shape is read here; its endpoint arrives with the synthesizer catalogue.
-  throw new Error("this server does not run synthesizers yet, so a synthesis link cannot be opened here");
+  // a synthesizer run (interfaces.md §3): repeated with the parameters it reported, so it gives the same table
+  const d = await api("/synthesis/runs", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(source.synthesis),
+  });
+  const used = Object.entries(d.params).map(([k, v]) => `${k} ${JSON.stringify(v)}`).join(", ");
+  return {
+    payload: d,
+    meta: {
+      title: `${d.synthesizer}: real and synthetic`,
+      description: `A run on source “${d.source}”${used ? ` with ${used}` : ""}; origin tells real rows from synthetic ones.`,
+      world: null,
+      total: d.rows.length,
+      truncated: false,
+      kind: d.kind,
+    },
+  };
 }
 
 // Why a link's display settings cannot be used, or null.
@@ -214,7 +237,12 @@ async function loadSource(source, { view = null, display = null } = {}) {
   }
 }
 
-const presetKey = () => (state.source?.dataset != null ? state.source.dataset : state.source?.experiment ? "experiment" : null);
+function presetKey() {
+  if (state.source?.dataset != null) return state.source.dataset;
+  if (state.source?.experiment) return "experiment";
+  if (state.source?.synthesis) return `synthesis-${state.meta?.kind}`;
+  return null;
+}
 
 function fallbackView() {
   const fs = state.table.fields;
@@ -1052,14 +1080,15 @@ function readExperimentForm() {
 
 function fillSourceSelect(unavailable) {
   const opts = state.datasets.map(d => `<option value="dataset:${esc(d.name)}">${esc(d.label)}</option>`).join("");
-  $("#source").innerHTML = `<optgroup label="Datasets">${opts}</optgroup><optgroup label="Experiments"><option value="experiment">Policy experiment (what-if)</option></optgroup>`;
+  $("#source").innerHTML = `<optgroup label="Datasets">${opts}</optgroup><optgroup label="Experiments"><option value="experiment">Policy experiment (what-if)</option></optgroup>`
+    + `<optgroup label="Synthesizers"><option value="synthesis" disabled>Synthesizer run (from the Synthesizers page)</option></optgroup>`;
   const broken = Object.keys(unavailable ?? {});
   if (broken.length) $("#source").title = `Not available: ${broken.join(", ")}`;
 }
 
 function syncSourceSelect() {
   const s = state.source;
-  const value = s?.dataset != null ? `dataset:${s.dataset}` : s?.experiment ? "experiment" : $("#source").value;
+  const value = s?.dataset != null ? `dataset:${s.dataset}` : s?.experiment ? "experiment" : s?.synthesis ? "synthesis" : $("#source").value;
   if ([...$("#source").options].some(o => o.value === value)) $("#source").value = value;
   if (value === "experiment") showExperimentForm();
   else $("#expForm").hidden = true;

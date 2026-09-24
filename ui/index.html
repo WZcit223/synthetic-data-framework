@@ -13,6 +13,7 @@
   <nav class="nav" aria-label="Pages">
     <a href="index.html" aria-current="page">Dashboard</a>
     <a href="explore.html">Explore</a>
+    <a href="synthesizers.html">Synthesizers</a>
   </nav>
   <div class="layers">
     <span class="badge">Foundation Layer</span>
@@ -46,10 +47,14 @@
         <label for="seed">Seed <output id="o_seed">42</output></label>
         <input id="seed" type="range" min="1" max="99" step="1" value="42">
       </div>
+      <div class="ctrl">
+        <label for="gen">Generator</label>
+        <select id="gen" aria-describedby="genNote"></select>
+      </div>
       <button class="primary" id="regen">↻ Regenerate synthetic world</button>
       <span id="status" class="muted"></span>
     </div>
-    <div class="note">Sliders re-drive the <code>GenerationSpec</code> (reference-dataset + generation
+    <div class="note"><span id="genNote"></span> Sliders re-drive the <code>GenerationSpec</code> (reference-dataset + generation
       requirements). This dashboard runs on seeded synthetic data; measured results on real data
       are in <code>docs/VALIDATION.md</code>.</div>
     <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
