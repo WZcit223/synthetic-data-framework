@@ -17,10 +17,15 @@ by a test.
 - New root module `src/sdf/hooks.py` (imports nothing from `sdf`): scan the
   package for markers, read the checklist IDs, render the code index, replace a
   generated block between `<!-- sdf-hooks:begin -->` and `<!-- sdf-hooks:end -->`.
-  Locations are `path::symbol` (the enclosing function or class), not line
-  numbers, so ordinary edits do not churn the index.
+  Locations are `path::symbol` (the innermost enclosing function or class, as a
+  dotted name such as `sdf/synthesis/warehouse.py::WarehouseGenerator._gen_outbound`),
+  not line numbers, so ordinary edits do not churn the index. A marker outside
+  any function or class (a module docstring or module-level comment) is located
+  by its path alone, such as `sdf/observability.py`. Paths are relative to
+  `src/`; each location appears once per row even when it holds several
+  markers.
 - The checklist gains a "Where it plugs in" section holding that block: one row
-  per checklist ID with its markers' locations, or "no code yet".
+  per checklist ID with its markers' locations, or "—" when no code carries it yet.
 - `sdf hooks` prints the index; `sdf hooks --update-doc PATH` rewrites the block.
 - `hooks_test.py`: every marker has an ID and every ID exists in the checklist;
   no bare `ALGORITHM-HOOK:` / `DATA-HOOK:` remains; the checklist's block equals

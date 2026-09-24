@@ -8,7 +8,12 @@ No known loose end of the refactor is left, and its records say it is finished.
 
 - Replace `httpx` with `httpx2` in the `dev` group if FastAPI's test client works
   with it on the locked versions, so the deprecation warning goes away; if it
-  does not, keep `httpx` and record why in this plan's status.
+  does not, keep `httpx` and record why in this plan's status. The locked
+  Starlette (1.6.0) is the source of the warning: `starlette.testclient` imports
+  `httpx2` first and falls back to `httpx` with "Using `httpx` with
+  `starlette.testclient` is deprecated; install `httpx2` instead". The swap is
+  `uv remove --dev httpx && uv add --dev httpx2`, and `api/app_test.py`'s
+  `importorskip` names `httpx2`, or the API tests would skip themselves.
 - `ui/favicon.svg` and its `<link>`, so a dashboard load makes no failing request.
 - `docs/VALIDATION.md`: prose that quotes a number the generated block already
   holds refers to the block instead; a number the block does not hold is added
@@ -30,8 +35,9 @@ No known loose end of the refactor is left, and its records say it is finished.
     `refactor/structure-04-synthesizer-contract`,
     `refactor/structure-05-agent-executor`, `refactor/structure-06-api-state`,
     `refactor/structure-07-ui-separation`;
-  - `refactor/cleanup-plan` and the four `refactor/cleanup-0N-*` branches of
-    this sequence;
+  - `refactor/cleanup-plan`, `refactor/cleanup-01-hook-markers`,
+    `refactor/cleanup-02-data-contracts`, `refactor/cleanup-03-full-audit-log`,
+    `refactor/cleanup-04-finishing`;
   - `feature/repo-governance` (merged as #1).
 
   A branch whose PR is not merged is left and named in the comment. The PR's

@@ -28,7 +28,23 @@ steps share their data through a typed object instead of underscore keys.
   step name, as before, but shares the registry, the warehouse and the analysis
   facade through a `WarehouseRun` dataclass instead of `ctx["registry"]`,
   `ctx["_warehouse"]`, `ctx["_intel"]`. `Pipeline.run` refuses an initial context
-  key that collides with a step name.
+  key that collides with a step name. The contract:
+
+  ```python
+  @dataclass
+  class WarehouseRun:                      # exported from sdf.workflow
+      registry: DataSourceRegistry         # set by ingest
+      warehouse: SyntheticWarehouse | None = None  # set by ingest for a synthetic world
+      intel: WarehouseIntelligence | None = None   # set by application
+
+  RUN_KEY = "warehouse_run"                # ingest puts ctx[RUN_KEY] = WarehouseRun(...)
+
+  Pipeline.run(ctx=None, sink_path=None) -> dict   # signature and result unchanged
+  Pipeline([Step("load", f)]).run({"load": 0})     # ValueError: ... ['load'] collide with step names
+  ```
+
+  `validate`, `application` and `economics` read `ctx[RUN_KEY]`; the result
+  keeps its keys (`pipeline`, `order`, `run`, `trace`, `artifacts`).
 - Tests: one invalid value per rule is rejected with its field named; every
   record of the default world and of both bundled CSVs validates; the workflow
   run record is unchanged.
