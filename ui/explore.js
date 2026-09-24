@@ -6,6 +6,7 @@ import { $, api, compactFormatter, esc, valueFormatter } from "./common.js";
 import { barChart, bindBars, bindLine, lineChart } from "./chart.js";
 import { HEAT, colorBook, heat, inkOn } from "./palette.js";
 import { AGGREGATIONS, GRAINS, OTHER, distinctValues, keptCount, keyId, partLabel, pivot, toCsv, toTable, viewError } from "./pivot.js";
+import { sourceError } from "./sources.js";
 
 const AGG_LABEL = { sum: "Sum", count: "Count", count_distinct: "Distinct", mean: "Mean", median: "Median", min: "Min", max: "Max" };
 const GRAIN_LABEL = { day: "Day", week: "Week", month: "Month", quarter: "Quarter", year: "Year", weekday: "Weekday" };
@@ -45,6 +46,13 @@ const PRESETS = {
     { label: "Real and synthetic side by side", view: { rows: [{ field: "origin" }], values: [{ field: "qty", agg: "mean" }, { field: "price", agg: "mean" }, { field: "hour", agg: "mean" }, { field: "weekday", agg: "mean" }] } },
     { label: "Spread of price and quantity", view: { rows: [{ field: "origin" }], values: [{ field: "price", agg: "min" }, { field: "price", agg: "median" }, { field: "price", agg: "max" }, { field: "qty", agg: "median" }, { field: "qty", agg: "max" }] } },
   ],
+  "effects-effects": [
+    { label: "Effect and interval by metric, intervention and policy", view: { rows: [{ field: "metric" }, { field: "intervention" }, { field: "policy" }], values: [{ field: "effect", agg: "mean" }, { field: "ci_low", agg: "mean" }, { field: "ci_high", agg: "mean" }, { field: "relative_effect", agg: "mean" }] } },
+  ],
+  "effects-replicates": [
+    { label: "Paired difference per replicate", view: { rows: [{ field: "metric" }, { field: "intervention" }, { field: "policy" }], columns: [{ field: "replicate" }], values: [{ field: "difference", agg: "mean" }], filters: { intervention: { exclude: ["baseline"] } } } },
+    { label: "Each arm's value per replicate", view: { rows: [{ field: "metric" }, { field: "intervention" }, { field: "policy" }], columns: [{ field: "replicate" }], values: [{ field: "value", agg: "mean" }] } },
+  ],
   experiment: [
     { label: "Outcomes by metric, intervention and policy", view: { rows: [{ field: "metric" }, { field: "intervention" }], columns: [{ field: "policy" }], values: [{ field: "value", agg: "mean" }] } },
   ],
@@ -53,7 +61,7 @@ const PRESETS = {
 const state = {
   datasets: [], // GET /datasets entries
   catalog: null, // GET /experiments/catalog, fetched when first needed
-  source: null, // {dataset} | {experiment: body} | {synthesis: body}
+  source: null, // {dataset} | {experiment: body} | {synthesis: body} | {effects: {request, table}}
   table: null, // toTable(payload)
   meta: null, // {title, description, world, total, truncated}
   view: emptyView(),
@@ -126,16 +134,6 @@ const aggsFor = f => (f.kind === "measure" ? AGGREGATIONS : ["count", "count_dis
 
 // -- sources --------------------------------------------------------------------------------------
 
-function sourceError(source) {
-  if (!source || typeof source !== "object" || Array.isArray(source)) return "the link names no source";
-  const keys = Object.keys(source);
-  if (keys.length !== 1) return `a source names exactly one of dataset, experiment or synthesis; got ${JSON.stringify(keys)}`;
-  const [k] = keys;
-  if (k === "dataset") return typeof source.dataset === "string" ? null : "dataset must be a name";
-  if (k === "experiment" || k === "synthesis") return source[k] && typeof source[k] === "object" ? null : `${k} must be a request body`;
-  return `unknown source ${JSON.stringify(k)}`;
-}
-
 async function fetchSource(source) {
   if (source.dataset != null) {
     const d = await api(`/datasets/${encodeURIComponent(source.dataset)}`);
@@ -151,6 +149,29 @@ async function fetchSource(source) {
     return {
       payload: d,
       meta: { title: "Policy experiment", description: "Each intervention replayed under each policy; one row per outcome metric.", world: null, total: d.rows.length, truncated: false },
+    };
+  }
+  if (source.effects != null) {
+    // an effect study (causal interfaces.md §1.5): the same request again, on the current world
+    const d = await api("/effects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(source.effects.request),
+    });
+    const replicates = source.effects.table === "replicates";
+    const payload = replicates ? d.replicates : { fields: d.fields, rows: d.rows };
+    const n = d.rows.length ? d.rows[0][d.fields.findIndex(f => f.name === "replicates")] : 0;
+    return {
+      payload,
+      meta: {
+        title: replicates ? "Effect study: every replicate" : "Effect study: effects",
+        description: replicates
+          ? `Each arm's value in each of the ${n} paired replicates, with its difference from that replicate's baseline.`
+          : `Each intervention against the baseline over ${n} paired replicates: the mean difference and its interval.`,
+        world: null,
+        total: payload.rows.length,
+        truncated: false,
+      },
     };
   }
   // a synthesizer run (interfaces.md §3): repeated with the parameters it reported, so it gives the same table
@@ -241,6 +262,7 @@ function presetKey() {
   if (state.source?.dataset != null) return state.source.dataset;
   if (state.source?.experiment) return "experiment";
   if (state.source?.synthesis) return `synthesis-${state.meta?.kind}`;
+  if (state.source?.effects) return `effects-${state.source.effects.table}`;
   return null;
 }
 
@@ -258,6 +280,7 @@ function describeSource(source) {
   if (source?.dataset != null) return `dataset "${source.dataset}"`;
   if (source?.experiment) return "the experiment";
   if (source?.synthesis) return "the synthesizer run";
+  if (source?.effects) return "the effect study";
   return "this source";
 }
 
@@ -1081,14 +1104,15 @@ function readExperimentForm() {
 function fillSourceSelect(unavailable) {
   const opts = state.datasets.map(d => `<option value="dataset:${esc(d.name)}">${esc(d.label)}</option>`).join("");
   $("#source").innerHTML = `<optgroup label="Datasets">${opts}</optgroup><optgroup label="Experiments"><option value="experiment">Policy experiment (what-if)</option></optgroup>`
-    + `<optgroup label="Synthesizers"><option value="synthesis" disabled>Synthesizer run (from the Synthesizers page)</option></optgroup>`;
+    + `<optgroup label="Synthesizers"><option value="synthesis" disabled>Synthesizer run (from the Synthesizers page)</option></optgroup>`
+    + `<optgroup label="Effects"><option value="effects" disabled>Effect study (from the Effects page)</option></optgroup>`;
   const broken = Object.keys(unavailable ?? {});
   if (broken.length) $("#source").title = `Not available: ${broken.join(", ")}`;
 }
 
 function syncSourceSelect() {
   const s = state.source;
-  const value = s?.dataset != null ? `dataset:${s.dataset}` : s?.experiment ? "experiment" : s?.synthesis ? "synthesis" : $("#source").value;
+  const value = s?.dataset != null ? `dataset:${s.dataset}` : s?.experiment ? "experiment" : s?.synthesis ? "synthesis" : s?.effects ? "effects" : $("#source").value;
   if ([...$("#source").options].some(o => o.value === value)) $("#source").value = value;
   if (value === "experiment") showExperimentForm();
   else $("#expForm").hidden = true;

@@ -315,12 +315,16 @@ def ui_paths() -> set[str]:
     return paths
 
 
+PAGES = ("index.html", "explore.html", "synthesizers.html", "effects.html")
+
+
 def test_every_ui_path_is_in_the_openapi_schema(client):
     schema_paths = {re.sub(r"\{[^}]*\}", "{}", p.removeprefix(V1)) for p in get(client, "/openapi.json")["paths"]}
     used = ui_paths()
     assert len(used) >= 19, used
     assert {"/datasets", "/datasets/{}", "/experiments/catalog", "/experiments"} <= used
     assert {"/synthesizers", "/synthesis/sources", "/synthesis/runs", "/world"} <= used
+    assert "/effects" in used
     assert used <= schema_paths, used - schema_paths
     assert re.findall(r'data-export="([a-z]+)"', (UI_DIR / "index.html").read_text(encoding="utf-8"))
     assert "/export" in schema_paths  # the export links are built from API + "/export"
@@ -338,10 +342,10 @@ def test_ui_has_no_inline_event_handler():
     for path in sorted(UI_DIR.glob("*.html")) + sorted(UI_DIR.glob("*.js")):
         text = path.read_text(encoding="utf-8")
         assert not re.findall(r"<[a-zA-Z][^>]*\son[a-z]+\s*=", text), path.name
-    for page in ("index.html", "explore.html", "synthesizers.html"):
+    for page in PAGES:
         html = (UI_DIR / page).read_text(encoding="utf-8")
         assert re.search(r'<script type="module" src="[a-z]+\.js">', html), page
-        for link in ("index.html", "explore.html", "synthesizers.html"):  # the navigation bar
+        for link in PAGES:  # the navigation bar
             assert f'href="{link}"' in html, (page, link)
 
 
@@ -362,7 +366,7 @@ def test_ui_dir_is_mounted_for_development_hosting():
     client = TestClient(create_app(ui_dir=UI_DIR))
     page = client.get("/")
     assert page.status_code == 200 and '<script type="module" src="app.js">' in page.text
-    for url in ("/", "/explore.html", "/synthesizers.html"):
+    for url in ("/", *(f"/{page}" for page in PAGES[1:])):
         html = client.get(url).text
         for asset in re.findall(r'(?:href|src)="([^":#]+)"', html):  # every local file the page loads or links
             assert client.get("/" + asset).status_code == 200, (url, asset)

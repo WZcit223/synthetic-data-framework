@@ -345,7 +345,7 @@ when its PR merges, and each is added to the page's source validator by that
 PR:
 
 ```javascript
-{ effects: { request: {...}, table: "effects" | "replicates" } }   // POST /effects with request; causal PR 2
+{ effects: { request: {...}, table: "effects" | "replicates" } }   // POST /effects with request; served since causal PR 2
 { estimates: { request: {...}, table: "scores" | "data" } }        // POST /causal/estimates with request; causal PR 5
 ```
 
