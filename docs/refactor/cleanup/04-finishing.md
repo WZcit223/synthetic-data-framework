@@ -16,9 +16,28 @@ No known loose end of the refactor is left, and its records say it is finished.
 - Records: `REFACTOR_PREP.md` §5 step 9 marked done with what each part became;
   each sequence overview's status points to the next; this overview's status
   lists the merged PRs.
-- After merge, delete the merged remote branches (`refactor/*`,
-  `feature/repo-governance`, `system-v1/synthetic-data-generation`) and list them
-  in the PR's closing comment.
+- After merge, delete the remote branches of this refactor, by exact name, each
+  only after its pull request is confirmed merged into `main` (the PRs are
+  squash-merged, so `git branch --merged` cannot tell):
+  - `refactor/layout-01-safety-net`, `refactor/layout-02-import-direction`,
+    `refactor/layout-03-module-layout`, `refactor/layout-04-contracts`;
+  - `refactor/correctness-plan`, `refactor/correctness-01-validate`,
+    `refactor/correctness-02-fail-loudly`, `refactor/correctness-03-metrics`,
+    `refactor/correctness-04-demand-profile`;
+  - `refactor/structure-plan`, `refactor/structure-01-split-intelligence`,
+    `refactor/structure-02-simulation-layer`,
+    `refactor/structure-03-retire-rule-policy`,
+    `refactor/structure-04-synthesizer-contract`,
+    `refactor/structure-05-agent-executor`, `refactor/structure-06-api-state`,
+    `refactor/structure-07-ui-separation`;
+  - `refactor/cleanup-plan` and the four `refactor/cleanup-0N-*` branches of
+    this sequence;
+  - `feature/repo-governance` (merged as #1).
+
+  A branch whose PR is not merged is left and named in the comment. The PR's
+  closing comment lists what was deleted. Kept: `main`, the session branch
+  `claude/upbeat-goodall-fb5jdk`, and `system-v1/synthetic-data-generation`,
+  which `CONTRIBUTING.md` keeps as the frozen initial-v1 snapshot.
 
 ## Non-goals
 

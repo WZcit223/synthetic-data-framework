@@ -17,7 +17,7 @@ stays short.
   appends the run's full log to `PATH`.
 - Tests: a logged list longer than three items and a string longer than 240
   characters reach the sink whole; the trace in memory is unchanged; the
-  summary line closes the run; the CLI option writes the file.
+  summary line closes the run; each of the two CLI options writes the file.
 
 ## Non-goals
 
@@ -30,6 +30,7 @@ stays short.
 uv run ruff check && uv run ruff format --check
 uv run pytest
 uv run sdf agent "should I reorder?" --audit-log "$SCRATCH/agent.jsonl"   # full entries in the file
+uv run sdf pipeline --audit-log "$SCRATCH/pipeline.jsonl"                  # full step outputs in the file
 ```
 
 ## Version

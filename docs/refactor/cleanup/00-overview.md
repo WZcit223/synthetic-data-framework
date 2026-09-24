@@ -28,8 +28,8 @@ context and unchecked entity records.
   agent see" afterwards. No command exposes the sink either.
 - **Loose ends.** Starlette warns that its test client prefers `httpx2` over
   `httpx`; the dashboard has no favicon (one 404 per load); `docs/VALIDATION.md`
-  prose still quotes a few hand-copied numbers next to the generated block; 18
-  merged branches remain on the remote.
+  prose still quotes a few hand-copied numbers next to the generated block; the
+  merged branches of the refactor remain on the remote.
 
 ## Decisions taken with the plan
 
@@ -43,9 +43,13 @@ context and unchecked entity records.
 3. `httpx` is replaced by `httpx2` in the `dev` group if FastAPI's test client
    works with it on the locked versions; otherwise `httpx` stays and the plan's
    status records why.
-4. Merged remote branches are deleted after the last PR merges. The session
-   branch `claude/upbeat-goodall-fb5jdk` stays. `feature/repo-governance` was
-   merged as #1 and is deleted with the rest.
+4. After the last PR merges, the remote branches of this refactor are deleted
+   by exact name, each only once its PR is confirmed merged
+   ([`04-finishing.md`](04-finishing.md) lists them). `feature/repo-governance`
+   was merged as #1 and is deleted with them. The session branch
+   `claude/upbeat-goodall-fb5jdk` stays, and so does
+   `system-v1/synthetic-data-generation`, the frozen initial-v1 snapshot
+   `CONTRIBUTING.md` keeps for reference.
 
 ## Sequence
 
