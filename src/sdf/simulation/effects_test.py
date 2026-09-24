@@ -18,6 +18,7 @@ from sdf.synthesis.warehouse import WarehouseGenerator, WarehouseSpecSynthesizer
 from . import catalog, effects as fx
 from .effects import MAX_EFFECT_WORK, EffectStudy, effect_work, snapshot
 from .experiment import Experiment
+from .intervention import SpecIntervention
 from .world import World
 
 SMALL = GenerationSpec(n_skus=30, horizon_days=30)
@@ -312,6 +313,45 @@ def test_custom_interventions_must_be_deterministic_and_leave_their_input_alone(
     with pytest.raises(ValueError, match="intervention appends_later modified its input world"):
         study(interventions=[AppendsLater(), PROMO]).run()  # caught in replicate 1, before PROMO runs on it
     assert study(interventions=[Copies()]).run().effects.rows
+
+
+class AppendingSpike(SpecIntervention):
+    """A subclass of a built-in that overrides apply: checked as a custom intervention, not exempted."""
+
+    def apply(self, world):
+        source = world.registry.sources()[0]
+        source._rows.append(source._rows[0])
+        return super().apply(world)
+
+
+def test_a_subclass_of_a_built_in_is_checked_as_custom():
+    with pytest.raises(ValueError, match="intervention appending_spike modified its input world"):
+        study(interventions=[AppendingSpike("appending_spike", PROMO.tweaks)]).run()
+
+
+@dataclass(frozen=True)
+class CostAgain:
+    """Reports the same metrics as simulated_cost under another outcome name."""
+
+    name: str = "cost_again"
+
+    def measure(self, world, policy):
+        return COST.measure(world, policy)
+
+
+def test_two_outcomes_may_not_report_the_same_metric():
+    with pytest.raises(ValueError, match="outcomes simulated_cost and cost_again both report metric"):
+        study(outcomes=[COST, CostAgain()]).run()
+
+
+def test_what_would_fit_counts_the_custom_re_applications():
+    # One world takes 1 s and measuring is free. Replicate 0 still needs its custom arm and that arm's
+    # second application (2 s); every later replicate needs 3 s. So 10 replicates project to
+    # 2 + 9 × 3 = 29 s and fit, and 11 project to 32 s.
+    fitting = fx._Run(study(interventions=[Copies()], replicates=10))
+    fitting._project(world_seconds=1.0, measure_seconds=0.0)
+    with pytest.raises(ValueError, match="at most 10 replicates would fit"):
+        fx._Run(study(interventions=[Copies()], replicates=11))._project(world_seconds=1.0, measure_seconds=0.0)
 
 
 class Slow(WarehouseSpecSynthesizer):

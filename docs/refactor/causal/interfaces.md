@@ -167,7 +167,9 @@ Rules the implementation keeps:
     its input world".
 
     Built-in interventions are exempt: they only build new worlds
-    (`World.generate`, `World.with_stream`). A custom intervention can only
+    (`World.generate`, `World.with_stream`). Only the exact `Baseline` and
+    `SpecIntervention` types are exempt; a subclass may override `apply`, so
+    it is checked as a custom intervention. A custom intervention can only
     come from Python, never through the API. The held snapshot is therefore
     never exposed to one, and the check protects a Python caller's own
     baseline.
@@ -322,7 +324,7 @@ POST /api/v1/effects
   So `MEASURE_WEIGHT = 0.25` charges each pair at the cost of the heaviest
   measurement. PR 1 re-measures both costs, sets `MEASURE_WEIGHT` and
   `MAX_EFFECT_WORK` so that a request at the limit stays under 30 s whatever
-  its mix (6 policies × all three outcomes included; an outcome may appear once), and tests
+  its mix (6 policies × all three outcomes included; an outcome may appear once, and each metric may come from one outcome), and tests
   that case.
 - **The budget covers the built-in generator; a timing check covers the
   others.** The work formula is calibrated on `warehouse-spec`. A plug-in

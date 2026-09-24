@@ -199,7 +199,7 @@ class _Run:
         )
 
     def _apply(self, intervention: Intervention, world: World, replicate: int) -> World:
-        if isinstance(intervention, Baseline):
+        if type(intervention) is Baseline:
             return world
         self._step(f"applying {intervention.name} in replicate {replicate}")
         if _built_in(intervention):
@@ -212,11 +212,19 @@ class _Run:
 
     def _measure(self, world: World, arm: str, replicate: int) -> Values:
         values: Values = {}
+        source: dict[tuple[str, str], str] = {}  # (policy, metric) -> the outcome that reported it
         for policy in self.study.policies:
             for outcome in self.study.outcomes:
                 self._step(f"measuring {outcome.name} under {policy.name} for {arm} in replicate {replicate}")
                 for metric, value in outcome.measure(world, policy).items():
-                    values[(policy.name, metric)] = value
+                    key = (policy.name, metric)
+                    if key in source:
+                        raise ValueError(
+                            f"outcomes {source[key]} and {outcome.name} both report metric {metric};"
+                            " each metric may come from one outcome"
+                        )
+                    source[key] = outcome.name
+                    values[key] = value
         return values
 
     # -- the study --------------------------------------------------------------------------------
@@ -292,7 +300,10 @@ class _Run:
         )
         if spent + remaining <= MAX_EFFECT_SECONDS:
             return
-        fits = 1 + math.floor((MAX_EFFECT_SECONDS - spent - (arms - 1) * per_arm) / (arms * per_arm))
+        # The largest R whose projection fits: R - 1 full replicates, each with its custom re-applications.
+        per_replicate = arms * per_arm + custom * world_seconds
+        first = (arms - 1) * per_arm + custom * world_seconds
+        fits = 1 + math.floor((MAX_EFFECT_SECONDS - spent - first) / per_replicate)
         advice = (
             f"at most {fits} replicates would fit"
             if fits >= 2
@@ -319,8 +330,11 @@ class _Run:
 
 
 def _built_in(intervention: Intervention) -> bool:
-    """Built-in interventions only build new worlds from the spec, so the generator check covers them."""
-    return isinstance(intervention, (Baseline, SpecIntervention))
+    """Built-in interventions only build new worlds from the spec, so the generator check covers them.
+
+    The exact types only: a subclass may override ``apply`` and is checked as a custom intervention.
+    """
+    return type(intervention) in (Baseline, SpecIntervention)
 
 
 def snapshot(world: World) -> Snapshot:
