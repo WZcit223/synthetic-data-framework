@@ -43,7 +43,7 @@ function select(name) {
 // -- the run panel --------------------------------------------------------------------------------
 
 function control(p) {
-  const hint = [p.nullable ? "empty: none" : "", boundsText(p)].filter(Boolean).join(" · ");
+  const hint = [p.nullable && p.type !== "str" ? "empty: none" : "", boundsText(p)].filter(Boolean).join(" · ");
   if (p.type === "bool" && p.nullable) {
     // three states: a checkbox cannot say "none", and sending false would change the plug-in's default
     const pick = v => (p.default === v ? " selected" : "");
@@ -54,6 +54,14 @@ function control(p) {
   }
   if (p.type === "bool") {
     return `<div class="ctrl"><label class="checkline"><input type="checkbox" data-param="${esc(p.name)}" ${p.default ? "checked" : ""}/>${esc(p.name)}</label>
+      <div class="err" data-err="${esc(p.name)}"></div></div>`;
+  }
+  if (p.type === "str" && p.nullable) {
+    // an empty text is a valid string, so "none" needs its own box
+    const none = p.default == null;
+    return `<div class="ctrl"><label for="p-${esc(p.name)}">${esc(p.name.replaceAll("_", " "))}</label>
+      <input id="p-${esc(p.name)}" type="text" data-param="${esc(p.name)}" value="${esc(p.default ?? "")}"${none ? " disabled" : ""}/>
+      <label class="checkline hint"><input type="checkbox" data-none="${esc(p.name)}"${none ? " checked" : ""}/>none</label>
       <div class="err" data-err="${esc(p.name)}"></div></div>`;
   }
   const numeric = p.type === "int" || p.type === "float";
@@ -102,7 +110,8 @@ function readForm(s) {
   let ok = true;
   for (const p of s.params) {
     const input = document.querySelector(`[data-param="${CSS.escape(p.name)}"]`);
-    const read = readParam(p, input.type === "checkbox" ? input.checked : input.value);
+    const none = document.querySelector(`[data-none="${CSS.escape(p.name)}"]`);
+    const read = readParam(p, input.type === "checkbox" ? input.checked : none?.checked ? null : input.value);
     document.querySelector(`[data-err="${CSS.escape(p.name)}"]`).textContent = read.error ?? "";
     input.setAttribute("aria-invalid", read.error ? "true" : "false");
     if (read.error) ok = false;
@@ -228,6 +237,10 @@ async function init() {
   $("#catalogue").addEventListener("click", e => {
     const card = e.target.closest(".scard");
     if (card) select(card.dataset.name);
+  });
+  $("#panel").addEventListener("change", e => {
+    const box = e.target.closest("[data-none]");
+    if (box) document.querySelector(`[data-param="${CSS.escape(box.dataset.none)}"]`).disabled = box.checked;
   });
   $("#panel").addEventListener("submit", e => {
     e.preventDefault();

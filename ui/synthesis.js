@@ -5,7 +5,7 @@
  * The value a form control holds for one parameter (``Param`` in interfaces.md §2.1),
  * or why it cannot be sent: the same checks the server makes, so a run the form
  * allows is never refused for its parameters.
- * ``raw`` is the input's text, or a boolean for a checkbox.
+ * ``raw`` is the input's text, a boolean for a checkbox, or null for a string set to none.
  */
 export function readParam(param, raw) {
   if (param.type === "bool") {
@@ -13,11 +13,15 @@ export function readParam(param, raw) {
     if (raw === "true" || raw === "false") return { value: raw === "true" }; // the choice of a nullable bool
     return param.nullable ? { value: null } : { error: `${param.name}: choose true or false` };
   }
+  if (param.type === "str") {
+    // "" is a string like any other; only the "none" box (raw null) leaves one unset
+    if (raw == null) return param.nullable ? { value: null } : { error: `${param.name}: enter a value` };
+    return { value: String(raw) };
+  }
   const text = typeof raw === "string" ? raw.trim() : raw;
   if (text === "" || text == null) {
     return param.nullable ? { value: null } : { error: `${param.name}: enter a value` };
   }
-  if (param.type === "str") return { value: String(raw) };
   const value = Number(text);
   if (!Number.isFinite(value)) return { error: `${param.name}: enter a number` };
   if (param.type === "int" && !Number.isInteger(value)) return { error: `${param.name}: enter a whole number` };

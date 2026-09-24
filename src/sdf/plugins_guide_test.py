@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from sdf.application.datasets import default_datasets
-from sdf.application.kpi import kpis
-from sdf.simulation.world import World
-from sdf.synthesis.api import Param
-from sdf.synthesis.registry import default_registry
-from sdf.synthesis.spec import GenerationSpec
-from sdf.validation.evaluation import evaluate
+from .application.datasets import default_datasets
+from .application.kpi import kpis
+from .simulation.world import World
+from .synthesis.api import Param
+from .synthesis.registry import default_registry
+from .synthesis.spec import GenerationSpec
+from .validation.evaluation import evaluate
 
 GUIDE = Path(__file__).resolve().parents[2] / "docs" / "PLUGINS.md"
 
@@ -65,7 +65,7 @@ def test_the_examples_are_served_by_the_api():
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
-    from sdf.api.app import create_app
+    from .api.app import create_app
 
     synthesizers, datasets = default_registry(), default_datasets()
     synthesizers.register(example("synthesizer"))

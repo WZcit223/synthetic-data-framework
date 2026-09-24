@@ -17,6 +17,9 @@ test("a parameter's input is read as the server would accept it", () => {
   assert.deepEqual(readParam(jitter, "1"), { value: 1 }); // inclusive bounds
   assert.deepEqual(readParam(level, "0.99"), { value: 0.99 });
   assert.deepEqual(readParam({ name: "mode", type: "str" }, "fast"), { value: "fast" });
+  assert.deepEqual(readParam({ name: "mode", type: "str", nullable: false }, ""), { value: "" }); // the server accepts ""
+  assert.deepEqual(readParam({ name: "mode", type: "str", nullable: true }, ""), { value: "" });
+  assert.deepEqual(readParam({ name: "mode", type: "str", nullable: true }, null), { value: null }); // the "none" box
   assert.deepEqual(readParam({ name: "flag", type: "bool" }, true), { value: true });
   assert.deepEqual(readParam({ name: "flag", type: "bool" }, false), { value: false });
   const maybe = { name: "flag", type: "bool", default: null, nullable: true };
@@ -29,6 +32,7 @@ test("an input the server would refuse is refused with a reason", () => {
   assert.equal(readParam(seed, "").error, "seed: enter a value");
   assert.equal(readParam(seed, "1.5").error, "seed: enter a whole number");
   assert.equal(readParam(seed, "abc").error, "seed: enter a number");
+  assert.equal(readParam({ name: "mode", type: "str", nullable: false }, null).error, "mode: enter a value");
   assert.equal(readParam(jitter, "1.5").error, "jitter: from 0 to 1");
   assert.equal(readParam(level, "1").error, "level: between 0.5 and 1, both excluded");
   assert.equal(readParam({ name: "flag", type: "bool", nullable: false }, "").error, "flag: choose true or false");
