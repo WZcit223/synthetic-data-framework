@@ -289,6 +289,8 @@ src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
 > 2026-09-23：第 3 步（数值修复）与第 7 步的 `sdf validate` 部分合并为第二个序列，计划在 [`docs/refactor/correctness/`](refactor/correctness/00-overview.md)（4 个 PR：`sdf validate` 单一数字来源 → 错误显式化 → 误差指标 → 需求形态与安全库存）。第 3 步原列出的 C4、C6、I1、I2、S3、S4、S5 放在其 PR 2，C1、C2、C3、C7 在 PR 3，C5 在 PR 4。
 >
 > 2026-09-23：第 4～6 步（拆分分析类、补货策略、API 状态模型、Agent 执行器）与三项后续需求的接口准备（可插拔合成算法、可组合的策略模拟层、独立 UI）合并为第三个序列，计划在 [`docs/refactor/structure/`](refactor/structure/00-overview.md)，接口契约见其 `interfaces.md`。按项目负责人决定，固定补货规则整体删除。
+>
+> 2026-09-24：第 4～6 步由 structure 序列（#13–#20，1.0.0）完成。第 8、9 步与问题清单里剩下的两项（工作流的字符串上下文、实体记录不校验）合并为第四个、也是最后一个序列，计划在 [`docs/refactor/cleanup/`](refactor/cleanup/00-overview.md)。
 
 | 步 | PR 类型（按 CONTRIBUTING） | 内容 | 完成判据 |
 |---|---|---|---|
@@ -296,9 +298,9 @@ src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
 | 1 | 实现 | ~~**特征化测试**~~ 已完成（layout 序列 PR 1）：`src/sdf/conftest.py`、`golden_test.py`、原 `tests/` 按模块拆为同目录 `_test.py`，`pytest.importorskip` 替换 `return`，删除 `tests/` 与 `demo/`；端点契约测试推迟到 API 状态模型那一步一并加 | 不改任何 `src/` 运行时代码；测试全绿 |
 | 2 | 实现 | ~~**依赖方向**~~ 已完成（layout 序列 PR 2）：`synthesis/materialise.py`、`synthesis/spec.py`、`application/scenarios.py` 新建；`cli.build_registry` 与 `synthesis.scenarios.run_scenarios` 直接删除，不留再导出（与 `in-branch-api-compat` 一致）；`sdf/__init__` 只剩 `__version__`；`api/app.py` 改抛 `ImportError`；包内导入改单点相对导入，仅为绕开反向边而存在的函数内导入提升到模块级；`layering_test.py` 断言层方向 | 导入图无反向边（由测试断言）；黄金数字与 `sdf demo` 输出不变 |
 | 3 | 实现 | ~~**需求聚合统一 + 数值修复**~~ 已完成（layout PR 3 统一聚合；correctness 序列 PR 2–4 完成数值修复，C1–C7、I1、I2、S3–S5 均已处理）：`analytics/demand.py`、`analytics/metrics.py`；`warehouse_demo`、`economics`、`forecast`、`knowledge` 改为消费；顺手修 C1、C2、C3、C4、C5、C6、C7、I1、I2、S3、S4、S5 | 黄金数字中 (s,S)/经济/回测项**会变**（C1/C5 影响），新值写回 `VALIDATION.md` 与 `test_golden.py`，并在 PR 里逐项解释差异 |
-| 4 | 实现 | **拆上帝对象**：`application/` 按 §4 拆分，`WarehouseIntelligence` 变门面；`ReplenishmentPolicy` 接口；`knowledge`、`agent`、`scenarios` 显式选策略 | 端点契约测试不变；`insights` 与 `/scenarios` 的"需订 SKU 数"口径在文案里标明策略 |
-| 5 | 实现 | **API 状态模型**：`create_app()`、不可变 `World`、原子替换、`/generate` 参数上限收紧并记录耗时 | 并发 `POST /generate` + `GET` 压测无撕裂；单例仍导出为 `app` |
-| 6 | 实现 | **Agent 执行器**：`agent/` 子包；审批门在 `executor.call` 强制；`ToolResult`；`Planner` 接口 | 新测试：注册一个有副作用的审批工具，断言 `fn` 未被调用 |
+| 4 | 实现 | ~~**拆上帝对象**~~ 已完成（structure 序列 PR 1–3：`application/` 按关注点拆分、`WarehouseIntelligence` 为门面；`simulation/` 层承载策略；按项目负责人决定删除固定规则，所有调用方用 (s,S) 策略）：`application/` 按 §4 拆分，`WarehouseIntelligence` 变门面；`ReplenishmentPolicy` 接口；`knowledge`、`agent`、`scenarios` 显式选策略 | 端点契约测试不变；`insights` 与 `/scenarios` 的"需订 SKU 数"口径在文案里标明策略 |
+| 5 | 实现 | ~~**API 状态模型**~~ 已完成（structure 序列 PR 6–7：`create_app()`、`WorldStore` 原子替换不可变快照、`GenerateLimits`、端点契约测试；随后 API 迁到 `/api/v1`，`POST /world` 取代 `/generate`）：`create_app()`、不可变 `World`、原子替换、`/generate` 参数上限收紧并记录耗时 | 并发 `POST /generate` + `GET` 压测无撕裂；单例仍导出为 `app` |
+| 6 | 实现 | ~~**Agent 执行器**~~ 已完成（structure 序列 PR 5）：`agent/` 子包；审批门在 `executor.call` 强制；`ToolResult`；`Planner` 接口 | 新测试：注册一个有副作用的审批工具，断言 `fn` 未被调用 |
 | 7 | 实现 | **CLI**：~~迁 argparse~~ 已于 PR #3 迁到 click（子命令名与默认值不变，`--help`/`--version` 可用，`cli_test.py` 覆盖）；~~本步只剩新增 `validate` 子命令~~ 已完成（correctness 序列 PR 1）：`sdf validate` 输出 §2.5 全部黄金数字（JSON / markdown），`golden_test.py` 与 `VALIDATION.md` 的生成块读同一份快照 | `cli_test.py` 不变通过；`sdf validate` 输出与 `test_golden.py` 一致 |
 | 8 | 实现 | **HOOK 规范化**：统一标记 + `test_hooks.py`；`CHECKLIST.md` 每行加"代码位置"列（由测试生成） | `grep` 结果与 CHECKLIST ID 集合相等 |
 | 9 | 实现 | 收尾：删 `feature/repo-governance` 远端分支；`VALIDATION.md` 中"默认世界手工调用"类数字改由第 7 步的 `sdf validate` 重跑生成；`observability` 完整落盘 | — |
