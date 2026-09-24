@@ -220,7 +220,10 @@ Over every SKU, origin and day ahead with actual `y`:
   `sdf.analytics.metrics.bias`; `mae` is the mean of `|y − mean|`.
 - `relative_wape` is `wape` divided by the `wape` of `seasonal-naive` (period
   7) on the same points; it is computed even if `seasonal-naive` was not
-  requested, and is below 1 when a forecaster beats it.
+  requested, and is below 1 when a forecaster beats it. When that
+  denominator is 0 (seasonal naive is exact on every point, for example on a
+  constant series) or empty, `relative_wape` is empty (`None`), never a
+  non-finite number.
 - **`pinball`** is the mean, over points and levels τ, of
   `max(τ(y − q_τ), (τ − 1)(y − q_τ))`.
 - **Coverage** is for the central interval between the lowest and highest
@@ -246,7 +249,7 @@ Over every SKU, origin and day ahead with actual `y`:
   "forecasters": [{"name": "seasonal-naive", "description": "…", "global_model": false,
                    "params": [{"name": "period", "type": "int", "default": 7, "min": 1, "max": 365}],
                    "origin": "built-in"}],
-  "unavailable": [{"name": "lightgbm", "reason": "needs lightgbm"}],
+  "unavailable": {"lightgbm": "needs lightgbm"},
   "limits": {"max_forecasters": 6, "max_horizon": 56, "max_origins": 12, "max_quantiles": 9,
              "max_skus": 400, "max_seconds": 30},
   "benchmark": {"params": [{"name": "n_skus", "type": "int", "default": 200, "min": 10, "max": 400}, "…"]}
@@ -417,7 +420,7 @@ values `SimulatedCost` assumes today.
 from sdf.simulation.policy import CostBasedPolicy
 from sdf.simulation.outcome import CostModel
 
-policy = CostBasedPolicy(cost_model=CostModel(), forecaster=None)
+policy = CostBasedPolicy(cost_model=CostModel())
 policy.name            # 'cost-based'
 levels_for(policy, item)
 ```
@@ -427,15 +430,26 @@ minimise the cost of replaying `item.history` under the cost model
 (holding + ordering + lost margin, the `SimulatedCost` pricing):
 
 - candidate `s = μ(L + R) + z · σ · √(L + R)` for
-  `z ∈ {0, 0.5, 1, 1.28, 1.645, 2, 2.5, 3}`, with `μ`, `σ` from
-  `item.profile`, or `μ` from the forecaster's mean over the next `L + R`
-  days when `forecaster` names one;
-- candidate `S − s = m · EOQ` for `m ∈ {0.5, 1, 1.5, 2, 3}`, with
-  `EOQ = √(2 · order_fixed_cost · μ / daily_holding_cost)`;
+  `z ∈ {0, 0.5, 1, 1.28, 1.645, 2, 2.5, 3}`, with `μ` and `σ` from
+  `item.profile` (`σ` is its `variability`);
+- candidate `S − s = m · Q` for `m ∈ {0.5, 1, 1.5, 2, 3}`, with `Q` the
+  economic order quantity `√(2 · order_fixed_cost · μ / daily_holding_cost)`,
+  where `daily_holding_cost = unit_cost · holding_cost_annual_rate /
+  working_days_per_year`. `Q` is capped at `μ · len(item.history)`, one
+  order for the whole history; when `daily_holding_cost` is 0 (a zero
+  holding rate or a zero unit cost, both allowed today) `Q` is that cap, and
+  when `order_fixed_cost` is 0, `Q` is 0 and every candidate order size is 0
+  (order up to `s` each review, as `ServiceLevelPolicy` does). `μ > 0`
+  always: SKUs without demand are skipped before any policy is asked, as
+  today;
 - ties go to the smaller `s`, then the smaller order size.
 
 The grid is part of the contract, so results are reproducible; `levels_for`
-never looks beyond `item.history`. Spike: 60,370 simulated cost against
+never looks beyond `item.history`. Planning with a forecaster's output
+instead of the history's profile is not part of this contract:
+`PolicyInput` carries one SKU's values without the day axis and the other
+SKUs a forecaster needs (§1.2). Whether to add it is decided on PR 2's and
+PR 3's numbers, in its own contract change. Spike: 60,370 simulated cost against
 119,736 for `service-level-95`, out of sample (§5.4).
 
 ### 5.4 Target (after PR 3): out-of-sample replay
@@ -468,7 +482,7 @@ seasonal_residual_anomalies(values, period=7, k=3.5)   # [{'index': 41, 'robust_
 One function over one series; `/api/v1/demand-anomalies` runs it on the
 world's total.
 
-### 6.2 Target (after PR 4): `sdf.analytics.detectors`
+### 6.2 Target (after PR 4): `sdf.analytics.detectors` and `sdf.simulation.signals`
 
 ```python
 @dataclass(frozen=True)
@@ -501,8 +515,11 @@ class Detector(Protocol):
 ```
 
 `ENTRY_POINT_GROUP = "sdf.detectors"`, `DetectorRegistry`,
-`default_detectors()`. The world's frame comes from
-`signal_frame(world, policy=ServiceLevelPolicy()) -> SignalFrame` with three
+`default_detectors()` and `score_detectors` live in `sdf.analytics.detectors`
+and know only `SignalFrame`: `analytics` sits below `simulation` in
+`src/sdf/layering_test.py`, so nothing there imports a world or a policy.
+The world's frame is built one layer up, by
+`sdf.simulation.signals.signal_frame(world, policy=ServiceLevelPolicy()) -> SignalFrame`, with three
 signals: `demand` (daily units), and `on_hand` and `receipts`, the end-of-day
 stock and the units arriving, from replaying the demand under `policy`. The
 world holds one stock snapshot and a few inbound orders, not a daily stock
@@ -525,7 +542,9 @@ gains `record=True`, which fills two new trace fields, `on_hand` and
 ### 6.3 Target (after PR 4): the anomaly benchmark
 
 ```python
+from sdf.analytics.detectors import score_detectors
 from sdf.simulation.benchmark import AnomalyBenchmark
+from sdf.simulation.signals import signal_frame
 
 bench = AnomalyBenchmark(rate=0.01, kinds=("spike", "drop", "shrinkage"), seed=7)
 frame, injected = bench.inject(signal_frame(world))   # injected: set of (sku_id, day, kind)
@@ -538,12 +557,26 @@ scores = score_detectors(["seasonal-residual", "isolation-forest"], frame, injec
   rule finds shrinkage exactly; it is in the benchmark to check that a
   detector reads more than one signal, since a demand-only detector cannot
   see it.
-- `score_detectors` returns an `anomaly-scores` table: `detector`, `kind`
-  (each injected kind, and `all`), `precision`, `recall`, `f1`, `flagged`,
-  `seconds`, `error`. Each detector's detections are cut at its top
-  `len(injected)` scores as well as at its own threshold, and both are
-  reported (`cut` = `threshold` or `top-k`), so a detector is not judged by
-  its threshold alone.
+- `score_detectors` returns an `anomaly-scores` table with one row per
+  detector × kind × cut:
+
+  | Field | Label | Kind | Unit | Aggregate |
+  |---|---|---|---|---|
+  | `detector` | Detector | dimension | | |
+  | `kind` | Anomaly kind (each injected kind, and `all`) | dimension | | |
+  | `cut` | Cut (`threshold` or `top-k`) | dimension | | |
+  | `precision` | Precision | measure | share | mean |
+  | `recall` | Recall | measure | share | mean |
+  | `f1` | F1 | measure | share | mean |
+  | `flagged` | Flagged | measure | rows | sum |
+  | `seconds` | Run time | measure | s | sum |
+  | `error` | Error | dimension | | |
+
+  `threshold` keeps the detections the detector reports; `top-k` keeps its
+  `len(injected)` highest scores. Both are reported so a detector is not
+  judged by its threshold alone. `precision` is empty when nothing is
+  flagged. Per kind, `precision` counts only detections at an injected
+  place of that kind or at no injected place.
 - Spike, 400 injected spikes and drops, demand only: `seasonal-residual`
   precision 0.28 and recall 0.72 at its threshold (1,019 flagged);
   `isolation-forest` 0.21 and 0.53 at the same count.
@@ -630,8 +663,9 @@ uv run sdf prepare-retail online_retail_II_2009-2010.csv online_retail_II_2010-2
 
 - reads the UCI file as CSV (the workbook's two sheets saved as CSV, or the
   CSV copies that circulate with the same columns), with the existing
-  adapter's cleaning rules (cancellations, non-product codes, non-positive
-  quantities). Reading the `.xlsx` directly would need `openpyxl`, which no
+  adapter (rows without a `StockCode` skipped, negative quantities as
+  cancelled orders) and its new option `drop_non_product=True` (postage,
+  manual and fee codes left out; off by default, PR 7). Reading the `.xlsx` directly would need `openpyxl`, which no
   extra installs today; PR 7 adds it to the `synthesis` extra only if the
   project lead prefers that to a one-time conversion;
 - writes a wide daily table: one `date` column and one column per SKU (the
@@ -661,9 +695,13 @@ The limits are published in `GET /forecasters` (and for detectors in
 - No existing name, signature, endpoint answer or entry-point group changes.
   New fields are additive (`demand-series.forecast`, the detection metrics),
   new parameters default to today's behaviour (`holdout_days=None`,
-  `kinds=None`), and the `Policy` protocol keeps `levels(profile)`.
+  `kinds=None`, `drop_non_product=False`), and the `Policy` protocol keeps
+  `levels(profile)`. Catalogue answers keep the shared shape: `unavailable`
+  maps a name to its reason, as for synthesizers and estimators.
 - `sdf demo`, `/api/v1/backtest` and `docs/VALIDATION.md`'s recorded numbers
-  stay byte-identical. New measurements go in new sections of
+  stay byte-identical, with one stated exception: PR 5 re-records the table
+  privacy numbers, because declaring column kinds changes the synthetic rows
+  they are measured on (see its plan). New measurements go in new sections of
   `docs/VALIDATION.md`, each with the command that reproduces it.
 - Checklist markers move with the code: a replaced stand-in keeps its
   `ALGORITHM-HOOK` until the new algorithm is the default, and each new

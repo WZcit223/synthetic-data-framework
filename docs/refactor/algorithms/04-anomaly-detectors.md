@@ -16,8 +16,11 @@ its alarms are real.
   `Detection`, `Detector`, `DetectorRegistry` over the new `sdf.detectors`
   group, `default_detectors()`, and `score_detectors` with the
   `anomaly-scores` table info.
-- **`signal_frame(world, policy=…)`** and `simulate_inventory(record=True)`
-  with the new `on_hand` and `receipts` trace fields (§6.2).
+- **New `sdf.simulation.signals`** with `signal_frame(world, policy=…)`,
+  and `simulate_inventory(record=True)` with the new `on_hand` and
+  `receipts` trace fields (§6.2). The frame is built in `simulation`, not in
+  `analytics`, which may not import a world or a policy
+  (`src/sdf/layering_test.py`); the detectors see only the `SignalFrame`.
 - **Built-ins:** `seasonal-residual` (wrapping
   `seasonal_residual_anomalies`, not copying it) and `isolation-forest`.
 - **`AnomalyBenchmark`** in `sdf.simulation.benchmark` (§6.3).
@@ -45,6 +48,8 @@ its alarms are real.
   (recall 0 on that kind by construction).
 - Both cuts (`threshold`, `top-k`) are reported.
 - The API's 422 cases and a failing detector as an error row.
+- The layering test passes: `sdf.analytics.detectors` imports nothing from
+  `simulation`.
 
 ## Non-goals
 

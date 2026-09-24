@@ -14,7 +14,13 @@ the 5-day extract.
 ## Scope
 
 - **`sdf prepare-retail`** and **`DemandTable.from_daily_csv`** (§9), with
-  the adapter's cleaning rules reused, not copied.
+  the adapter's cleaning rules reused, not copied. Today the adapter
+  (`sdf.foundation.adapters.retail_csv`) skips rows without a `StockCode`
+  and turns negative quantities into cancelled orders; it does not drop
+  non-product codes (postage `POST`, manual `M`, bank charges and the like).
+  This PR adds that rule to the adapter as an option, `drop_non_product`,
+  off by default so every existing load and recorded number is unchanged,
+  and `prepare-retail` turns it on.
 - **With D1 (a):** `data/online_retail_ii_daily_top200.csv` committed with
   its attribution in the header and in `docs/DATASETS.md` (source, licence
   CC BY 4.0, date of download, the command that made it). The file's size is
@@ -30,9 +36,11 @@ the 5-day extract.
 
 ## Tests
 
-- `prepare-retail` on a small hand-made file in the UCI layout: cancellations
-  and non-product codes dropped, days with no sale present as 0, SKUs ranked
-  by units, the header comment written.
+- `drop_non_product`: off, the adapter loads exactly as today; on, the
+  listed non-product codes are skipped and counted in the load report.
+- `prepare-retail` on a small hand-made file in the UCI layout: cancelled
+  lines and non-product codes left out of demand, days with no sale present
+  as 0, SKUs ranked by units, the header comment written.
 - `from_daily_csv` reads back what `prepare-retail` wrote.
 - With D1 (a), a test pins the committed table's shape and totals, so a
   changed file is noticed.
@@ -54,5 +62,6 @@ the 5-day extract.
 
 ## Version
 
-`Version: MINOR` from the version then current — a new command and a new
-reader.
+`Version: MINOR 1.13.0 → 1.14.0` — a new command, a new reader and a new
+adapter option. PR 6 changes no version, so PR 7 follows PR 5's 1.13.0; if
+another release lands first, the PR states its actual transition.

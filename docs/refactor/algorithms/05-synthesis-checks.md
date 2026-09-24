@@ -19,6 +19,16 @@ themselves away by writing whole numbers as decimals.
   synthesizers apply it; the retail feature table declares its kinds.
 - **The evaluation:** `evaluate`, `POST /api/v1/synthesis/runs` and
   `sdf privacy` add the detection metrics next to the privacy ones.
+- **Recorded privacy numbers change, on purpose.** The retail feature table
+  declares its kinds, and that table feeds the privacy report, so the
+  built-ins' synthetic rows change and so do the privacy numbers recorded in
+  `docs/VALIDATION.md` (today: clone risk 4.38 % on the sample and 7.62 % on
+  the extract). This is the one exception in the sequence to "nothing
+  recorded changes": keeping them would mean scoring privacy on rows the
+  evaluation no longer produces. The PR regenerates them with
+  `uv run sdf validate --update-doc docs/VALIDATION.md`, lists the old and
+  new values side by side in its description and in the new "Detection
+  test" section, and changes no other recorded number.
 - **Hook markers.** `detection_report` carries `ALGORITHM-HOOK[B4]` (a
   stronger discriminator, and a real holdout set), which gives row B4 its
   first code marker. The code index is regenerated.
@@ -44,10 +54,8 @@ themselves away by writing whole numbers as decimals.
 - No new synthesizer. Whether a better one (CTGAN, a Bayesian network) is
   worth adding is decided on this PR's numbers, and deep models wait for D3.
 - No change to the privacy metrics or to the series evaluation.
-- No change to any recorded fidelity, TSTR or privacy number. The built-ins'
-  output changes only for evaluations that declare kinds, and the recorded
-  privacy numbers are measured without them; if a recorded number would
-  change, the PR stops and says so.
+- No change to any recorded fidelity or TSTR number (series evaluations do
+  not use `TableData`).
 
 ## Acceptance
 

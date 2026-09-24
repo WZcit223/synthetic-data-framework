@@ -50,15 +50,17 @@ PR re-measures its own numbers.
 
    | Forecast | WAPE % | Pinball loss (10/50/90 %) |
    |---|---|---|
-   | The true mean, knowing the promotion days (a floor no method beats) | 83.5 | 2.61 |
+   | The true mean, knowing the promotion days (an oracle, for comparison only) | 83.5 | 2.61 |
    | Gradient boosting, one model over all SKUs | 84.5 | 2.70 |
    | 28-day moving average | 86.8 | |
    | Seasonal naive (same weekday last week) | 107.6 | |
 
    Most of the error on low-volume SKUs is noise no method removes; the
-   benchmark says how much. (In the spike the forecaster was told the
-   promotion days; in the contract promotions are unannounced, and the floor
-   is the true distribution without them, §3.) On the default world's SKUs the same forecaster
+   benchmark says how much. In the spike both the oracle and the forecaster
+   were told the promotion days. In the contract promotions are unannounced
+   (contract §3), so the reference is the `true-distribution` row without that
+   knowledge; PR 1 reports it and PR 2's targets are set against it, not
+   against this spike's oracle. On the default world's SKUs the same forecaster
    gives WAPE 60.6 % against 80.6 % for seasonal naive.
 2. **Interval coverage needs two numbers on count data.** Demand comes in
    whole units, so outcomes often sit exactly on an interval's bound. The
@@ -138,9 +140,11 @@ PR re-measures its own numbers.
    optional plug-in of the existing `app` extra, listed as unavailable with
    the reason when it is not installed. Deep models (DeepAR, Temporal Fusion
    Transformer, CTGAN) are not in this sequence (decision D3).
-6. **Nothing recorded changes.** `sdf demo`, `/api/v1/backtest` and every
-   number in `docs/VALIDATION.md` stay as they are. New numbers are added in
-   new sections.
+6. **Nothing recorded changes, with one stated exception.** `sdf demo`,
+   `/api/v1/backtest` and every number in `docs/VALIDATION.md` stay as they
+   are, and new numbers go in new sections. The exception is PR 5: declaring
+   column kinds changes the built-in synthesizers' rows, so the table privacy
+   numbers they are measured on are re-recorded, old and new side by side.
 
 ## Decisions for the project lead
 
@@ -184,16 +188,17 @@ starts.
 |---|---|---|---|
 | 1 | [`01-forecasters.md`](01-forecasters.md) | Forecaster plug-ins (`sdf.forecasters`), the built-in models with intervals, a rolling-origin probabilistic backtest, the demand benchmark, `GET /api/v1/forecasters`, `POST /api/v1/forecasts/backtest`, `sdf forecast` | MINOR 1.8.0 → 1.9.0 |
 | 2 | [`02-boosted-forecaster.md`](02-boosted-forecaster.md) | `gradient-boosting` (one model over all SKUs, quantile loss), optional `lightgbm`; the SKU forecast on the dashboard gets its interval | MINOR 1.9.0 → 1.10.0 |
-| 3 | [`03-replenishment.md`](03-replenishment.md) | `CostBasedPolicy`: both levels chosen per SKU on the replayed cost of its history; out-of-sample replay; the forecaster as an option for the demand it plans for | MINOR 1.10.0 → 1.11.0 |
+| 3 | [`03-replenishment.md`](03-replenishment.md) | `CostBasedPolicy`: both levels chosen per SKU on the replayed cost of its history; out-of-sample replay | MINOR 1.10.0 → 1.11.0 |
 | 4 | [`04-anomaly-detectors.md`](04-anomaly-detectors.md) | Detector plug-ins (`sdf.detectors`), the anomaly benchmark (precision, recall), `isolation-forest` over the combined state | MINOR 1.11.0 → 1.12.0 |
 | 5 | [`05-synthesis-checks.md`](05-synthesis-checks.md) | The detection test (B4) in every synthesizer evaluation; column kinds in `TableData`, kept by the built-in table synthesizers | MINOR 1.12.0 → 1.13.0 |
 | 6 | [`06-pages.md`](06-pages.md) | A Forecasts page (forecasters against the benchmark and the world), detectors on the dashboard, detection AUC on the synthesizer page | none (UI and documentation) |
-| 7 | [`07-real-data.md`](07-real-data.md) | Only with D1 (a) or (b): `sdf prepare-retail` and every algorithm of PR 1 to 5 validated on two years of real demand | MINOR (the version then current) |
+| 7 | [`07-real-data.md`](07-real-data.md) | Only with D1 (a) or (b): `sdf prepare-retail` and every algorithm of PR 1 to 5 validated on two years of real demand | MINOR 1.13.0 → 1.14.0 |
 
 ## Non-goals
 
 - **No deep models and no language model** (D2, D3).
-- **No change to the warehouse generator or any recorded number.**
+- **No change to the warehouse generator or any recorded number**, except
+  PR 5's table privacy numbers (Decision 6).
 - **No new core dependency.** LightGBM stays in the `app` extra.
 - **No automatic model selection in production paths.** A forecaster or
   detector becomes a default only through a reviewed PR that records the

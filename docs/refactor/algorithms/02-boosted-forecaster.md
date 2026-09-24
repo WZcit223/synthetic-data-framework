@@ -19,8 +19,11 @@ and interval.
   fallback to `moving-average` for SKUs with less than `min_history` days.
 - **`lightgbm`**, the same design on LightGBM, `requires = ("lightgbm",)`.
   Listed as unavailable with the reason when the `app` extra is not
-  installed. The CI job with the optional extras installs `app` and runs its
-  test.
+  installed.
+- **CI:** `.github/workflows/ci.yml` installs today the `api`, `synthesis`
+  and (on Python 3.13) `causal` extras, not `app`. This PR adds a step that
+  installs `app` and runs the `lightgbm` tests, so they run in CI instead of
+  always skipping, and `AGENTS.md`'s list of CI extras is updated to match.
 - **`demand-series`'s `forecast` block** (§4.2), from the app's default
   forecaster, fitted once per world and cached with it;
   `create_app(forecaster=…)`. The schema marks `forecast_avg_daily` and
