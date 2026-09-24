@@ -289,6 +289,8 @@ src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
 > 2026-09-23：第 3 步（数值修复）与第 7 步的 `sdf validate` 部分合并为第二个序列，计划在 [`docs/refactor/correctness/`](refactor/correctness/00-overview.md)（4 个 PR：`sdf validate` 单一数字来源 → 错误显式化 → 误差指标 → 需求形态与安全库存）。第 3 步原列出的 C4、C6、I1、I2、S3、S4、S5 放在其 PR 2，C1、C2、C3、C7 在 PR 3，C5 在 PR 4。
 >
 > 2026-09-23：第 4～6 步（拆分分析类、补货策略、API 状态模型、Agent 执行器）与三项后续需求的接口准备（可插拔合成算法、可组合的策略模拟层、独立 UI）合并为第三个序列，计划在 [`docs/refactor/structure/`](refactor/structure/00-overview.md)，接口契约见其 `interfaces.md`。按项目负责人决定，固定补货规则整体删除。
+>
+> 2026-09-24：第 4～6 步由 structure 序列（#13–#20，1.0.0）完成。第 8、9 步与问题清单里剩下的两项（工作流的字符串上下文、实体记录不校验）合并为第四个、也是最后一个序列，计划在 [`docs/refactor/cleanup/`](refactor/cleanup/00-overview.md)。
 
 | 步 | PR 类型（按 CONTRIBUTING） | 内容 | 完成判据 |
 |---|---|---|---|
