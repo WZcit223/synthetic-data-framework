@@ -210,7 +210,9 @@ curl -s localhost:8000/api/v1/datasets/nope                        # 404 {"detai
 
 A response holds at most `MAX_DATASET_ROWS = 250_000` rows (and at most `limit`
 when given), read through `head`, so the cap bounds the rows the server keeps
-while a provider yields them; `truncated` says whether rows were left out.
+while a provider yields them; `truncated` says whether rows were left out. A
+provider that fails while building answers 500 with `"dataset <name> could not
+be built: <reason>"`, never a 404.
 
 ```bash
 curl -s localhost:8000/api/v1/experiments/catalog

@@ -52,6 +52,13 @@ def test_built_ins_are_mounted_from_our_entry_points():
             reg.create("gaussian-copula")
 
 
+def test_loading_the_entry_points_again_changes_nothing():
+    reg = default_registry()
+    before = (reg.names(), reg.unavailable())
+    assert reg.load_entry_points() == []
+    assert (reg.names(), reg.unavailable()) == before
+
+
 def _fake_entry_points(*specs):
     from importlib.metadata import EntryPoint
 

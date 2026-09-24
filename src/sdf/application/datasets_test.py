@@ -107,6 +107,12 @@ def _column(table, name):
     return [row[i] for row in table.rows]
 
 
+def test_loading_the_entry_points_again_changes_nothing(cat):
+    again = default_datasets()
+    assert again.load_entry_points() == [] and again.unavailable() == {}
+    assert again.names() == cat.names()
+
+
 def test_the_tables_add_up_to_the_dashboard_figures(cat, world):
     k = kpis(world.registry)
     lines = cat.build("order-lines", world)

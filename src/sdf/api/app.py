@@ -153,14 +153,22 @@ def create_app(
             )
         return {"datasets": entries, "unavailable": catalogue.unavailable()}
 
-    @api.get("/datasets/{name}", response_model=s.DatasetTable, responses={404: {"description": "unknown dataset"}})
+    @api.get(
+        "/datasets/{name}",
+        response_model=s.DatasetTable,
+        responses={404: {"description": "unknown dataset"}, 500: {"description": "the provider failed"}},
+    )
     def dataset(name: str, limit: int | None = Query(None, ge=1, le=MAX_DATASET_ROWS)):
         """One dataset over the current world; rows are arrays in field order."""
         world = store.current.world
         try:
-            table, total = catalogue.head(name, world, min(limit or MAX_DATASET_ROWS, MAX_DATASET_ROWS))
+            catalogue.info(name)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=exc.args[0]) from exc
+        try:
+            table, total = catalogue.head(name, world, min(limit or MAX_DATASET_ROWS, MAX_DATASET_ROWS))
+        except Exception as exc:  # a provider's own failure, a KeyError included, is not an unknown dataset
+            raise HTTPException(status_code=500, detail=f"dataset {name} could not be built: {exc}") from exc
         return {
             "name": table.info.name,
             "label": table.info.label,

@@ -227,6 +227,8 @@ class DatasetCatalog:
         reserved = {e.name for e in declared if _origin(e) == "builtin"}
         for ep in declared:
             origin = _origin(ep)
+            if ep.name in self._entries and _class_path(self._entries[ep.name].cls) == ep.value:
+                continue  # mounted by an earlier call
             if ep.name in self._entries or (origin != "builtin" and ep.name in reserved):
                 self._unavailable[f"{ep.name} ({_dist_name(ep)})"] = f"name already taken; {ep.value} not mounted"
                 continue
@@ -291,6 +293,10 @@ class DatasetCatalog:
             hint = f" ({self._unavailable[name]})" if name in self._unavailable else ""
             raise KeyError(f"unknown dataset {name!r}{hint}; choose from {self.names()}")
         return self._entries[name]
+
+
+def _class_path(cls: type) -> str:
+    return f"{cls.__module__}:{cls.__qualname__}"
 
 
 def _dist_name(ep: EntryPoint) -> str:

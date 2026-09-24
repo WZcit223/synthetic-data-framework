@@ -463,6 +463,24 @@ def test_the_app_serves_a_provider_registered_on_its_catalogue():
     assert [r[0] for r in rows] == ["ecommerce", "store", "wholesale"]
 
 
+def test_a_failing_provider_is_a_500_that_names_it_not_an_unknown_dataset():
+    from typing import ClassVar
+
+    from sdf.application.datasets import DatasetCatalog
+    from sdf.foundation.tables import DatasetInfo, Field
+
+    class Broken:
+        info: ClassVar[DatasetInfo] = DatasetInfo("broken", "Broken", "x", (Field("n", "N", "measure"),))
+
+        def rows(self, world):
+            return [{}["missing"]]
+
+    datasets = DatasetCatalog()
+    datasets.register(Broken)
+    res = TestClient(create_app(datasets=datasets), raise_server_exceptions=False).get(V1 + "/datasets/broken")
+    assert res.status_code == 500 and res.json()["detail"] == "dataset broken could not be built: 'missing'"
+
+
 def test_the_row_limit_applies_while_a_provider_is_read():
     from sdf.application.datasets import DatasetCatalog
     from sdf.application.datasets_test import Counter
