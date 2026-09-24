@@ -84,6 +84,25 @@ class NeedsArgument:
         return []
 
 
+class RowsWithoutWorld:
+    info: ClassVar[DatasetInfo] = DatasetInfo(
+        name="rows-without-world", label="x", description="x", fields=(Field("n", "N", "measure"),)
+    )
+
+    def rows(self):
+        return []
+
+
+class StaticRows:
+    info: ClassVar[DatasetInfo] = DatasetInfo(
+        name="static-rows", label="x", description="x", fields=(Field("n", "N", "measure"),)
+    )
+
+    @staticmethod
+    def rows(world):
+        return [(1,)]
+
+
 def test_the_built_ins_are_mounted_from_the_entry_point_group(cat):
     assert cat.names() == ["inventory", "order-lines", "replenishment-plan", "skus"]
     assert {cat.origin(n) for n in cat.names()} == {"builtin"} and cat.unavailable() == {}
@@ -176,6 +195,14 @@ def test_head_keeps_and_checks_only_the_first_rows_and_counts_the_rest(world):
         cat.head("counter", world, 0)
 
 
+def test_register_checks_that_rows_takes_the_world(world):
+    cat = DatasetCatalog()
+    with pytest.raises(TypeError, match=r"rows-without-world: a dataset provider needs a rows\(world\) method"):
+        cat.register(RowsWithoutWorld)
+    cat.register(StaticRows)
+    assert cat.build("static-rows", world).rows == [(1,)]
+
+
 def test_register_rejects_a_provider_whose_constructor_needs_arguments():
     with pytest.raises(TypeError, match=r"needs-argument: every constructor argument needs a default.*\['path'\]"):
         DatasetCatalog().register(NeedsArgument)
@@ -205,13 +232,18 @@ def test_plug_ins_mount_and_a_broken_or_clashing_one_is_listed_not_raised(monkey
         _entry_point("missing", "no_such_package.tables:Nope", "vendor-pkg"),
         _entry_point("wrong-name", f"{__name__}:ChannelMix", "vendor-pkg"),
         _entry_point("needs-argument", f"{__name__}:NeedsArgument", "vendor-pkg"),
+        _entry_point("rows-without-world", f"{__name__}:RowsWithoutWorld", "vendor-pkg"),
+        _entry_point("static-rows", f"{__name__}:StaticRows [extra]", "vendor-pkg"),
     ]
     monkeypatch.setattr(datasets_module, "entry_points", lambda group: eps)
     cat = default_datasets()
-    assert cat.names() == ["channel-mix", "order-lines"]
+    assert cat.names() == ["channel-mix", "order-lines", "static-rows"]
     assert cat.origin("order-lines") == "builtin" and cat.origin("channel-mix") == "plugin"
     problems = cat.unavailable()
     assert "name already taken" in problems["order-lines (vendor-pkg)"]
     assert "failed to load" in problems["missing"]
     assert "differs from info.name" in problems["wrong-name"]
     assert "constructor argument needs a default" in problems["needs-argument"]
+    assert "needs a rows(world) method" in problems["rows-without-world"]
+    # loading again, an entry point with extras included, changes nothing
+    assert cat.load_entry_points() == [] and cat.unavailable() == problems

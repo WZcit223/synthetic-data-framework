@@ -92,8 +92,8 @@ class SynthesizerRegistry:
         for ep in declared:
             origin = _origin(ep)
             entry = self._entries.get(ep.name)
-            if entry is not None and f"{entry.cls.__module__}:{entry.cls.__qualname__}" == ep.value:
-                continue  # mounted by an earlier call
+            if entry is not None and f"{entry.cls.__module__}:{entry.cls.__qualname__}" == f"{ep.module}:{ep.attr}":
+                continue  # mounted by an earlier call (ep.value may also carry extras)
             if ep.name in self._entries or (origin != "builtin" and ep.name in reserved):
                 holder = (
                     f"a {self._entries[ep.name].origin} synthesizer ({self._entries[ep.name].cls.__module__})"

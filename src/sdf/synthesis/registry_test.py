@@ -68,10 +68,11 @@ def _fake_entry_points(*specs):
 
 def test_a_packaged_plug_in_mounts_like_a_built_in(monkeypatch):
     monkeypatch.setattr(
-        registry_module, "entry_points", _fake_entry_points(("shuffle-series", f"{__name__}:ShuffleSeries"))
+        registry_module, "entry_points", _fake_entry_points(("shuffle-series", f"{__name__}:ShuffleSeries [extra]"))
     )
     reg = default_registry()
     assert reg.names() == ["shuffle-series"] and reg.origin("shuffle-series") == "plugin"
+    assert reg.load_entry_points() == [] and reg.unavailable() == {}  # loading again, extras included, changes nothing
     assert sorted(reg.create("shuffle-series").fit(SeriesData(values=[1.0, 2.0], period=1)).sample()) == [1.0, 2.0]
 
 

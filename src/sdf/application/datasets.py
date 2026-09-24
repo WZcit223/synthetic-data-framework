@@ -200,7 +200,7 @@ class DatasetCatalog:
         info = getattr(cls, "info", None)
         if not isinstance(info, DatasetInfo):
             raise TypeError(f"{getattr(cls, '__name__', cls)!r} has no DatasetInfo `info` class attribute")
-        if not callable(getattr(cls, "rows", None)):
+        if not callable(getattr(cls, "rows", None)) or not _takes_world(cls):
             raise TypeError(f"{info.name}: a dataset provider needs a rows(world) method")
         required = [
             p.name
@@ -227,8 +227,8 @@ class DatasetCatalog:
         reserved = {e.name for e in declared if _origin(e) == "builtin"}
         for ep in declared:
             origin = _origin(ep)
-            if ep.name in self._entries and _class_path(self._entries[ep.name].cls) == ep.value:
-                continue  # mounted by an earlier call
+            if ep.name in self._entries and _class_path(self._entries[ep.name].cls) == f"{ep.module}:{ep.attr}":
+                continue  # mounted by an earlier call (ep.value may also carry extras)
             if ep.name in self._entries or (origin != "builtin" and ep.name in reserved):
                 self._unavailable[f"{ep.name} ({_dist_name(ep)})"] = f"name already taken; {ep.value} not mounted"
                 continue
@@ -293,6 +293,20 @@ class DatasetCatalog:
             hint = f" ({self._unavailable[name]})" if name in self._unavailable else ""
             raise KeyError(f"unknown dataset {name!r}{hint}; choose from {self.names()}")
         return self._entries[name]
+
+
+def _takes_world(cls: type) -> bool:
+    """Whether ``cls().rows(world)`` binds: a plain method takes self and the world; a static or class method, the world."""
+    args = (None, None) if inspect.isfunction(inspect.getattr_static(cls, "rows")) else (None,)
+    try:
+        signature = inspect.signature(cls.rows)
+    except (TypeError, ValueError):
+        return True  # no signature to read (a builtin): the build reports a mismatch
+    try:
+        signature.bind(*args)
+    except TypeError:
+        return False
+    return True
 
 
 def _class_path(cls: type) -> str:
