@@ -31,18 +31,26 @@ const state = {
 export async function routeEstimate({ onAddress } = {}) {
   if (onAddress) state.onAddress = onAddress;
   if (!state.catalog) {
+    // one load, however many addresses arrive while it is in flight; the form is wired once, with it
+    loading ??= api("/estimators").then(catalog => {
+      state.catalog = catalog;
+      state.colors = estimatorColors(catalog.estimators.map(e => e.name));
+      wire();
+    });
     try {
-      state.catalog = await api("/estimators");
+      await loading;
     } catch (err) {
+      loading = null; // a later visit tries again
       $("#estimateResult").innerHTML = `<div class="notice bad"><b>Could not load the estimators.</b> ${esc(err.detail ?? err.message)}</div>`;
       return;
     }
-    state.colors = estimatorColors(state.catalog.estimators.map(e => e.name));
-    wire();
+    if (readEstimateHash(location.hash) === null) return; // the user left this view while it loaded
   }
   if (location.hash === state.written && state.result) return; // the address this view wrote itself
   loadFromAddress();
 }
+
+let loading = null; // the catalogue's load, shared by every call made while it runs
 
 function wire() {
   $("#estimateForm").addEventListener("submit", e => {

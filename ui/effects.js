@@ -466,17 +466,25 @@ async function route() {
   }
   showView("simulate");
   if (!state.catalog) {
+    catalogLoad ??= api("/experiments/catalog"); // one load, however many addresses arrive meanwhile
+    let catalog;
     try {
-      state.catalog = await api("/experiments/catalog");
+      catalog = await catalogLoad;
     } catch (err) {
+      catalogLoad = null; // a later visit tries again
       $("#result").innerHTML = `<div class="notice bad"><b>Could not load the catalogue.</b> ${esc(err.detail ?? err.message)}</div>`;
       return;
     }
+    if (state.catalog) return; // an earlier call, waiting on the same load, has already shown the view
+    state.catalog = catalog;
+    if (readEstimateHash(location.hash) !== null) return; // the user moved to the other view while it loaded
     loadFromAddress();
   } else if (location.hash !== state.written) {
     loadFromAddress();
   }
 }
+
+let catalogLoad = null; // the experiment catalogue's load, shared by every call made while it runs
 
 function showView(which) {
   const estimate = which === "estimate";
