@@ -44,7 +44,8 @@ confidence interval, and the relative change.
     refused with the message of §1.2, and `warehouse-spec` passes;
   - the check compares against the held world: a runtime generator whose
     first call differs from its later, mutually identical calls is refused
-    through the API, and replicate 0's baseline rows equal
+    through the API, including one that changes only an unmeasured stream
+    (for example one SKU's name), and replicate 0's baseline rows equal
     `POST /experiments` on the current world;
   - `warehouse-spec`'s pairing: the baseline and `promo_spike` worlds of one
     seed share their SKU and location tables;

@@ -105,8 +105,13 @@ Rules the implementation keeps:
     for replicate 0's spec. The reference is `baseline` when given; the API
     passes the snapshot's current world, the very world `POST /experiments`
     measures. Without `baseline` (the CLI), the reference is one generation
-    of that spec. The study generates the spec once more and compares every
-    policy × outcome value with the reference's. If any differs, it refuses
+    of that spec. The study generates the spec once more and compares the
+    two worlds' data, not only their measurements. Every source in
+    `world.registry.sources()` must match by name, entity type and rows, in
+    order, with rows compared by their dataclass equality. Every policy ×
+    outcome value must match too. So a stateful generator that changes SKUs,
+    inventory or any other rows, measured or not, is caught. If anything
+    differs, it refuses
     with `ValueError`: "generator X is not deterministic in its spec; paired
     effects need the same world for the same seed" (422 through the API).
 
