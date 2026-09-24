@@ -519,7 +519,13 @@ class Design:
 
 
 def design(table: Table, question: CausalQuestion) -> Design:
-    """Raises ValueError for every refusal listed above, naming the field or covariate."""
+    """Raises ValueError for the question and table refusals listed above, naming the field or covariate.
+
+    Two checks are not design's, because they need more than the table and the
+    question: the confidence level, checked by EstimatorRegistry.estimate and
+    score; and identification (rank and residual degrees of freedom), checked
+    per estimator by the registry with that estimator's uses_covariates.
+    """
 ```
 
 ### 3.2 Target (after PR 4): the built-ins and the `causal` extra
@@ -621,8 +627,9 @@ class BenchmarkDraw:
 - the API's `Param.check` and the page's `readParam` apply it.
 
 So a direct Python caller, the API and the form refuse exactly the same
-values. `Param` and `synthesizer_params` come from `sdf.synthesis`, a lower
-layer than `sdf.simulation`.
+values. The imports are `from sdf.synthesis.api import Param` and
+`from sdf.synthesis.registry import synthesizer_params`: the synthesis layer,
+below `sdf.simulation`.
 
 - **Units.** SKUs with demand in the world.
 - **Observed fields**, in this order:
@@ -642,8 +649,11 @@ layer than `sdf.simulation`.
     are the SKUs with demand.
   - `log_price` is `log(1 + unit price)`, so a SKU with a unit price of 0
     (valid in the schema) gives 0 instead of an infinite value.
-- **The mechanism.** The standardised log demand is z. The probability of
-  promotion is `1 / (1 + exp(0.5 − confounding × z))`.
+- **The mechanism.** The standardised log demand is
+  `z = (log_demand − mean) / sd`. When `sd` is 0 (every SKU has the same
+  demand), `z = 0` for all, so promotion is random whatever the
+  confounding. PR 4 tests it. The probability
+  of promotion is `1 / (1 + exp(0.5 − confounding × z))`.
   - Unpromoted units are `y(0) = 7 × mean daily demand × e`, with `e` lognormal
     (0, noise).
   - Promoted units are `y(1) = (1 + uplift) × y(0)`.
@@ -763,16 +773,19 @@ POST /api/v1/causal/estimates
   the store's snapshot, not the one this request holds.
 - **Limits.** Estimation runs synchronously, so its size is bounded like an
   effect study's:
-  - at most `MAX_ESTIMATE_ROWS` rows. A catalogue dataset is read through a
-    bounded stream: the handler takes rows from the provider's `rows(world)`
+  - at most `MAX_ESTIMATE_ROWS` rows **read from the provider**, before the
+    missing-value rule. The cap counts what is held in memory, so rows
+    dropped later for a missing value still count. A catalogue dataset is
+    read through a bounded stream: the handler takes rows from the provider's `rows(world)`
     iterator and stops at `MAX_ESTIMATE_ROWS + 1`, without reading or counting
     the rest. The `+ 1` is only there to detect overflow. A dataset that
     reaches it answers 422: "more than MAX_ESTIMATE_ROWS rows". The cap
     bounds memory: that many rows are held, the same rows
     `GET /datasets/{name}?limit=` already reads. It does not bound time. A
     provider can be slow per row, so the stream also checks the request's
-    deadline between rows (§5), and the missing-value rule applies to the
-    rows it keeps;
+    deadline between rows (§5). The missing-value rule then drops rows from
+    those read, and the at-least-two-treated-and-control check applies to
+    what remains;
   - at most 6 estimators per request.
 
   `ipw`'s 200 bootstrap fits dominate. On the largest built-in dataset

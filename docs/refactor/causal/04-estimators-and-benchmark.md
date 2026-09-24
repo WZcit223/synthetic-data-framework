@@ -69,7 +69,9 @@ on data where the truth is known.
     once the deadline passes;
     a constant outcome shared by both groups gives a finite zero-width row
     that stays;
-  - the benchmark: exact truth, `confounding=0` is unconfounded, the
+  - the benchmark: exact truth, `confounding=0` is unconfounded, a world
+    whose SKUs all share one demand gives `z = 0` (random promotion) instead
+    of a division by zero, the
     parameter bounds refused by `PromotionBenchmark(...)` itself and by the
     API alike, and a SKU with unit price 0 giving `log_price` 0;
   - `score`'s `seconds` per estimator, empty for one not run;
