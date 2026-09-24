@@ -54,6 +54,8 @@ INVALID = [
     ("outbound", "quantity", 0),
     ("outbound", "quantity", True),
     ("outbound", "channel", "fax"),
+    ("outbound", "channel", []),
+    ("sku", "abc_class", {}),
     ("outbound", "priority", "urgent"),
     ("outbound", "status", "returned"),
     ("sensor", "location_id", ""),
@@ -74,6 +76,7 @@ def test_valid_records_and_the_allowed_edges_build():
     assert replace(VALID["outbound"], status="cancelled").status == "cancelled"
     assert replace(VALID["sensor"], value=-3.5).value == -3.5  # a temperature may be negative
     assert replace(VALID["location"], level=0).level == 0  # ground level
+    assert replace(VALID["inventory"], on_hand=10**400).on_hand == 10**400  # an int of any size is finite
     assert replace(VALID["inbound"], lead_time_days=0).lead_time_days == 0  # same-day delivery
 
 

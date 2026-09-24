@@ -30,6 +30,13 @@ OUTBOUND_STATUSES = frozenset({"created", "picked", "shipped", "cancelled"})
 SENSOR_MODALITIES = frozenset({"temperature", "humidity", "occupancy", "vision_occupancy"})
 
 
+def _finite_number(value: Any) -> bool:
+    """A real int or float that is not NaN or infinite (an int of any size is finite)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return isinstance(value, int) or math.isfinite(value)
+
+
 class Entity:
     """Mixin giving every entity a uniform ``to_dict`` for serialisation."""
 
@@ -48,17 +55,18 @@ class Entity:
     def _not_negative(self, *names: str) -> None:
         for name in names:
             value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+            if not _finite_number(value) or value < 0:
                 self._fail(name, "must be a finite number that is not negative")
 
     def _positive(self, *names: str) -> None:
         for name in names:
             value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            if not _finite_number(value) or value <= 0:
                 self._fail(name, "must be a finite positive number")
 
     def _one_of(self, name: str, allowed: frozenset[str]) -> None:
-        if getattr(self, name) not in allowed:
+        value = getattr(self, name)
+        if not isinstance(value, str) or value not in allowed:  # a list or dict is not hashable
             self._fail(name, f"must be one of {sorted(allowed)}")
 
 
@@ -179,5 +187,5 @@ class SensorReading(Entity):
     def __post_init__(self) -> None:
         self._identifier("location_id")
         self._one_of("modality", SENSOR_MODALITIES)
-        if isinstance(self.value, bool) or not isinstance(self.value, (int, float)) or not math.isfinite(self.value):
+        if not _finite_number(self.value):
             self._fail("value", "must be a finite number")
