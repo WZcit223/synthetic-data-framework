@@ -21,6 +21,8 @@ test("an effects source holds a request and one of its two tables", () => {
   assert.match(sourceError({ effects: { request, table: "effects", view: {} } }), /only request and table; got \["view"\]/);
   assert.match(sourceError({ effects: "promo_spike" }), /effects must hold a request and a table/);
   assert.match(sourceError({ effects: { request: { ...request, check_only: true }, table: "effects" } }), /budget only/);
+  assert.match(sourceError({ effects: { request: { ...request, check_only: "yes" }, table: "effects" } }), /budget only/);
+  assert.equal(sourceError({ effects: { request: { ...request, check_only: false }, table: "effects" } }), null);
 });
 
 test("a source names exactly one known shape", () => {

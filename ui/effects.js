@@ -390,6 +390,7 @@ function dotTip(r, color) {
 async function loadFromAddress() {
   // a new address is a new study: the previous result, and any run still in flight, no longer apply
   const load = ++state.loadSeq;
+  state.written = location.hash; // the address this page now shows: going back to an earlier one reloads it
   state.runSeq++;
   state.running = false;
   state.result = null;

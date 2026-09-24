@@ -24,7 +24,8 @@ function effectsError(effects) {
   const extra = Object.keys(effects).filter(k => k !== "request" && k !== "table");
   if (extra.length) return `effects holds only request and table; got ${JSON.stringify(extra)}`;
   if (!isObject(effects.request)) return "effects.request must be a request body";
-  if (effects.request.check_only === true) return "effects.request asks for the budget only, which has no table";
+  // only a study has tables: check_only may be absent or false, nothing else
+  if ("check_only" in effects.request && effects.request.check_only !== false) return "effects.request asks for the budget only, which has no table";
   if (!EFFECT_TABLES.includes(effects.table)) return `effects.table must be one of ${EFFECT_TABLES.join(" or ")}`;
   return null;
 }

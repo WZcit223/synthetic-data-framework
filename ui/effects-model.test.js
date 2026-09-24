@@ -88,6 +88,9 @@ test("numbers are rounded as sdf effects rounds them", () => {
   assert.equal(amount(-0.263, { signed: true, ...en }), "−0.263");
   assert.equal(amount(46.51, en), "46.5");
   assert.equal(amount(6.79e-6, { signed: true, ...en }), "+6.79e−6");
+  assert.equal(amount(0.0005, en), "0.0005"); // fixed down to 1e-4, as Python's .3g
+  assert.equal(amount(0.000123, en), "0.000123");
+  assert.equal(amount(5e-5, en), "5e−5"); // trailing zeros dropped, as .3g drops them
   assert.equal(amount(0, { signed: true, ...en }), "0");
   assert.equal(amount(null), "–");
   assert.equal(intervalText({ ci_low: -1.39, ci_high: 0.866 }, "en-US"), "−1.39 to +0.866");

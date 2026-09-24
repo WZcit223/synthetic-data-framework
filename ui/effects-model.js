@@ -56,7 +56,7 @@ export function replicateRows(effects, replicates, metric) {
 
 /**
  * A number rounded as ``sdf effects`` rounds it: whole from 100 up, else three significant
- * digits, and scientific below 0.001. The digits match the CLI's; the thousands separator is
+ * digits, and scientific below 0.0001. The digits match the CLI's; the thousands separator is
  * the reader's locale, as on every page (the CLI prints a space). A true minus sign;
  * ``signed`` adds "+" to a positive value.
  */
@@ -66,7 +66,11 @@ export function amount(v, { signed = false, locale = undefined } = {}) {
   const a = Math.abs(v);
   let text;
   if (a >= 100) text = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(a);
-  else if (a !== 0 && a < 0.001) text = a.toExponential(2).replace("e-", "e−");
+  else if (a !== 0 && a < 0.0001) {
+    // Python's "{:.3g}" (the CLI) turns scientific below 1e-4 and drops trailing zeros: 5e-05, 6.79e-06
+    const [mantissa, exponent] = a.toExponential(2).split("e");
+    text = `${Number(mantissa)}e${exponent.replace("-", "−")}`;
+  }
   else text = new Intl.NumberFormat(locale, { maximumSignificantDigits: 3 }).format(a);
   return sign + text;
 }
