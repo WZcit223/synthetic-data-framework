@@ -38,7 +38,7 @@ class Field:
     label: str                # what a person reads
     kind: Kind                # dimension: group by it; time: an ISO date 'YYYY-MM-DD'; measure: a number
     unit: str | None = None   # measures only, for example 'units' or 'currency'
-    aggregate: Aggregate = "sum"   # measures only: the aggregation the pivot page selects first
+    aggregate: Aggregate | None = None   # measures only: the aggregation the pivot page selects first
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,9 @@ class Table:
 ```
 
 `Field` rejects an unknown kind, a unit or aggregate on a non-measure, and a name
-that is not `lower_snake_case`. `DatasetInfo` rejects duplicate field names.
+that is not `lower_snake_case`. A measure without an aggregate gets `"sum"`, so
+`Field("channel", "Channel", "dimension")` and `Field("lines", "Lines",
+"measure")` are both valid and the second one's `aggregate` is `"sum"`. `DatasetInfo` rejects duplicate field names.
 `Table` checks that every row has exactly one value per field.
 
 ### 1.2 Target (after PR 1): the dataset catalogue
@@ -158,15 +160,18 @@ is reported by `unavailable()`; it never breaks the catalogue or the API.
 
 Every endpoint is under `/api/v1`; its OpenAPI schema is the contract with the UI.
 A table travels as `{"fields": [Field…], "rows": [[…], …]}`: a field is
-`{"name", "label", "kind", "unit", "aggregate"}` and a row is an array in field
-order.
+`{"name", "label", "kind", "unit", "aggregate"}` (`unit` and `aggregate` are
+`null` on dimensions and time fields) and a row is an array in field order. The
+one exception is the experiment result, whose rows were objects before this
+sequence and stay objects keyed by field name, so its existing clients keep
+working; `toTable` (§3) accepts both forms.
 
 ### 2.1 Target (after PR 1)
 
 ```bash
 curl -s localhost:8000/api/v1/datasets
 # {"datasets": [{"name": "inventory", "label": "Inventory", "description": "…", "origin": "builtin",
-#                "fields": [{"name": "sku_id", "label": "SKU", "kind": "dimension", "unit": null, "aggregate": "sum"}, …]},
+#                "fields": [{"name": "sku_id", "label": "SKU", "kind": "dimension", "unit": null, "aggregate": null}, …]},
 #               …],
 #  "unavailable": {}}
 

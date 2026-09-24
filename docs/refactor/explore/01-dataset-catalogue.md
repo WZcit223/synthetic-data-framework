@@ -63,5 +63,5 @@ The examples in `interfaces.md` §1.2 and §2.1 run as written, checked by tests
 
 ## Version
 
-`Version: MINOR 1.3.1 → 1.4.0` — a new module, a new plug-in group and four new
-endpoints.
+`Version: MINOR 1.3.1 → 1.4.0` — new modules, a new plug-in group, three new
+endpoints and an added field on the experiment result.

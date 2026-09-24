@@ -16,9 +16,11 @@ write and mount their own synthesizer or dataset.
   - *Catalogue.* A card per synthesizer: name, what it produces (series, table
     or warehouse), its origin (built-in, plug-in or runtime), its description
     and required modules. Unavailable synthesizers are listed with their reason.
-  - *Run panel.* A form built from the synthesizer's parameters: number and text
-    inputs with their bounds, defaults shown, invalid input flagged before
-    sending. It also takes a source choice and a Run button.
+  - *Run panel.* A form built from the synthesizer's parameters, one control
+    per parameter type: a number input for `int` (whole numbers only) and
+    `float`, with its bounds; a text input for `str`; a checkbox for `bool`,
+    sent as JSON `true` or `false`. Defaults are pre-filled, and invalid input
+    is flagged before sending. It also takes a source choice and a Run button.
   - *Result.* Score tiles:
     - series synthesizer: fidelity score, KS statistic, profile correlation,
       mean and standard-deviation deltas;
@@ -48,8 +50,9 @@ write and mount their own synthesizer or dataset.
 ## Non-goals
 
 - No backend change beyond what PR 3 delivered.
-- No installing of packages from the UI: a plug-in is installed with `uv` (or
-  pip) in the environment that runs the API, then appears in the catalogue.
+- No installing of packages from the UI: a plug-in is added with `uv` to the
+  environment that runs the API (for example `uv add my-synth-plugin`), then
+  appears in the catalogue.
 
 ## Acceptance
 

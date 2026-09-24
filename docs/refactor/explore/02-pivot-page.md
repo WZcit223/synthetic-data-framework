@@ -23,7 +23,8 @@ not from cells.
 **Page (`ui/explore.html`, `ui/explore.js`)**:
 
 - *Source bar.* A dataset picker fed by `GET /datasets`, showing each dataset's
-  description and row count, and an **Experiment** source that builds a request
+  description (its row count, `total_rows`, appears once the dataset is
+  loaded), and an **Experiment** source that builds a request
   from `GET /experiments/catalog` (interventions, policies with their
   parameters, outcomes) and pivots the `POST /experiments` result.
 - *Field list.* Fields grouped as Dimensions, Time and Measures, each with its

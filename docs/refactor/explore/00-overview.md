@@ -67,7 +67,7 @@ starts.
 |---|---|---|---|
 | 1 | [`01-dataset-catalogue.md`](01-dataset-catalogue.md) | Dataset catalogue with typed fields; `GET /api/v1/datasets`, `GET /api/v1/datasets/{name}`, `GET /api/v1/experiments/catalog`; the experiment result carries its fields | MINOR 1.3.1 → 1.4.0 |
 | 2 | [`02-pivot-page.md`](02-pivot-page.md) | The Explore page: a pivot table and chart over any catalogue table or experiment result | none (UI only) |
-| 3 | [`03-synthesizer-catalogue.md`](03-synthesizer-catalogue.md) | `GET /api/v1/synthesizers` with parameters, `POST /api/v1/synthesis/runs`, and `POST /api/v1/world` choosing its synthesizer | MINOR → 1.5.0 |
+| 3 | [`03-synthesizer-catalogue.md`](03-synthesizer-catalogue.md) | `GET /api/v1/synthesizers` with parameters, `POST /api/v1/synthesis/runs`, and `POST /api/v1/world` choosing its synthesizer | MINOR 1.4.0 → 1.5.0 |
 | 4 | [`04-synthesizer-page.md`](04-synthesizer-page.md) | The Synthesizers page, the world-generator choice on the dashboard, and the plug-in guide | none (UI and documentation) |
 
 ## Non-goals
