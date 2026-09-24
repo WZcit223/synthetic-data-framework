@@ -54,6 +54,7 @@ const state = {
   showAll: false,
   result: null, // the last table pivot, for export and re-render
   seq: 0, // the latest source request; an older answer is dropped
+  seriesKey: null, // the column fields the chart's colours were assigned for
   written: "", // the last #view= this page wrote
 };
 const colors = colorBook();
@@ -574,6 +575,12 @@ function renderChart() {
   const names = hasCols ? res.columns.map(c => (c.key[0] === OTHER ? `Other (${folded} more)` : c.key.map(partLabel).join(" / "))) : ["value"];
   // colours follow the column's key, not its label: two columns may read alike
   const ids = hasCols ? res.columns.map(c => keyId(c.key)) : ["value"];
+  // a new series field (or grain) starts the colours afresh; a filter keeps them
+  const seriesKey = keyId(v.columns.map(a => [a.field, a.grain ?? null]));
+  if (seriesKey !== state.seriesKey) {
+    colors.reset();
+    state.seriesKey = seriesKey;
+  }
   const byId = colors.assign(ids, folded ? keyId([OTHER]) : null);
   const colorOf = j => byId.get(ids[j]);
   const width = Math.max(320, $("#result").clientWidth - 24);
@@ -947,10 +954,10 @@ function addPolicyRow(p = {}) {
     row.querySelector(".params").innerHTML = spec.params.map(pr => {
       const step = pr.type === "int" ? 1 : 0.005;
       const val = p.kind === k && p[pr.name] != null ? p[pr.name] : pr.default;
-      const bounds = `${pr.min != null ? ` min="${pr.min}"` : ""}${pr.max != null ? ` max="${pr.max}"` : ""}`;
+      const bounds = `${pr.min != null ? ` min="${esc(pr.min)}"` : ""}${pr.max != null ? ` max="${esc(pr.max)}"` : ""}`;
       const hint = pr.min != null && pr.max != null ? `${pr.exclusive ? "between" : "from"} ${pr.min} ${pr.exclusive ? "and" : "to"} ${pr.max}` : "";
       return `<div class="ctrl"><label>${esc(pr.name.replaceAll("_", " "))}</label>`
-        + `<input type="number" data-param="${esc(pr.name)}" data-type="${pr.type}" value="${val}" step="${step}"${bounds} title="${esc(hint)}"/></div>`;
+        + `<input type="number" data-param="${esc(pr.name)}" data-type="${esc(pr.type)}" value="${esc(val)}" step="${step}"${bounds} title="${esc(hint)}"/></div>`;
     }).join("");
   };
   row.innerHTML = `<div class="ctrl"><label>Policy</label><select class="kind-select">${cat.policies.map(c => `<option ${c.kind === kind ? "selected" : ""}>${esc(c.kind)}</option>`).join("")}</select></div>`
@@ -1068,6 +1075,7 @@ function bindPage() {
     if (v === "experiment") {
       hideTip();
       state.seq++; // a dataset still loading must not replace the form
+      setBusy(false); // and its request no longer counts as work in progress
       state.table = null;
       state.meta = null;
       state.source = null;
