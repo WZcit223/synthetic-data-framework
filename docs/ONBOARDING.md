@@ -39,6 +39,7 @@ uv run sdf pipeline             # DAG workflow run record
 uv run sdf impact               # counterfactual £ economics
 uv run sdf scenarios            # what-if scenario family
 uv run sdf privacy [csv]        # DCR / NNDR / clone-risk
+uv run sdf hooks                # where each checklist item plugs into the code
 ```
 
 `[csv]` defaults to `data/sample_online_retail_ii.csv`.
