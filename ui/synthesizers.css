@@ -23,10 +23,10 @@
 .panel .about{color:var(--muted);margin:6px 0 14px}
 .runform{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;padding:14px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .runform .ctrl{min-width:140px}
-.runform input[type=number],.runform input[type=text]{width:140px}
+.runform input[type=number],.runform input[type=text],.runform select{width:140px}
 .runform .hint{font-size:11px;color:var(--muted);min-height:15px}
 .runform .err{font-size:11.5px;color:var(--bad);min-height:15px}
-.runform input[aria-invalid=true]{border-color:var(--bad)}
+.runform input[aria-invalid=true],.runform select[aria-invalid=true]{border-color:var(--bad)}
 .runform .go{align-self:center;margin-top:6px}
 .checkline{display:flex;gap:8px;align-items:center;font-size:13px;padding-top:8px}
 .notice{padding:14px 16px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);margin:12px 0}

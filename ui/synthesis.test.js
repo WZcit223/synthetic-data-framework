@@ -19,6 +19,10 @@ test("a parameter's input is read as the server would accept it", () => {
   assert.deepEqual(readParam({ name: "mode", type: "str" }, "fast"), { value: "fast" });
   assert.deepEqual(readParam({ name: "flag", type: "bool" }, true), { value: true });
   assert.deepEqual(readParam({ name: "flag", type: "bool" }, false), { value: false });
+  const maybe = { name: "flag", type: "bool", default: null, nullable: true };
+  assert.deepEqual(readParam(maybe, ""), { value: null }); // "none" keeps a nullable bool's null
+  assert.deepEqual(readParam(maybe, "true"), { value: true });
+  assert.deepEqual(readParam(maybe, "false"), { value: false });
 });
 
 test("an input the server would refuse is refused with a reason", () => {
@@ -27,6 +31,7 @@ test("an input the server would refuse is refused with a reason", () => {
   assert.equal(readParam(seed, "abc").error, "seed: enter a number");
   assert.equal(readParam(jitter, "1.5").error, "jitter: from 0 to 1");
   assert.equal(readParam(level, "1").error, "level: between 0.5 and 1, both excluded");
+  assert.equal(readParam({ name: "flag", type: "bool", nullable: false }, "").error, "flag: choose true or false");
 });
 
 test("bounds read in words", () => {

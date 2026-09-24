@@ -44,6 +44,14 @@ function select(name) {
 
 function control(p) {
   const hint = [p.nullable ? "empty: none" : "", boundsText(p)].filter(Boolean).join(" · ");
+  if (p.type === "bool" && p.nullable) {
+    // three states: a checkbox cannot say "none", and sending false would change the plug-in's default
+    const pick = v => (p.default === v ? " selected" : "");
+    return `<div class="ctrl"><label for="p-${esc(p.name)}">${esc(p.name.replaceAll("_", " "))}</label>
+      <select id="p-${esc(p.name)}" data-param="${esc(p.name)}"><option value=""${pick(null)}>none</option>
+        <option value="true"${pick(true)}>true</option><option value="false"${pick(false)}>false</option></select>
+      <div class="hint"></div><div class="err" data-err="${esc(p.name)}"></div></div>`;
+  }
   if (p.type === "bool") {
     return `<div class="ctrl"><label class="checkline"><input type="checkbox" data-param="${esc(p.name)}" ${p.default ? "checked" : ""}/>${esc(p.name)}</label>
       <div class="err" data-err="${esc(p.name)}"></div></div>`;
@@ -94,7 +102,7 @@ function readForm(s) {
   let ok = true;
   for (const p of s.params) {
     const input = document.querySelector(`[data-param="${CSS.escape(p.name)}"]`);
-    const read = readParam(p, p.type === "bool" ? input.checked : input.value);
+    const read = readParam(p, input.type === "checkbox" ? input.checked : input.value);
     document.querySelector(`[data-err="${CSS.escape(p.name)}"]`).textContent = read.error ?? "";
     input.setAttribute("aria-invalid", read.error ? "true" : "false");
     if (read.error) ok = false;
@@ -236,7 +244,12 @@ async function init() {
   state.catalogue = catalogue.synthesizers.sort((a, b) => order[a.produces] - order[b.produces] || a.name.localeCompare(b.name));
   state.unavailable = catalogue.unavailable;
   state.sources = sources.sources;
-  const wanted = decodeURIComponent(location.hash.slice(1));
+  let wanted = "";
+  try {
+    wanted = decodeURIComponent(location.hash.slice(1));
+  } catch {
+    wanted = ""; // a malformed hash (such as "#%") preselects nothing
+  }
   const first = state.catalogue.find(s => s.name === wanted) ?? state.catalogue.find(s => s.produces !== "warehouse") ?? state.catalogue[0];
   if (first) select(first.name);
   else renderCatalogue();

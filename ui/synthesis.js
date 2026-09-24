@@ -8,7 +8,11 @@
  * ``raw`` is the input's text, or a boolean for a checkbox.
  */
 export function readParam(param, raw) {
-  if (param.type === "bool") return { value: Boolean(raw) };
+  if (param.type === "bool") {
+    if (typeof raw === "boolean") return { value: raw }; // a checkbox
+    if (raw === "true" || raw === "false") return { value: raw === "true" }; // the choice of a nullable bool
+    return param.nullable ? { value: null } : { error: `${param.name}: choose true or false` };
+  }
   const text = typeof raw === "string" ? raw.trim() : raw;
   if (text === "" || text == null) {
     return param.nullable ? { value: null } : { error: `${param.name}: enter a value` };
