@@ -305,3 +305,10 @@ test("blanks stay last in a label sort, whichever the direction", () => {
   assert.deepEqual(pivot(TABLE, view("asc")).rows.map(r => r.key[0]), ["store", "web", null]);
   assert.deepEqual(pivot(TABLE, view("desc")).rows.map(r => r.key[0]), ["web", "store", null]);
 });
+
+test("a view without values still has its fields checked", () => {
+  assert.throws(() => pivot(TABLE, { rows: [{ field: "does_not_exist" }], values: [] }), /unknown field "does_not_exist"/);
+  assert.throws(() => pivot(TABLE, { filters: { gone: { exclude: [] } } }), /unknown field "gone"/);
+  assert.throws(() => pivot(TABLE, { columns: [{ field: "region", grain: "month" }] }), /time grain applies to a time field only/);
+  assert.deepEqual(pivot(TABLE, { rows: [{ field: "region" }] }).rows.map(r => r.key[0]), ["north", "south"]);
+});

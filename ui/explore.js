@@ -193,8 +193,9 @@ async function loadSource(source, { view = null, display = null } = {}) {
     // copies: editing the view must never edit the preset or the parsed link it came from
     state.view = { ...emptyView(), ...structuredClone(view ?? preset?.view ?? fallbackView()) };
     state.display = { ...DEFAULT_DISPLAY, ...structuredClone(view ? display : preset?.display) };
-    if (view && state.view.values.length) {
-      // a link's view must also fit this table (its field names, grains on time fields): refuse it whole if not
+    if (view) {
+      // a link's view must also fit this table (every field it names, grains on time fields): refuse it whole if
+      // not. With no values the pivot still resolves the rows, columns and filters, so an empty view is checked too.
       try {
         cachedPivot(state.view);
       } catch (err) {
