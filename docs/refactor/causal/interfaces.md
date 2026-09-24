@@ -520,8 +520,9 @@ class Estimator(Protocol):
     message names the encoded columns of a dependency, for example
     "log_price equals log_price_copy", or "log_demand is 2 × log_units"
     for any exact linear combination. The first level dropped by the
-    encoding is the first level present among the kept rows, so a level
-    absent from them never produces a column.
+    encoding is the first level present among the kept rows, in the order
+    the rows present them (not sort order), so a level absent from them
+    never produces a column.
 
   Every refusal above except the last concerns the question itself, whatever
   the estimator. It is a request problem: `design` raises `ValueError`, and
@@ -677,6 +678,7 @@ class PromotionBenchmark:
         "uplift": (-0.9, 3.0),
         "confounding": (0.0, 3.0),
         "noise": (0.0, 1.0),
+        "seed": (0, None),       # numpy's generator takes a non-negative integer
     }
 
     @classmethod

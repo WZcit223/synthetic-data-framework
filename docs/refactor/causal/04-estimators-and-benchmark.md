@@ -5,7 +5,7 @@
 > Measured on the default world (200 SKUs × 90 days):
 > - `sdf estimate --confounding 1` (seed 7, truth +6.88 units/week):
 >   difference-in-means +36.5 (no), regression-adjustment +6.29 (+2.96 to
->   +9.61, covers), ipw +6.53 (+3.03 to +11.5, covers).
+>   +9.61, covers), ipw +6.52 (+3.02 to +11.5, covers).
 > - Over 50 seeds at confounding 1, the acceptance measure of the contract
 >   (§3.3, the mean effect over the 50 draws): truth 7.26, difference-in-means
 >   38.5, regression-adjustment 7.42 (2 % from the truth), ipw 7.06 (3 %). One

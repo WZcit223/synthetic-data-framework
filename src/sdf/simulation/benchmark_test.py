@@ -91,12 +91,18 @@ def test_a_sku_with_unit_price_zero_has_log_price_zero(world):
         ({"confounding": 3.5}, "confounding must be from 0.0 to 3.0, got 3.5"),
         ({"noise": -0.1}, "noise must be from 0.0 to 1.0, got -0.1"),
         ({"seed": 1.5}, "seed must be a whole number, got 1.5"),
+        ({"seed": -1}, "seed must be from 0 to inf, got -1"),
         ({"noise": "high"}, "noise must be a number, got 'high'"),
     ],
 )
 def test_the_bounds_are_refused_by_the_benchmark_itself(kwargs, message):
     with pytest.raises(ValueError, match=f"^{message}$".replace("(", r"\(").replace(")", r"\)")):
         PromotionBenchmark(**kwargs)
+
+
+def test_any_seed_the_bounds_allow_draws(world):
+    for seed in (0, 2**64 + 5):  # numpy's generator takes any non-negative integer
+        assert PromotionBenchmark(seed=seed).draw(world).table.rows
 
 
 def test_the_published_params_are_the_bounds_it_checks():
@@ -128,7 +134,7 @@ def test_the_published_params_are_the_bounds_it_checks():
             "exclusive": False,
             "nullable": False,
         },
-        {"name": "seed", "type": "int", "default": 7, "min": None, "max": None, "exclusive": False, "nullable": False},
+        {"name": "seed", "type": "int", "default": 7, "min": 0, "max": None, "exclusive": False, "nullable": False},
     ]
 
 

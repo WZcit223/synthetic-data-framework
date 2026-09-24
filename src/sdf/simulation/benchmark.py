@@ -63,6 +63,7 @@ class PromotionBenchmark:
         "uplift": (-0.9, 3.0),
         "confounding": (0.0, 3.0),
         "noise": (0.0, 1.0),
+        "seed": (0, None),  # numpy's generator takes a non-negative integer
     }
 
     @classmethod

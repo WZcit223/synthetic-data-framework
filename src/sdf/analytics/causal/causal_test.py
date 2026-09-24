@@ -137,6 +137,9 @@ def test_design_drops_rows_with_a_missing_value_and_encodes_dimensions():
     assert d.covariates[:, 0].tolist() == [0.0, 1.0, 0.0, 1.0, 0.0]
     assert d.outcome.tolist() == [1.0, 2.0, 4.0, 6.0, 7.0]
     assert design(tab, CausalQuestion("t", "y")).covariates.shape == (5, 0)
+    # the first level the kept rows present is the one dropped, not the first in sort order
+    later = table({"t": [1, 0, 1, 0], "y": [1.0, 2.0, 3.0, 4.0], "cls": ["C", "B", "B", "A"]})
+    assert design(later, CausalQuestion("t", "y", ("cls",))).columns == ("cls=B", "cls=A")
 
 
 def refusal(tab, question):

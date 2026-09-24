@@ -124,7 +124,7 @@ def design(table: Table, question: CausalQuestion) -> Design:
             blocks.append(np.array(values, dtype=float).reshape(-1, 1))
             columns.append(c)
             continue
-        levels = sorted(set(values))  # the first level present among the kept rows is the one dropped
+        levels = list(dict.fromkeys(values))  # in the order the kept rows present them: the first is dropped
         for level in levels[1:]:
             blocks.append(np.array([v == level for v in values], dtype=float).reshape(-1, 1))
             columns.append(f"{c}={level}")
