@@ -55,9 +55,10 @@ export function replicateRows(effects, replicates, metric) {
 }
 
 /**
- * A number as the effects are printed (the CLI's ``sdf effects`` does the same): whole with
- * grouped thousands from 100 up, else three significant digits, and scientific below 0.001.
- * A true minus sign; ``signed`` adds "+" to a positive value.
+ * A number rounded as ``sdf effects`` rounds it: whole from 100 up, else three significant
+ * digits, and scientific below 0.001. The digits match the CLI's; the thousands separator is
+ * the reader's locale, as on every page (the CLI prints a space). A true minus sign;
+ * ``signed`` adds "+" to a positive value.
  */
 export function amount(v, { signed = false, locale = undefined } = {}) {
   if (v == null || !Number.isFinite(v)) return "–";
@@ -104,6 +105,24 @@ export function defaultRequest(catalog) {
     replicates: Math.min(10, catalog.effects.max_replicates),
     confidence: 0.95,
   };
+}
+
+// Service levels "Add policy" offers once every kind is on the form, in this order.
+const MORE_LEVELS = [0.9, 0.99, 0.8, 0.85, 0.975, 0.7];
+
+/**
+ * The policy "Add policy" adds: a kind not yet on the form, else a service level not yet
+ * on it, so a new row never repeats one already there. The server still has the last word
+ * on duplicates (its 422 names them), since it names the policies.
+ */
+export function nextPolicy(catalog, policies) {
+  const unused = catalog.policies.find(k => !policies.some(p => p.kind === k.kind));
+  if (unused) return policyDefaults(unused);
+  const kind = catalog.policies.find(k => k.kind === "service-level" && k.params.some(p => p.name === "service_level"));
+  if (!kind) return policyDefaults(catalog.policies[0]);
+  const taken = new Set(policies.filter(p => p.kind === kind.kind).map(p => p.service_level));
+  const level = MORE_LEVELS.find(v => !taken.has(v));
+  return { ...policyDefaults(kind), ...(level == null ? {} : { service_level: level }) };
 }
 
 const policyDefaults = kind => Object.fromEntries([["kind", kind.kind], ...kind.params.map(p => [p.name, p.default])]);

@@ -6,7 +6,7 @@ import { $, api, esc } from "./common.js";
 import { bindBars, clip } from "./chart.js";
 import { OTHER, SERIES, SURFACE } from "./palette.js";
 import {
-  CONFIDENCES, COVERS, amount, axisFor, budgetView, byMetric, coversZero, exploreLink, fitRequest, intervalText,
+  CONFIDENCES, COVERS, amount, axisFor, budgetView, byMetric, coversZero, exploreLink, fitRequest, intervalText, nextPolicy,
   reading, readRequestHash, records, relativeText, replicateRows, requestError, requestHash, rowLabel,
 } from "./effects-model.js";
 
@@ -23,6 +23,8 @@ const state = {
   budgetSeq: 0, // the latest budget question; an older answer is dropped
   runSeq: 0, // the latest run; an older answer is dropped
   timer: 0,
+  budgetKey: "", // the form's request the latest budget answer is for
+  running: false, // a study is in flight: Run stays disabled whatever the budget says
   drawnWidth: 0,
   written: "", // the last #request= this page wrote
 };
@@ -109,6 +111,13 @@ function readForm() {
 
 function formChanged() {
   limitChecks();
+  // "input" and then "change" fire for one edit (the change as the field loses focus, often to the
+  // Run button's click): only a different request waits for a new answer, so that click still runs
+  const key = JSON.stringify(readForm());
+  if (key === state.budgetKey) return;
+  state.budgetKey = key;
+  showBudget({ pending: true }); // Run waits for the server's answer on what the form now holds
+  state.budgetSeq++; // an answer already in flight is for the form before this edit
   clearTimeout(state.timer);
   state.timer = setTimeout(checkBudget, 250);
 }
@@ -116,6 +125,7 @@ function formChanged() {
 // The server's answer to "is this within budget?", asked while the user edits (check_only).
 async function checkBudget() {
   const request = readForm();
+  state.budgetKey = JSON.stringify(request);
   const seq = ++state.budgetSeq;
   const problem = requestError(request, state.catalog);
   $("#replicates").setAttribute("aria-invalid", /^Replicates/.test(problem ?? "") ? "true" : "false");
@@ -154,7 +164,7 @@ function showBudget({ answer = null, error = null, pending = false }) {
   box.classList.toggle("over", view.over);
   fill.style.width = `${(view.share * 100).toFixed(1)}%`;
   text.textContent = view.text;
-  $("#run").disabled = view.over;
+  $("#run").disabled = view.over || state.running;
 }
 
 // -- the run --------------------------------------------------------------------------------------
@@ -170,6 +180,7 @@ async function run(request = readForm()) {
   result.setAttribute("aria-busy", "true");
   if (!state.result) result.innerHTML = `<div class="notice">Running ${request.replicates} paired replicates…</div>`;
   $("#run").disabled = true;
+  state.running = true;
   try {
     const response = await api("/effects", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
     if (seq === state.runSeq) renderResult(response, request);
@@ -180,6 +191,7 @@ async function run(request = readForm()) {
     }
   } finally {
     if (seq === state.runSeq) {
+      state.running = false;
       result.classList.remove("busy");
       result.setAttribute("aria-busy", "false");
       checkBudget(); // re-enables Run from the server's answer
@@ -386,7 +398,7 @@ async function init() {
     run();
   });
   $("#addPolicy").addEventListener("click", () => {
-    addPolicyRow();
+    addPolicyRow(nextPolicy(state.catalog, readForm().policies));
     formChanged();
   });
   $("#result").addEventListener("change", e => {

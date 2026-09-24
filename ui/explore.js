@@ -50,7 +50,8 @@ const PRESETS = {
     { label: "Effect and interval by metric, intervention and policy", view: { rows: [{ field: "metric" }, { field: "intervention" }, { field: "policy" }], values: [{ field: "effect", agg: "mean" }, { field: "ci_low", agg: "mean" }, { field: "ci_high", agg: "mean" }, { field: "relative_effect", agg: "mean" }] } },
   ],
   "effects-replicates": [
-    { label: "Each paired draw: arms against replicates", view: { rows: [{ field: "metric" }, { field: "intervention" }], columns: [{ field: "replicate" }], values: [{ field: "value", agg: "mean" }] } },
+    { label: "Paired difference per replicate", view: { rows: [{ field: "metric" }, { field: "intervention" }], columns: [{ field: "replicate" }], values: [{ field: "difference", agg: "mean" }], filters: { intervention: { exclude: ["baseline"] } } } },
+    { label: "Each arm's value per replicate", view: { rows: [{ field: "metric" }, { field: "intervention" }], columns: [{ field: "replicate" }], values: [{ field: "value", agg: "mean" }] } },
   ],
   experiment: [
     { label: "Outcomes by metric, intervention and policy", view: { rows: [{ field: "metric" }, { field: "intervention" }], columns: [{ field: "policy" }], values: [{ field: "value", agg: "mean" }] } },

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  amount, axisFor, budgetView, byMetric, COVERS, coversZero, defaultRequest, exploreLink, fitRequest, intervalText,
+  amount, axisFor, budgetView, byMetric, COVERS, coversZero, defaultRequest, exploreLink, fitRequest, intervalText, nextPolicy,
   reading, readRequestHash, records, relativeText, replicateRows, requestError, requestHash,
 } from "./effects-model.js";
 import { sourceError } from "./sources.js";
@@ -81,7 +81,7 @@ test("the replicate view reads each paired difference from the table, subtractin
   assert.deepEqual(rows[0].dots, [{ replicate: "0", seed: "42", difference: -1 }, { replicate: "1", seed: "43", difference: 0 }]);
 });
 
-test("numbers read as sdf effects prints them", () => {
+test("numbers are rounded as sdf effects rounds them", () => {
   const en = { locale: "en-US" };
   assert.equal(amount(137572.4, en), "137,572");
   assert.equal(amount(79790, { signed: true, ...en }), "+79,790");
@@ -138,6 +138,14 @@ test("a linked request is fitted to the catalogue, naming what it drops", () => 
   });
   assert.deepEqual(dropped, ["baseline", "gone", "mystery"]);
   assert.deepEqual(fitRequest({ confidence: 0.42, outcomes: [] }, CATALOG).request, defaultRequest(CATALOG));
+});
+
+test("Add policy never repeats a policy already on the form", () => {
+  const sl = { kind: "service-level", service_level: 0.95, lead_time_days: 7 };
+  assert.deepEqual(nextPolicy(CATALOG, [sl]), { kind: "naive", lead_time_days: 7 }); // an unused kind first
+  const naive = { kind: "naive", lead_time_days: 7 };
+  assert.deepEqual(nextPolicy(CATALOG, [sl, naive]), { ...sl, service_level: 0.9 }); // then an unused level
+  assert.deepEqual(nextPolicy(CATALOG, [sl, naive, { ...sl, service_level: 0.9 }]), { ...sl, service_level: 0.99 });
 });
 
 test("the form refuses what the server would", () => {

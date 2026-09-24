@@ -1,15 +1,16 @@
 # PR 2 — The Effects page
 
 > Status: implemented (causal modelling sequence PR 2). In Chromium the study
-> of PR 1's acceptance shows the numbers `sdf effects` prints: `holding_cost`
-> +79 790 (+72 247 to +87 333) above 0, `unmet_units` −0.263 (−1.39 to +0.866)
+> of PR 1's acceptance shows the digits `sdf effects` prints: `holding_cost`
+> +79,790 (+72,247 to +87,333) above 0, `unmet_units` −0.263 (−1.39 to +0.866)
 > not distinguishable from 0. It reads without horizontal scrolling from 700 to
 > 1440 px, with no failed request and no console error.
 >
 > What the page adds beyond the list below:
-> - Numbers print as `sdf effects` prints them (grouped from 100 up, else three
->   significant digits), not with Explore's two decimals, so a small effect such
->   as `fill_rate`'s +6.79e−6 never reads as 0.00.
+> - Numbers are rounded as `sdf effects` rounds them (whole from 100 up, else
+>   three significant digits), not to Explore's two decimals, so a small effect
+>   such as `fill_rate`'s +6.79e−6 never reads as 0.00. The digits match the
+>   CLI's; the thousands separator follows the reader's locale, as on every page.
 > - The source check moved out of `explore.js` into `ui/sources.js`, so the
 >   link round-trip test runs the Explore page's own validator.
 > - A link naming what the installation does not offer fills the form without
