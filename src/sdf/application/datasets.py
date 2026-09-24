@@ -186,6 +186,10 @@ class ReplenishmentPlanDataset:
             )
 
 
+class ReadDeadline(Exception):
+    """``DatasetCatalog.read`` passed its deadline; distinct from any error a provider raises itself."""
+
+
 class DatasetCatalog(PluginRegistry[DatasetProvider]):
     """Dataset providers by name; built-ins and plug-ins are mounted from the ``sdf.datasets`` group."""
 
@@ -228,17 +232,23 @@ class DatasetCatalog(PluginRegistry[DatasetProvider]):
 
         The provider is asked for at most ``limit + 1`` rows: the one past the limit is a
         probe, never kept or checked, so nothing further is read. ``deadline`` (a
-        ``time.monotonic()`` instant) is checked between rows; once it has passed,
-        ``TimeoutError`` is raised, since a provider can be slow per row.
+        ``time.monotonic()`` instant) is checked when ``rows(world)`` returns and between
+        rows; once it has passed, ``ReadDeadline`` is raised. A provider that yields its
+        rows is bounded in memory and time this way; one that returns a built list has
+        built it whole before the first check, so for it only what is kept is bounded.
         """
         if limit < 1:
             raise ValueError(f"limit must be at least 1, got {limit}")
         cls = self._entry(name).cls
         kept: list[tuple[Any, ...]] = []
         more = False
-        for row in cls().rows(world):
+        rows = cls().rows(world)
+        late = ReadDeadline(f"dataset {name} did not deliver its rows in time")
+        if deadline is not None and time.monotonic() > deadline:
+            raise late  # a provider that built its rows eagerly and took too long
+        for row in rows:
             if deadline is not None and time.monotonic() > deadline:
-                raise TimeoutError(f"dataset {name} did not deliver its rows in time")
+                raise late
             if len(kept) == limit:
                 more = True  # the probe: one row past the limit exists
                 break

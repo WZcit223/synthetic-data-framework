@@ -14,7 +14,7 @@ from sdf.foundation.tables import DatasetInfo, Field
 from sdf.simulation.world import World
 from sdf.synthesis.registry import DISTRIBUTION
 from sdf.synthesis.spec import GenerationSpec
-from .datasets import DatasetCatalog, default_datasets
+from .datasets import DatasetCatalog, ReadDeadline, default_datasets
 
 
 @pytest.fixture(scope="module")
@@ -262,7 +262,7 @@ def test_read_keeps_the_limit_and_asks_for_one_probe_row_only(world):
     small = default_datasets()
     table, more = small.read("skus", world, limit=10_000)
     assert not more and len(table.rows) == len(world.stream("SKU"))
-    with pytest.raises(TimeoutError, match="dataset skus did not deliver its rows in time"):
+    with pytest.raises(ReadDeadline, match="dataset skus did not deliver its rows in time"):
         small.read("skus", world, limit=10_000, deadline=0.0)
     with pytest.raises(ValueError, match="limit must be at least 1"):
         small.read("skus", world, limit=0)

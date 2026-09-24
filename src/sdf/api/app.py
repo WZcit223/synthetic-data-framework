@@ -41,7 +41,7 @@ from sdf.analytics.causal import (
 )
 from sdf.analytics.forecast import build_series, compare_models, models_for
 from sdf.application.agent import WarehouseAgent
-from sdf.application.datasets import DatasetCatalog, default_datasets
+from sdf.application.datasets import DatasetCatalog, ReadDeadline, default_datasets
 from sdf.application.economics import financial_impact
 from sdf.application.knowledge import KnowledgeQA
 from sdf.application.scenarios import run_scenarios
@@ -550,7 +550,7 @@ def create_app(
                 raise HTTPException(status_code=422, detail=exc.args[0]) from exc
             try:
                 table, more = catalogue.read(body.dataset, world, limit=MAX_ESTIMATE_ROWS, deadline=deadline)
-            except TimeoutError as exc:
+            except ReadDeadline as exc:  # the request's deadline; a provider's own TimeoutError is its failure (500)
                 detail = f"dataset {body.dataset} did not deliver its rows within {MAX_ESTIMATE_SECONDS:g} s"
                 raise HTTPException(status_code=422, detail=detail) from exc
             except Exception as exc:

@@ -1065,6 +1065,47 @@ def test_a_provider_that_does_not_deliver_in_time_is_stopped(monkeypatch):
     assert time.monotonic() - started < 2  # stopped at the next row, not after all of them
 
 
+class EagerAndSlow:
+    """Builds its whole list before returning it, taking longer than the budget."""
+
+    info: ClassVar[DatasetInfo] = DatasetInfo("eager-and-slow", "Eager", "x", TY_INFO.fields)
+
+    def rows(self, world):
+        time.sleep(0.5)
+        return [(i % 2, float(i)) for i in range(10)]
+
+
+class OwnTimeout:
+    """Fails with a TimeoutError of its own: a provider failure, not the request's deadline."""
+
+    info: ClassVar[DatasetInfo] = DatasetInfo("own-timeout", "Own timeout", "x", TY_INFO.fields)
+
+    def rows(self, world):
+        raise TimeoutError("upstream database timed out")
+
+
+def test_an_eager_provider_past_the_deadline_is_stopped_and_its_own_timeout_is_a_500(monkeypatch):
+    from sdf.api import app as app_module
+    from sdf.application.datasets import DatasetCatalog
+
+    monkeypatch.setattr(app_module, "MAX_ESTIMATE_SECONDS", 0.3)
+    datasets = DatasetCatalog()
+    datasets.register(EagerAndSlow)
+    datasets.register(OwnTimeout)
+    c = TestClient(create_app(datasets=datasets), raise_server_exceptions=False)
+    q = {"treatment": "t", "outcome": "y"}
+    res = estimates(c, estimators=["ipw"], dataset="eager-and-slow", question=q)
+    assert (
+        res.status_code == 422
+        and res.json()["detail"] == "dataset eager-and-slow did not deliver its rows within 0.3 s"
+    )
+    res = estimates(c, estimators=["ipw"], dataset="own-timeout", question=q)
+    assert (
+        res.status_code == 500
+        and res.json()["detail"] == "dataset own-timeout could not be built: upstream database timed out"
+    )
+
+
 class RegeneratesMidway:
     """While the estimation reads it, the app's world is replaced; the rows stay the first world's."""
 
