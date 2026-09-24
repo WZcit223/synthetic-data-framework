@@ -299,3 +299,9 @@ test("the fold keeps the columns largest in size, a large negative one included"
   assert.deepEqual(r.columns.map(c => c.key[0]), ["gain", "loss", OTHER]);
   assert.equal(r.totals.columns[2][0], -1); // tiny and small, aggregated from their rows
 });
+
+test("blanks stay last in a label sort, whichever the direction", () => {
+  const view = dir => ({ rows: [{ field: "channel" }], values: [{ field: "qty", agg: "sum" }], sort: { by: "label", dir } });
+  assert.deepEqual(pivot(TABLE, view("asc")).rows.map(r => r.key[0]), ["store", "web", null]);
+  assert.deepEqual(pivot(TABLE, view("desc")).rows.map(r => r.key[0]), ["web", "store", null]);
+});

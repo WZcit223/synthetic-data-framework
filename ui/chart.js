@@ -77,18 +77,25 @@ export function barChart({ categories, series, stacked = false, format, compact,
     s += `<text x="${labelW - 10}" y="${y + (bandH - 14) / 2 + 4}" text-anchor="end">${esc(clip(c.label, Math.floor((labelW - 12) / CHAR)))}</text>`;
     if (stacked) {
       let pos = 0, neg = 0;
-      const last = c.values.reduce((l, v, k) => (v != null && v !== 0 ? k : l), -1);
+      // the outermost segment on each side of zero carries the rounded end and reaches the tip
+      const lastPos = c.values.reduce((l, v, k) => (v > 0 ? k : l), -1);
+      const lastNeg = c.values.reduce((l, v, k) => (v < 0 ? k : l), -1);
       c.values.forEach((v, k) => {
         if (v == null || v === 0) return;
         const from = v > 0 ? pos : neg;
         const to = from + v;
         v > 0 ? (pos = to) : (neg = to);
+        const outer = k === (v > 0 ? lastPos : lastNeg);
         // a 2px surface gap separates touching segments
-        const a = X(from) + (from === 0 ? 0 : v > 0 ? 1 : -1), b = X(to) - (k === last ? 0 : v > 0 ? 1 : -1);
-        s += `<path class="bar" d="${hbar(a, b, y, barH, k === last)}" fill="${series[k].color}"/>`;
+        const a = X(from) + (from === 0 ? 0 : v > 0 ? 1 : -1), b = X(to) - (outer ? 0 : v > 0 ? 1 : -1);
+        s += `<path class="bar" d="${hbar(a, b, y, barH, outer)}" fill="${series[k].color}"/>`;
       });
       const total = c.values.reduce((t, v) => t + (v ?? 0), 0);
-      if (c.values.some(v => v != null)) s += `<text class="value" x="${X(pos) + 6}" y="${y + barH / 2 + 4}">${esc(format(total))}</text>`;
+      if (c.values.some(v => v != null)) {
+        // the total sits beside the tip on its own side: a net-negative stack is labelled at its negative end
+        const [tx, anchor] = total < 0 ? [X(neg) - 6, "end"] : [X(pos) + 6, "start"];
+        s += `<text class="value" x="${tx}" y="${y + barH / 2 + 4}" text-anchor="${anchor}">${esc(format(total))}</text>`;
+      }
     } else {
       c.values.forEach((v, k) => {
         if (v == null) return;

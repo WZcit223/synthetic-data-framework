@@ -65,6 +65,12 @@ function compareKeys(a, b) {
   return a.length - b.length;
 }
 
+// Label order in a direction: blanks and the folded column stay last either way.
+function labelOrder(a, b, dir) {
+  const last = x => x == null || x === OTHER;
+  return last(a) || last(b) ? compareParts(a, b) : dir * compareParts(a, b);
+}
+
 // Distinct values of one field with their row counts, in label order (the filter list).
 export function distinctValues(table, name) {
   const i = fieldIndex(table, name);
@@ -249,7 +255,7 @@ export function pivot(table, view = {}, options = {}) {
   };
   const order = list => {
     if (sort.by !== "value" && sort.by !== "column") {
-      return list.sort((a, b) => dir * compareParts(a.key.at(-1), b.key.at(-1)));
+      return list.sort((a, b) => labelOrder(a.key.at(-1), b.key.at(-1), dir));
     }
     const m = new Map(list.map(n => [n, metric(n)]));
     return list.sort((a, b) => {

@@ -193,6 +193,15 @@ async function loadSource(source, { view = null, display = null } = {}) {
     // copies: editing the view must never edit the preset or the parsed link it came from
     state.view = { ...emptyView(), ...structuredClone(view ?? preset?.view ?? fallbackView()) };
     state.display = { ...DEFAULT_DISPLAY, ...structuredClone(view ? display : preset?.display) };
+    if (view && state.view.values.length) {
+      // a link's view must also fit this table (its field names, grains on time fields): refuse it whole if not
+      try {
+        cachedPivot(state.view);
+      } catch (err) {
+        clearSource();
+        return fail("This link cannot be opened", err.message);
+      }
+    }
     syncSourceSelect();
     render();
   } catch (err) {
@@ -646,7 +655,10 @@ function renderChart() {
 // -- changing the view ----------------------------------------------------------------------------
 
 function update(change) {
+  const rowsBefore = keyId(state.view.rows.map(a => [a.field, a.grain ?? null]));
   change(state.view);
+  // collapsed groups belong to the row fields they were collapsed under
+  if (keyId(state.view.rows.map(a => [a.field, a.grain ?? null])) !== rowsBefore) state.collapsed.clear();
   if (state.view.rows.length < 2) state.view.subtotals = false;
   render();
 }

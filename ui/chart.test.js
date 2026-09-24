@@ -91,3 +91,17 @@ test("the keyboard moves the crosshair one step, or to either end", () => {
   assert.equal(stepIndex("End", 0, 5), 4);
   assert.equal(stepIndex("Enter", 2, 5), null);
 });
+
+test("a net-negative stack is labelled at its negative end", () => {
+  const { svg } = barChart({
+    categories: [{ label: "a", values: [-6, 2] }],
+    series: series("x", "y"), format, compact: format, width: 500, stacked: true,
+  });
+  assert.equal(bars(svg).filter(([from, to]) => to < from).length, 1);
+  // the negative segment is rounded at its end; its tip is the curve's control point
+  const tip = +svg.match(/class="bar" d="M[-\d.]+,[-\d.]+H[-\d.]+Q([-\d.]+),/)[1];
+  const label = svg.match(/<text class="value" x="([-\d.]+)"[^>]*text-anchor="(\w+)">-4<\/text>/);
+  assert.ok(label, svg);
+  assert.equal(label[2], "end");
+  assert.equal(+label[1], tip - 6);
+});
