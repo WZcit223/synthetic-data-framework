@@ -55,11 +55,12 @@ test("a column of one origin", () => {
   assert.throws(() => column(rows, fields, "price", "real"), /no price column/);
 });
 
-test("whole values with few distinct levels get one bin each", () => {
-  const h = histogram([0, 1, 1, 2, 6], [1, 1, 6, 6]);
-  assert.deepEqual(h.labels, ["0", "1", "2", "6"]);
-  assert.deepEqual(h.real, [0.2, 0.4, 0.2, 0.2]);
-  assert.deepEqual(h.synthetic, [0, 0.5, 0, 0.5]);
+test("whole values over a short range get one bin each, empty ones included", () => {
+  const h = histogram([0, 1, 1, 2, 6], [1, 4, 6, 6]);
+  assert.deepEqual(h.labels, ["0", "1", "2", "3", "4", "5", "6"]);
+  assert.deepEqual(h.real, [0.2, 0.4, 0.2, 0, 0, 0, 0.2]);
+  assert.deepEqual(h.synthetic, [0, 0.25, 0, 0, 0.25, 0, 0.5]); // 4 is its own bin, not counted as 2
+  assert.equal(histogram(Array.from({ length: 30 }, (_, i) => i), []).labels.length, 12); // 30 values: ranges
 });
 
 test("continuous values share bins over the real data's bulk, outliers in the edge bins", () => {

@@ -42,8 +42,8 @@
 .tile .k{font-size:12px;color:var(--ink);margin-top:2px}
 .tile .h{font-size:11px;color:var(--muted);margin-top:2px}
 .charts{margin-top:14px}
-.charts .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px 18px}
-@media(max-width:1100px){.charts .grid2{grid-template-columns:1fr}}
+.charts .grid2{display:grid;grid-template-columns:minmax(0,1fr);gap:6px 18px}
+.charts .grid2.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .charts h3{font-size:12.5px;margin:12px 4px 0;font-weight:600}
 .actions{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
 .actions .muted{font-size:12.5px}

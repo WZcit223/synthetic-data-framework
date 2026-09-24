@@ -34,8 +34,8 @@ produces a warehouse.
   (default `./data`; the CSVs are not part of the installed package, so an API
   started outside the checkout sets `SDF_DATA_DIR` or lists no source), and `evaluate(synthesizer, *,
   source, params=None, date_format=None, registry=None) -> EvaluationRun(synthesizer,
-  source, kind, params, metrics, table)`, which fills a missing or `None` seed
-  with `EVALUATION_SEED` and reports every parameter it used, where `source` is a source ID or a CSV path
+  source, kind, params, metrics, table)`, which uses a left-out seed's declared
+  default, fills a `None` seed with `EVALUATION_SEED`, and reports every parameter it used, where `source` is a source ID or a CSV path
   (the CLI passes its path and `--date-format`; the API passes IDs only). A series synthesizer is fitted on the source's hourly demand and
   scored with `fidelity_report`; a table synthesizer on its feature table and
   scored with `privacy_report`. Both scorers keep their `ALGORITHM-HOOK`

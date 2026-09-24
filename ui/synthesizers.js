@@ -11,7 +11,7 @@ const ORIGIN = { builtin: "Built-in", plugin: "Plug-in", runtime: "Registered at
 const REAL = SERIES[0], SYNTH = SERIES[1];
 const SERIES_WINDOW = 240; // steps of a series drawn at once; the whole run is one click away in Explore
 
-const state = { catalogue: [], unavailable: {}, sources: [], selected: null, seq: 0 };
+const state = { catalogue: [], unavailable: {}, sources: [], selected: null, seq: 0, run: null, drawnWidth: 0 };
 
 // -- catalogue ------------------------------------------------------------------------------------
 
@@ -74,6 +74,7 @@ function control(p) {
 }
 
 function renderPanel() {
+  state.run = null;
   const s = state.catalogue.find(x => x.name === state.selected);
   if (!s) {
     $("#panel").innerHTML = `<div class="notice">Choose a synthesizer on the left.</div>`;
@@ -186,12 +187,14 @@ function renderResult(r) {
     ? `<a class="button primary" href="${esc(link)}">Open in Explore</a><span class="muted">The same run, repeated with these parameters, as a table to pivot.</span>`
     : `<span class="muted">${esc(r.synthesizer)} has no seed parameter, so its run cannot be repeated exactly and is not offered in Explore.</span>`}</div>`;
   $("#result").innerHTML = h;
+  state.run = r;
   drawCharts(r);
 }
 
 function drawCharts(r) {
   const box = $("#charts");
   const width = Math.max(320, box.clientWidth);
+  state.drawnWidth = box.clientWidth;
   const tip = $("#tooltip");
   if (r.kind === "series") {
     const real = column(r.rows, r.fields, "value", "real");
@@ -215,7 +218,9 @@ function drawCharts(r) {
   }
   const share = valueFormatter({ showAs: "share_of_total" });
   const measures = r.fields.filter(f => f.kind === "measure");
-  const w = width > 900 ? Math.floor((width - 18) / 2) : width;
+  // side by side only when each chart keeps a readable width; the grid's columns follow this choice
+  const two = width >= 760;
+  const w = two ? Math.floor((width - 18) / 2) : width;
   const blocks = measures.map(f => {
     const hgram = histogram(column(r.rows, r.fields, f.name, "real"), column(r.rows, r.fields, f.name, "synthetic"));
     const model = {
@@ -230,7 +235,7 @@ function drawCharts(r) {
     };
     return { f, model, chart: lineChart(model) };
   });
-  box.innerHTML = legend() + `<div class="grid2">${blocks.map((b, i) => `<div data-block="${i}"><h3>${esc(b.f.label)}: share of rows per range</h3>${b.chart.svg}</div>`).join("")}</div>`;
+  box.innerHTML = legend() + `<div class="grid2${two ? " two" : ""}">${blocks.map((b, i) => `<div data-block="${i}"><h3>${esc(b.f.label)}: share of rows per range</h3>${b.chart.svg}</div>`).join("")}</div>`;
   blocks.forEach((b, i) => bindLine(box.querySelector(`[data-block="${i}"] svg`), { ...b.model, geometry: b.chart.geometry }, tip));
 }
 
@@ -241,6 +246,15 @@ async function init() {
     const card = e.target.closest(".scard");
     if (card) select(card.dataset.name);
   });
+  // the charts are drawn at a fixed width, so a change of the panel's width redraws them
+  let pending = 0;
+  new ResizeObserver(() => {
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => {
+      const box = $("#charts");
+      if (state.run && box && box.clientWidth !== state.drawnWidth) drawCharts(state.run);
+    });
+  }).observe($("#panel")); // the result area inside it is re-created per synthesizer
   $("#panel").addEventListener("change", e => {
     const box = e.target.closest("[data-none]");
     if (box) document.querySelector(`[data-param="${CSS.escape(box.dataset.none)}"]`).disabled = box.checked;

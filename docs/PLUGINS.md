@@ -46,8 +46,9 @@ is built from them. Two optional refinements:
   a (min, max) pair of finite numbers, bounds with min above max, and a default
   outside its own bounds.
 - A parameter named `seed` makes runs **repeatable**: a run that leaves it out
-  uses seed 7 and reports every parameter it used, so it can be reopened in
-  Explore and gives the same table again.
+  uses its declared default, and a nullable seed that is `None` (by default or
+  set so) becomes 7. The run reports every parameter it used, so it can be
+  reopened in Explore and gives the same table again.
 
 A warehouse generator takes `spec: GenerationSpec | None = None`.
 `World.generate` passes the spec of the world being built, so the dashboard's

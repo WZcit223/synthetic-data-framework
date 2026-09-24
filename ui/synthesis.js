@@ -61,19 +61,19 @@ function quantile(sorted, q) {
  * Two distributions on shared bins: the share of real and of synthetic values
  * per bin. The bins span the real data's 1st to 99th percentile, so one outlier
  * does not squeeze the rest into a single bin; values beyond fall into the edge
- * bins. A column with few distinct whole values (an hour, a weekday) gets one
- * bin per value instead.
+ * bins. A whole-valued column spanning at most 24 values (an hour, a weekday)
+ * gets one bin per value from its lowest to its highest real value instead,
+ * empty ones included, so a synthetic value between two real ones is never
+ * counted under a neighbour's label.
  */
 export function histogram(real, synth, bins = 12) {
   const all = [...real, ...synth];
   if (!all.length) return { labels: [], real: [], synthetic: [] };
   const sorted = [...real].sort((a, b) => a - b);
-  const distinct = new Set(real.map(v => Math.round(v)));
-  const whole = real.every(v => Number.isInteger(v)) && distinct.size <= 24;
+  const whole = sorted.length > 0 && sorted.every(v => Number.isInteger(v)) && sorted.at(-1) - sorted[0] < 24;
   let edges;
   if (whole) {
-    const values = [...distinct].sort((a, b) => a - b);
-    edges = values.map(v => v - 0.5).concat(values.at(-1) + 0.5);
+    edges = Array.from({ length: sorted.at(-1) - sorted[0] + 2 }, (_, k) => sorted[0] + k - 0.5);
   } else {
     let lo = quantile(sorted.length ? sorted : [...all].sort((a, b) => a - b), 0.01);
     let hi = quantile(sorted.length ? sorted : [...all].sort((a, b) => a - b), 0.99);

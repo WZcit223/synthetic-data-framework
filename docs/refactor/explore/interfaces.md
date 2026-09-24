@@ -367,7 +367,8 @@ or one of those or `None` (`seed: int | None = None` becomes
 are supplied by the framework.
 
 **Seeded runs are repeatable.** When a synthesizer has a `seed` parameter and a
-run leaves it out or sets it to `None`, `evaluate` uses `EVALUATION_SEED = 7`;
+run leaves it out, `evaluate` uses the declared default; when a nullable seed
+comes out `None` (by default or set so), it uses `EVALUATION_SEED = 7`;
 the run reports every parameter it used in `run.params` and `run.repeatable`
 (`True` exactly when the synthesizer has a `seed` parameter). For a repeatable
 run, repeating it with those parameters gives the same table; a synthesizer

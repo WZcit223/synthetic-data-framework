@@ -78,6 +78,22 @@ def test_a_run_with_the_seed_left_out_is_repeatable(name):
     assert evaluate(name, source="sample", params={"seed": 8}, registry=reg).table != first.table
 
 
+def test_a_left_out_seed_uses_its_declared_default():
+    class SeedFive(UnseededJitter):
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("seed-five", "table", True, "x")
+
+        def __init__(self, *, seed: int = 5) -> None:
+            super().__init__(seed=seed)
+
+    reg = default_registry()
+    reg.register(SeedFive)
+    run = evaluate("seed-five", source="sample", registry=reg)
+    assert run.params == {"seed": 5}
+    assert evaluate("seed-five", source="sample", params={"seed": 5}, registry=reg).table == run.table
+    with pytest.raises(ValueError, match="seed must not be null"):  # only a nullable seed may be None
+        evaluate("seed-five", source="sample", params={"seed": None}, registry=reg)
+
+
 def test_a_run_without_a_seed_parameter_is_not_repeatable():
     class NoSeed(UnseededJitter):
         info: ClassVar[SynthesizerInfo] = SynthesizerInfo("no-seed", "table", True, "x")
