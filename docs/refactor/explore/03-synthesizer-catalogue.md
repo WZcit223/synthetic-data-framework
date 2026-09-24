@@ -25,9 +25,16 @@ produces a warehouse.
   scored with `privacy_report`. Both scorers keep their `ALGORITHM-HOOK`
   markers. `sdf synth` and `sdf privacy` call `evaluate` and print unchanged
   output.
-- `World.generate(spec, *, synthesizer="warehouse-spec")` builds the world with
-  the named synthesizer; `build_registry` takes the same argument. A
-  synthesizer that does not produce a `SyntheticWarehouse` is rejected.
+- `World.generate(spec, *, synthesizer="warehouse-spec", synthesizers=None)`
+  builds the world with the named synthesizer from the given registry (default
+  `default_registry()`); `build_registry` takes the same arguments. A
+  synthesizer that does not produce a `SyntheticWarehouse` is rejected. The
+  world keeps `synthesizer` and its registry, and `SpecIntervention.apply`
+  regenerates with both, so a scenario never silently switches generator.
+- `create_app(synthesizers=…)`: the app holds one synthesizer registry for its
+  lifetime (default `default_registry()`, built once), and the catalogue, runs,
+  `POST /world` and the scenario regeneration all use it. `evaluate` takes the
+  registry as an argument.
 - API: `GET /api/v1/synthesizers`, `GET /api/v1/synthesis/sources`,
   `POST /api/v1/synthesis/runs`; `POST /api/v1/world` and the world snapshot
   accept and report `synthesizer`. The run endpoint validates parameter names,
@@ -37,7 +44,9 @@ produces a warehouse.
   - `params` for each built-in and for a plug-in with bounds;
   - `evaluate` for series and table against the numbers `sdf synth` and
     `sdf privacy` print today, and each rejection;
-  - a runtime warehouse synthesizer used by `POST /world`;
+  - a runtime warehouse synthesizer registered on the registry passed to
+    `create_app` is listed, runs, builds the world through `POST /world`, and
+    is kept by `/scenarios` and `/experiments` when they regenerate the world;
   - each endpoint, including every 422 case and an unavailable synthesizer.
 - Docs: `ARCHITECTURE.md` (synthesizer parameters, evaluation, the world
   generator choice).

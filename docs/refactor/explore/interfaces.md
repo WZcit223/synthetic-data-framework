@@ -154,6 +154,18 @@ skus = "sdf.application.datasets:SkuDataset"
 A plug-in that declares a built-in's name, or fails to load, is not mounted and
 is reported by `unavailable()`; it never breaks the catalogue or the API.
 
+The API holds one catalogue for its lifetime, so a provider registered at run
+time is served by every later request:
+
+```python
+from sdf.api.app import create_app
+
+datasets = default_datasets()
+datasets.register(ChannelMix)
+app = create_app(datasets=datasets)       # default: default_datasets(), built once
+app.state.datasets is datasets            # True; GET /datasets lists 'channel-mix'
+```
+
 ---
 
 ## 2. HTTP
@@ -318,6 +330,36 @@ evaluate("nope", source="sample")             # KeyError listing the synthesizer
 ```
 
 `sdf synth` and `sdf privacy` call `evaluate` and print the same numbers as today.
+`evaluate` takes `registry: SynthesizerRegistry | None = None` (default
+`default_registry()`), so a caller with its own registry evaluates its own
+plug-ins.
+
+**One registry per application, and a world keeps its generator.** The API
+holds one synthesizer registry for its lifetime, and every path that creates a
+synthesizer uses it: the catalogue, runs, `POST /world`, and the regeneration
+a scenario does. A world remembers which synthesizer built it and from which
+registry, so a scenario regenerates it with the same generator instead of
+falling back to `warehouse-spec`:
+
+```python
+from sdf.api.app import create_app
+from sdf.simulation.intervention import SpecIntervention
+from sdf.simulation.world import World
+from sdf.synthesis.registry import default_registry
+
+synthesizers = default_registry()
+synthesizers.register(MyWarehouseGenerator)          # produces="warehouse", takes spec=
+app = create_app(synthesizers=synthesizers)          # default: default_registry(), built once
+app.state.synthesizers is synthesizers               # True
+
+world = World.generate(spec, synthesizer="my-warehouse", synthesizers=synthesizers)
+world.synthesizer                                    # 'my-warehouse'
+SpecIntervention.named("promo_spike").apply(world).synthesizer   # 'my-warehouse'
+World.generate(spec).synthesizer                     # 'warehouse-spec' (the default, from default_registry())
+```
+
+`World.synthesizers` (the registry) is kept with the world but is not part of
+its equality or its printed form.
 
 ### 4.2 Target (after PR 3): HTTP
 

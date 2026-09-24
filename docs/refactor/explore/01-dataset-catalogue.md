@@ -23,6 +23,8 @@ meaning in advance.
   `plan_orders(world, ServiceLevelPolicy(service_level=0.95))`.
 - API (`sdf.api`): `GET /api/v1/datasets`, `GET /api/v1/datasets/{name}` (with
   `limit`, capped at `MAX_DATASET_ROWS`), `GET /api/v1/experiments/catalog`, and
+  `create_app(datasets=…)`, so the app holds one catalogue for its lifetime
+  and a runtime-registered provider is served by later requests; and
   `fields` added to the `POST /api/v1/experiments` response. The catalogue's
   policy parameter bounds are read from the same model that validates
   `POST /experiments`, so the two cannot drift. Response models follow the
@@ -30,7 +32,9 @@ meaning in advance.
 - Tests: field and table checks; each built-in dataset's field names and row
   count on the default world, with its totals matching the dashboard's figures
   (units on hand, inventory value, SKUs needing an order at 95 %); a runtime
-  provider and an entry-point plug-in (mounted, name clash, failing import);
+  provider and an entry-point plug-in (mounted, name clash, failing import); a
+  provider registered on the catalogue passed to `create_app` is listed and
+  served;
   each endpoint, including 404, `limit`, `truncated`, and a catalogue whose
   bounds are the ones `POST /experiments` enforces.
 - Docs: `ARCHITECTURE.md` describes the catalogue, the table shape and the
