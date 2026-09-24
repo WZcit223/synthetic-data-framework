@@ -41,9 +41,16 @@ on data where the truth is known.
     outcome that regression adjustment recovers exactly; balanced propensities
     where `ipw` equals the difference in means;
   - the interval methods and the seeded bootstrap;
-  - `design`: missing rows, the one-hot encoding, and every refusal (a time
-    treatment, a measure treatment with values other than 0 and 1, a time
-    covariate, a confidence of 0.5 or 1);
+  - `design`: missing rows, the one-hot encoding, and every refusal:
+    - a time treatment, or a measure treatment with values other than 0 and 1;
+    - a time covariate;
+    - a confidence of 0.5 or 1;
+    - a rank-deficient design, for example a covariate constant within the
+      treated rows;
+    - no residual degree of freedom;
+  - the registry's guard: a non-finite `Estimate`, a perfectly separating
+    covariate for `ipw`, and a constant outcome each give an error row, never
+    a number;
   - the benchmark: exact truth, `confounding=0` is unconfounded, and the
     parameter bounds;
   - `score`: a failing estimator becomes a row; without a truth the truth
@@ -52,10 +59,22 @@ on data where the truth is known.
     200, and the benchmark's `params` and `question` in `GET /estimators`;
   - the CLI output;
   - the contract examples in §3 run as written.
+- **Hook markers.** The built-in estimators and the benchmark are stand-ins, so
+  they carry markers under a new checklist row C8, "Causal effect estimation":
+  - stand-in: regression adjustment and IPW on a declared adjustment set;
+  - algorithm needed: double machine learning with flexible learners, causal
+    forests, sensitivity analysis for unobserved confounding;
+  - data needed: real promotion or intervention history with its assignment
+    rules.
+
+  Each built-in estimator's class carries an `ALGORITHM-HOOK[C8]` marker in its
+  docstring. The benchmark's mechanism carries a `DATA-HOOK[C8]` marker: real
+  promotion history replaces the declared mechanism. The code index is
+  regenerated with `uv run sdf hooks --update-doc`.
 - **Docs:** `ARCHITECTURE.md` (analytics gains causal estimation; simulation
-  gains the benchmark), the README command list, the
-  `ALGORITHM_AND_DATA_CHECKLIST.md` rows for causal estimation, and this
-  plan's status note with the measured benchmark numbers.
+  gains the benchmark), the README command list, the new row C8 in
+  `ALGORITHM_AND_DATA_CHECKLIST.md` (the stand-in table and the capability
+  summary), and this plan's status note with the measured benchmark numbers.
 
 ## Non-goals
 
@@ -74,6 +93,8 @@ on data where the truth is known.
   the truth at confounding 1; the PR records the numbers.
 - With `uv sync --extra causal` on Python 3.13, `dowhy-backdoor` and
   `econml-dml` run on the same draw and land near the adjusted built-ins.
+- `uv run sdf hooks` passes with the new C8 markers, and the checklist's code
+  index lists them.
 - `POST /api/v1/causal/estimates` returns the same rows as the CLI for the same
   request, and answers a dataset question (`order-lines`, express against
   standard) with empty truth fields.

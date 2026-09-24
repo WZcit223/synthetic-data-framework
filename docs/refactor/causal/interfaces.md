@@ -182,9 +182,14 @@ POST /api/v1/effects
 }
 ```
 
-- The study runs on the **current world's spec and generator** (`GET /world`),
-  so an effect answers the same question as the dashboard's experiment, over
-  replicates.
+- The study runs on the **current world's spec and generator**, the ones the
+  dashboard's world was built from. The handler reads `store.current` once and
+  takes both from that one snapshot (`snapshot.world.spec` and
+  `snapshot.world.synthesizer`). The store replaces its snapshot atomically, so
+  a concurrent `POST /world` cannot mix two worlds. The
+  response echoes them (`spec`, `synthesizer`), since `GET /world` does not
+  publish the spec. An effect therefore answers the same question as the
+  dashboard's experiment, over replicates.
 - **422** for an unknown name, `baseline` among the interventions, a duplicate,
   or a value out of range. **422** when the work is over budget (see next
   bullet), naming the limit and the request's size.
@@ -205,6 +210,10 @@ POST /api/v1/effects
   `MAX_EFFECT_WORK` so that a request at the limit stays under 30 s whatever
   its mix (6 policies × 6 outcomes of `simulated_cost` included), and tests
   that case.
+- **Explore links** replay this request. The source shape is added to the
+  exploration contract ([`../explore/interfaces.md`](../explore/interfaces.md)
+  §3.2) by PR 2: `{ effects: { request: {...}, table: "effects" | "replicates" } }`,
+  where `request` is the body above.
 - **The limits are published.** `GET /api/v1/experiments/catalog` gains
   `"effects": {"max_replicates": 20, "measure_weight": 0.25, "max_work": …}`,
   so a client checks a request with the server's own numbers.
@@ -331,10 +340,24 @@ class Estimator(Protocol):
     field and its kind);
   - an outcome that is not a measure, or a covariate that is a time field;
   - a `confidence` outside (0.5, 1), as for `EffectStudy`;
-  - a table with fewer than two treated or two control rows.
+  - a table with fewer than two treated or two control rows;
+  - a design that cannot identify the effect: an intercept, treatment and
+    encoded covariates of rank below their number, or no more rows than
+    columns plus one, so no residual degree of freedom is left. The message
+    names the covariates at fault, for example "abc_class=A is constant within
+    the treated rows".
 
-  So an estimator never sees an interval level that would give a non-finite
-  interval or fail inside a library.
+  These are request problems (422 through the API).
+- **What can still fail inside an estimator** is data the checks above cannot
+  rule out: a covariate that perfectly separates treated from control (no
+  overlap, for `ipw`), a constant outcome (a zero standard error), or a library
+  error. The registry turns every such case into an error, never a number:
+  - an estimator that raises is handled as `score` handles it, as an error row;
+  - an `Estimate` with a non-finite effect or interval bound is replaced by an
+    error row naming the estimator and the value.
+
+  So no table ever holds an infinite or undefined estimate. A zero-width
+  interval on a constant outcome is finite and stays.
 - **Covariates.** Dimension covariates are one-hot encoded, dropping the first
   level. Measure covariates are used as they are.
 - **Seeds.** `seed` is used only by estimators that resample (the `ipw`
@@ -498,6 +521,9 @@ POST /api/v1/causal/estimates
   `benchmark` and `dataset`, or a benchmark value outside
   the bounds `GET /estimators` publishes. The server checks each value with the
   same `Param.check` the synthesizer runs use, so the form and the server agree.
+- **Explore links** replay this request, through the source shape PR 5 adds to
+  the exploration contract (§3.2): `{ estimates: { request: {...}, table:
+  "scores" | "data" } }`, where `request` is the body above.
 - With `benchmark`, `question` is optional. When it is given, it may only drop
   covariates from the benchmark's own question, so a user can watch the bias
   return.

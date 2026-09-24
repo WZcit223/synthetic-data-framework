@@ -339,6 +339,19 @@ The page keeps the whole view in its address, so a link reproduces it:
 { synthesis: { synthesizer: "seasonal-profile", source: "sample", params: { seed: 7 } } }  // POST /synthesis/runs (served since PR 4)
 ```
 
+Two more shapes come with the causal modelling sequence
+([`../causal/interfaces.md`](../causal/interfaces.md)). Each becomes valid only
+when its PR merges, and each is added to the page's source validator by that
+PR:
+
+```javascript
+{ effects: { request: {...}, table: "effects" | "replicates" } }   // POST /effects with request; causal PR 2
+{ estimates: { request: {...}, table: "scores" | "data" } }        // POST /causal/estimates with request; causal PR 5
+```
+
+`table` picks which of the response's tables the view pivots: the effects or
+their replicate rows; the estimator scores or the benchmark's observed rows.
+
 Opening a link repeats that one request against the current world and applies
 the view. A source of an unknown shape, or a request the API rejects, shows the
 error and an empty view; it never falls back to another source.

@@ -40,8 +40,10 @@ opens in Explore like any other table.
     difference as a dot, with the mean.
   - **Hover** shows a tooltip with the numbers, and every chart has a table
     view.
-- **Open in Explore** for the effects table and for the replicate rows, as a
-  new source `effects` in Explore that re-runs the same request from the link.
+- **Open in Explore** for the effects table and for the replicate rows. This
+  adds the `effects` source shape to Explore's source validator and loader,
+  as the exploration contract §3.2 now lists it, and a Node test of a link
+  that round-trips through the validator.
 - Navigation: the four pages link each other. The UI contract test covers the
   new page (paths in OpenAPI, no inline handler, assets and modules load,
   navigation links).

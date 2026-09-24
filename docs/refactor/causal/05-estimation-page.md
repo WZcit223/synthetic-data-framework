@@ -13,7 +13,8 @@ finds in the plug-in guide how to write, mount and score their own estimator.
 ## Scope
 
 - **An "Estimate from data" view on the Effects page**, with pure helpers and
-  Node tests in `ui/effects-model.js`.
+  their Node tests in `ui/effects-model.test.js` (the file PR 2 creates, found
+  by `node --test ui/*.test.js`).
 - **The form** is built from `GET /api/v1/estimators` (contract §3.4):
   - the mounted estimators, with the unavailable ones listed and their reason;
   - the benchmark's uplift, confounding, noise and seed, from its `benchmark.params`,
@@ -32,6 +33,8 @@ finds in the plug-in guide how to write, mount and score their own estimator.
     bias against confounding as lines, one colour per estimator in fixed
     order, with a legend and direct labels.
   - **Open in Explore** for the scores and for the benchmark's observed table.
+    This adds the `estimates` source shape to Explore's validator and loader
+    (exploration contract §3.2), with a round-trip Node test.
 - **The plug-in guide** (`docs/PLUGINS.md`) gains an estimator section:
   - the protocol, `design`, the `sdf.estimators` group, and how to score an
     estimator with `sdf estimate` and the API;

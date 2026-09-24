@@ -19,7 +19,7 @@ and estimators (PR 4) use it instead of adding a third copy.
 - One change a user can see: the dataset catalogue's name-clash reason names
   the holder, as the synthesizer one does.
 - Tests: the shared behaviour is tested once, on a minimal registry, in
-  `sdf/foundation/plugins_test.py`. The existing registry and catalogue tests
+  `src/sdf/foundation/plugins_test.py`. The existing registry and catalogue tests
   pass unchanged apart from that one message, which proves the move changed
   nothing else. The layering test passes (`foundation` imports nothing above
   it).
