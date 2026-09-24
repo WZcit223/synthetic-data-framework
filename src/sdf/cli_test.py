@@ -27,6 +27,7 @@ COMMANDS = [
     "scenarios",
     "privacy",
     "validate",
+    "hooks",
 ]
 
 
@@ -170,3 +171,33 @@ def test_unknown_synthesizer_is_a_usage_error_listing_the_names():
     result = run("privacy", SAMPLE_CSV, "--synthesizer", "nope")
     assert result.exit_code == 2
     assert "Invalid value for '--synthesizer': 'nope'" in result.output and "bootstrap-table" in result.output
+
+
+def test_hooks_prints_the_index_and_updates_a_doc(tmp_path, monkeypatch):
+    monkeypatch.chdir(ROOT)
+    result = run("hooks")
+    assert result.exit_code == 0, result.output
+    assert "| C2 | Replenishment |" in result.output
+    doc = tmp_path / "notes.md"  # holds no row table: the rows come from --checklist
+    doc.write_text("Intro\n\n<!-- sdf-hooks:begin -->\nstale\n<!-- sdf-hooks:end -->\n", encoding="utf-8")
+    assert "updated" in run("hooks", "--update-doc", str(doc)).output
+    text = doc.read_text(encoding="utf-8")
+    assert "| C2 | Replenishment |" in text and "stale" not in text
+    assert f"--update-doc {doc}`" in text  # the header names the document it regenerates
+    assert "already up to date" in run("hooks", "--update-doc", str(doc)).output
+
+
+def test_hooks_update_doc_needs_the_generated_block(tmp_path, monkeypatch):
+    monkeypatch.chdir(ROOT)
+    doc = tmp_path / "plain.md"
+    doc.write_text("no generated block here\n", encoding="utf-8")
+    result = run("hooks", "--update-doc", str(doc))
+    assert result.exit_code == 1 and "sdf-hooks:begin" in result.output
+    assert doc.read_text(encoding="utf-8") == "no generated block here\n"
+
+
+def test_hooks_fails_on_an_unknown_row(tmp_path):
+    doc = tmp_path / "checklist.md"
+    doc.write_text("| # | Item |\n|---|---|\n| C1 | Demand forecast |\n", encoding="utf-8")
+    result = run("hooks", "--checklist", str(doc))
+    assert result.exit_code == 1 and "names no checklist row" in result.output

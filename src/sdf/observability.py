@@ -6,7 +6,7 @@ record of *what ran, with what inputs, producing what, and whether it succeeded*
 Persist to JSONL for a durable audit log, or keep in memory for a demo.
 
 This is the observability substrate an industrial deployment needs (audit,
-debugging, compliance). ALGORITHM-HOOK: swap the JSONL sink for OpenTelemetry /
+debugging, compliance). ALGORITHM-HOOK[D4]: swap the JSONL sink for OpenTelemetry /
 a real tracing backend without changing callers.
 """
 

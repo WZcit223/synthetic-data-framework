@@ -5,7 +5,7 @@ Scores how well a synthetic series matches a real reference on:
   - seasonality    : Pearson correlation of the hour-of-day profiles (1 = identical)
   - moments        : relative delta of mean and standard deviation
 
-This is a lightweight stand-in for SDMetrics. ALGORITHM-HOOK: for production use
+This is a lightweight stand-in for SDMetrics. ALGORITHM-HOOK[B1]: for production use
 SDMetrics' full report (column-shape, pair-trends) and add privacy (DCR) and a
 synthetic-vs-real detection AUC — see docs/ALGORITHM_AND_DATA_CHECKLIST.md (B1–B4).
 """

@@ -10,7 +10,7 @@ number and hide the rank). It captures **trend + seasonality** together, which i
 beat the naive/seasonal-naive baselines when both signals are present.
 
 It plugs into the same `backtest`/`compare_models` harness as the baselines, and
-into TSTR validation (`validation/tstr.py`). ALGORITHM-HOOK: DeepAR / TFT / LightGBM
+into TSTR validation (`validation/tstr.py`). ALGORITHM-HOOK[C1]: DeepAR / TFT / LightGBM
 are the next rung — same harness scores them.
 """
 

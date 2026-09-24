@@ -12,7 +12,7 @@ model trained on it perform on real data?" TSTR answers it:
 
 A TSTR/TRTR ratio near 1.0 means synthetic data is ~as useful as real for
 training — the property that lets us build on synthetic data before real data
-exists. ALGORITHM-HOOK: swap the synthesizer for SDV and the model for
+exists. ALGORITHM-HOOK[B2]: swap the synthesizer for SDV and the model for
 DeepAR/TFT; this harness scores them unchanged.
 """
 

@@ -11,7 +11,7 @@ from .replenishment import ss_policy
 def insights(reg: DataSourceRegistry) -> list[str]:
     """Natural-language-ish findings.
 
-    ALGORITHM-HOOK: replace this with an LLM + knowledge-graph layer
+    ALGORITHM-HOOK[C6]: replace this with an LLM + knowledge-graph layer
     (retrieval over the entity graph -> grounded narrative).
     """
     k = kpis(reg)

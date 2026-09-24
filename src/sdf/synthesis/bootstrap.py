@@ -14,7 +14,7 @@ class BootstrapTable:
 
     Stands in for a fitted table generator so privacy can be measured with no
     heavy dependencies. Each ``sample()`` continues the instance's random
-    stream unless ``seed`` pins it. ALGORITHM-HOOK: use SDV CTGAN/copula rows instead.
+    stream unless ``seed`` pins it. ALGORITHM-HOOK[A1]: use SDV CTGAN/copula rows instead.
     """
 
     info: ClassVar[SynthesizerInfo] = SynthesizerInfo(

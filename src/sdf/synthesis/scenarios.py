@@ -7,7 +7,7 @@ and compares the resulting KPIs and inventory stress so planners can see how the
 warehouse behaves under stress — before it happens.
 
 This is the step from "data generator" toward the "仿真引擎" named to management.
-ALGORITHM-HOOK: for a true digital twin, replace the parametric spec transforms
+ALGORITHM-HOOK[A4]: for a true digital twin, replace the parametric spec transforms
 with a discrete-event simulator or an agent-based model of the facility.
 """
 

@@ -10,7 +10,7 @@ core path. The dependency-free `fit.py`/`fidelity.py` remain the default.
     uv sync --extra synthesis
     uv run sdf sdv data/online_retail_ii_2010_10k.csv
 
-ALGORITHM-HOOK: swap GaussianCopula for CTGAN/TVAE (adds torch) for higher
+ALGORITHM-HOOK[A1]: swap GaussianCopula for CTGAN/TVAE (adds torch) for higher
 fidelity on complex joint distributions; the SDMetrics scoring is identical.
 """
 

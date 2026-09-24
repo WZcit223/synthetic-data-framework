@@ -81,7 +81,7 @@ class WarehouseAgent:
         )
 
     def _place_order(self, sku_id: str = "", quantity: int = 0) -> dict:
-        # DATA-HOOK: submit to the client's ordering system; none is connected in the framework.
+        # DATA-HOOK[C7]: submit to the client's ordering system; none is connected in the framework.
         return {"action": "place_order", "sku_id": sku_id, "quantity": quantity, "status": "APPROVED_NOT_SUBMITTED"}
 
     def handle(self, query: str, cost_model: CostModel | None = None) -> dict:

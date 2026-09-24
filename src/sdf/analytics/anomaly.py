@@ -11,7 +11,7 @@ the mean absolute deviation is used instead, and the scale never goes below
 ``min_scale`` demand units, so selling one unit on an otherwise empty day is
 never an "anomaly" and a perfectly flat series has none.
 
-ALGORITHM-HOOK: replace with Isolation Forest / autoencoder over the multivariate
+ALGORITHM-HOOK[C3]: replace with Isolation Forest / autoencoder over the multivariate
 inventory + demand + sensor state for richer, multi-signal anomalies.
 """
 

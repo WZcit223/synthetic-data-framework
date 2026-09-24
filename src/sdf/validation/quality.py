@@ -65,8 +65,8 @@ def structural_quality_check(warehouse: SyntheticWarehouse) -> QualityReport:
     }
     report.notes = [
         "Framework mode: structural checks only.",
-        # ALGORITHM-HOOK: statistical fidelity (KS / correlation / detection AUC),
-        # ALGORITHM-HOOK: privacy (DCR, membership-inference),
-        # ALGORITHM-HOOK: ML-utility (train-on-synthetic / test-on-real) — TODO.
+        # ALGORITHM-HOOK[B1]: statistical fidelity (KS / correlation / detection AUC),
+        # ALGORITHM-HOOK[B3]: privacy (DCR, membership-inference),
+        # ALGORITHM-HOOK[B2]: ML-utility (train-on-synthetic / test-on-real) — TODO.
     ]
     return report

@@ -1,5 +1,11 @@
 # PR 1 — Hook markers name their checklist row
 
+> Status: implemented (clean-up sequence PR 1). All 39 markers carry a row ID.
+> Rows with no code yet: A3, A5, B4, C4, D1, D3, D5. No number moved, and
+> `sdf demo` is byte-identical; the only output change is the hint `sdf impact`
+> prints, which now reads `DATA-HOOK[C2]: real unit costs.` `REFACTOR_PREP.md`
+> §4's marker constraint and §5 step 8 now describe this contract.
+
 ## Goal
 
 Every place a real algorithm or real data plugs in is marked with the checklist

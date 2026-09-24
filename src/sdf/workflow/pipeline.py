@@ -9,7 +9,7 @@ Each `Step` names its dependencies; the pipeline runs them in topological order,
 passing a shared context dict, timing and logging each via `RunLogger`, and
 storing each step's artifact under its name.
 
-ALGORITHM-HOOK: swap the in-process runner for Airflow/Dagster/Prefect; the Step
+ALGORITHM-HOOK[D2]: swap the in-process runner for Airflow/Dagster/Prefect; the Step
 contract (name, deps, run(ctx)->artifact) is intentionally the same shape.
 """
 

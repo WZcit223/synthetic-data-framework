@@ -7,7 +7,7 @@ points that reproduce the real shape. Transparent, dependency-free.
 
 `FittedSeasonalDemand` is granularity-agnostic (give it any series + period).
 `FittedHourlyDemand` is the convenience wrapper that derives an hourly series
-from raw orders. ALGORITHM-HOOK: swap either for SDV CTGAN/TVAE (or DoppelGANger
+from raw orders. ALGORITHM-HOOK[A2]: swap either for SDV CTGAN/TVAE (or DoppelGANger
 for sequences); the fidelity/TSTR harness scores whichever generator you use.
 """
 
