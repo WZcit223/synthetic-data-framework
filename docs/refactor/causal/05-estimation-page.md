@@ -27,7 +27,11 @@ finds in the plug-in guide how to write, mount and score their own estimator.
 - **The result:**
   - **An interval chart.** One row per estimator: its estimate and interval,
     a reference line at the true effect, and a zero line. An interval that
-    covers the truth is marked so in text, not only by colour.
+    covers the truth is marked so in text, not only by colour. An estimator
+    that gives no interval (both bounds empty, contract §3.1) is drawn as a
+    point without a line and labelled "no interval". Its `covers` cell is
+    empty. An error row is drawn as a text row with its message, with no
+    point.
   - **A table:** estimate, interval, bias, relative bias, covers.
   - **A confounding sweep** (0 to 3, five steps) that draws each estimator's
     bias against confounding as lines, one colour per estimator in fixed

@@ -108,10 +108,23 @@ Rules the implementation keeps:
     of that spec. The study generates the spec once more and compares the
     two worlds' data, not only their measurements. Every source in
     `world.registry.sources()` must match by name, entity type and rows, in
-    order, with rows compared by their dataclass equality. Every policy ×
-    outcome value must match too. So a stateful generator that changes SKUs,
-    inventory or any other rows, measured or not, is caught. If anything
-    differs, it refuses
+    order. Every policy × outcome value must match too.
+
+    **What is compared is a snapshot, taken before the next call.** Each
+    row's values are copied with `dataclasses.astuple`, which copies nested
+    values too. Snapshots are taken of the reference world, and of the held
+    baseline, before the second generation or any intervention runs. A
+    generator that reuses and later mutates row objects therefore cannot make
+    both sides show the same final state.
+
+    The held baseline is also compared with its own snapshot at the end of
+    the study. If a later call changed it in place, the study refuses: "the
+    generator modified an earlier world; regenerate the world". No effect is
+    reported from it. The study cannot undo such a change to the current
+    world; it only detects it and says so.
+
+    So a stateful generator that changes SKUs, inventory or any other rows,
+    measured or not, is caught. If anything differs, it refuses
     with `ValueError`: "generator X is not deterministic in its spec; paired
     effects need the same world for the same seed" (422 through the API).
 
@@ -134,7 +147,8 @@ Rules the implementation keeps:
   - An intervention must also leave its input world unchanged. A `World` is
     frozen, but its registry's rows are mutable lists. So before applying a
     custom intervention, the study records the input's sources (name, entity
-    type and a tuple of its rows). It compares them after each application.
+    type and each row's `dataclasses.astuple` copy, as above). It compares
+    them after each application.
     If they changed, it refuses with `ValueError`: "intervention X modified
     its input world".
 
@@ -320,7 +334,7 @@ POST /api/v1/effects
   its work, without generating anything, and answers 200:
 
   ```text
-  {"work": 1_458_000, "max_work": …, "within_budget": true,
+  {"work": 837_000, "max_work": …, "within_budget": true,
    "size": "10 replicates × 3 arms × 2 policies × 1 outcome × 200 SKUs × 90 days"}
   ```
 
@@ -597,6 +611,12 @@ class EstimatorRegistry(PluginRegistry[Estimator]):
         question the table cannot answer or a confidence outside (0.5, 1)
         (§3.1), and lets the estimator's own
         exception through (``score`` turns that into a row).
+
+    An Estimate may have no interval (ci_low and ci_high both None), as the
+    median-difference example does. That is a valid result, not an error.
+    Its covers is empty, and the page draws it as a point without a line.
+    Exactly one bound None is not allowed: the registry turns it into an
+    error row.
         """
 
 

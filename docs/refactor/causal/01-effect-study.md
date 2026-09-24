@@ -42,6 +42,9 @@ confidence interval, and the relative change.
   - the study leaves the API's current world unchanged;
   - the determinism check: a runtime generator that ignores `spec.seed` is
     refused with the message of §1.2, and `warehouse-spec` passes;
+  - a generator that reuses row objects and mutates them on its next call is
+    refused (the snapshot, not the live rows, is compared), and the held
+    baseline is checked unchanged at the end;
   - a custom `Intervention` with its own random state is refused, as is one
     that appends to its input world's rows, and
     `Baseline` and `SpecIntervention` are accepted without the extra check;
