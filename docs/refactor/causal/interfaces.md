@@ -543,6 +543,8 @@ class Estimator(Protocol):
   - an estimator that raises is handled as `score` handles it, as an error row;
   - an `Estimate` whose effect or interval bound is not a finite number (NaN,
     infinite) is replaced by an error row naming the estimator and the value;
+  - so is one whose `estimator` is not the name it was run under, since
+    `score` gives one row per requested name;
   - every finite result stays.
 
   So a constant outcome is not an error in itself. When treated and control

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import ClassVar
 
 import numpy as np
@@ -259,6 +259,13 @@ def returning(name, **values):
     )
 
 
+class Mislabelled:
+    info: ClassVar[EstimatorInfo] = EstimatorInfo("mislabelled", "answers under another name")
+
+    def estimate(self, table, question, *, confidence=0.95, seed=7):
+        return Estimate("someone-else", 1.0, 0.0, 2.0, 2, 2, "told")
+
+
 class Raises:
     info: ClassVar[EstimatorInfo] = EstimatorInfo("raises", "always fails")
 
@@ -273,8 +280,9 @@ def test_a_non_finite_result_or_a_lone_bound_becomes_an_error_row():
         returning("one-bound", high=None),
         returning("no-interval", low=None, high=None),
         Raises,
+        Mislabelled,
     )
-    names = ["nan-effect", "inf-bound", "one-bound", "no-interval", "raises"]
+    names = ["nan-effect", "inf-bound", "one-bound", "no-interval", "raises", "mislabelled"]
     rows = score(table(BASE), Q, reg, names=names, true_effect=1.5).rows
     assert [r[11] for r in rows] == [
         "nan-effect returned a non-finite effect nan",
@@ -282,7 +290,9 @@ def test_a_non_finite_result_or_a_lone_bound_becomes_an_error_row():
         "one-bound returned one interval bound without the other",
         "told",  # no interval at all is a valid result
         "RuntimeError: library error",
+        "mislabelled returned an estimate labelled 'someone-else'",
     ]
+    assert [r[0] for r in rows] == names  # one row per requested name, whatever the estimator called itself
     assert rows[3][1:8] == (
         1.0,
         None,
@@ -292,7 +302,7 @@ def test_a_non_finite_result_or_a_lone_bound_becomes_an_error_row():
         pytest.approx(-1 / 3),
         None,
     )  # covers is empty without an interval
-    for r in (rows[0], rows[1], rows[2], rows[4]):
+    for r in (rows[0], rows[1], rows[2], rows[4], rows[5]):
         assert r[1:10] == (None,) * 9 and r[10] is not None  # an error row keeps its run time
     with pytest.raises(ValueError, match="non-finite effect"):
         reg.estimate("nan-effect", table(BASE), Q)
@@ -359,7 +369,8 @@ class Sleeps:
 
     def estimate(self, table, question, *, confidence=0.95, seed=7):
         time.sleep(0.3)
-        return DifferenceInMeans().estimate(table, question, confidence=confidence, seed=seed)
+        est = DifferenceInMeans().estimate(table, question, confidence=confidence, seed=seed)
+        return replace(est, estimator=self.info.name)
 
 
 def test_estimators_not_started_before_the_deadline_are_not_run():

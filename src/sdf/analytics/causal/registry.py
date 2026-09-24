@@ -60,6 +60,8 @@ def _checked(name: str, est: Any) -> Estimate:
     """The one test on a result: an Estimate whose effect and bounds are finite (or both bounds absent)."""
     if not isinstance(est, Estimate):
         raise ValueError(f"{name} returned {type(est).__name__}, not an Estimate")
+    if est.estimator != name:  # one row per requested name: a result labelled otherwise would break that
+        raise ValueError(f"{name} returned an estimate labelled {est.estimator!r}")
     if not _finite(est.effect):
         raise ValueError(f"{name} returned a non-finite effect {est.effect!r}")
     if (est.ci_low is None) != (est.ci_high is None):
