@@ -71,7 +71,7 @@ produces a warehouse.
 ## Acceptance
 
 ```bash
-uv sync --locked --extra api
+uv sync --locked --extra api --extra synthesis     # synthesis: gaussian-copula's tests run instead of skipping
 uv run ruff check && uv run ruff format --check
 uv run pytest
 uv run sdf hooks

@@ -52,8 +52,16 @@ not from cells.
   become small multiples. Series take the categorical palette in fixed order,
   and beyond eight series the rest fold into "Other". There is always a legend
   for two or more series, a hover tooltip on every mark, and a table view one
-  click away. Colours are checked with the palette validator for the dark
-  surface the dashboard uses.
+  click away. The colours are fixed constants in `ui/palette.js`:
+  - the eight series colours, in this order: `#3987e5`, `#d95926`, `#199e70`,
+    `#c98500`, `#d55181`, `#008300`, `#9085e9`, `#e66767`. This is a published
+    categorical order stepped for dark surfaces and checked for colour-blind
+    separation between neighbours;
+  - the heatmap's single-hue blue ramp, `#104281` (low) to `#86b6ef` (high).
+
+  `ui/palette.test.js` asserts the order and that every series colour has at
+  least 3:1 WCAG contrast against the page surface `#161b22`, so a later edit
+  cannot quietly break either.
 - *Status line.* Rows read, rows after filters, groups, and time taken; a
   truncated dataset says so.
 - *State in the address.* The source (a dataset or an experiment request) and
