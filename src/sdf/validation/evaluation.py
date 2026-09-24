@@ -56,6 +56,10 @@ class EvaluationRun:
     load: LoadReport | None = field(default=None, repr=False, compare=False)  # a series run's CSV load report
 
 
+class RunFailed(RuntimeError):
+    """The synthesizer itself failed while being created, fitted or sampled: a fault of the plug-in, not of the request."""
+
+
 class NoUsableRows(ValueError):
     """The source gave no row to fit on; ``reason`` says why (a load summary, or the scorer's error)."""
 
@@ -89,7 +93,9 @@ def evaluate(
 
     Raises ``KeyError`` for an unknown or unavailable synthesizer, and
     ``ValueError`` for a warehouse synthesizer, a parameter it does not take or
-    whose value it refuses, an unknown source, or a source with no usable row.
+    whose value it refuses, an unknown source, or a source with no usable row:
+    all problems of the request. ``RunFailed`` means the synthesizer's own code
+    raised while it was created, fitted or sampled.
     """
     reg = registry if registry is not None else default_registry()
     info = reg.info(synthesizer)
@@ -113,16 +119,16 @@ def evaluate(
         if problem:
             raise ValueError(f"{synthesizer}: {name} {problem}")
     path = _resolve(source)
-    model = reg.create(synthesizer, **used)
+    model = _run(synthesizer, "creating it", lambda: reg.create(synthesizer, **used))
 
     if info.produces == "series":
         _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
         if not load.rows_kept:
             raise NoUsableRows(path, load.summary(), load)
-        fitted = FittedHourlyDemand(model).fit(orders)
+        fitted = _run(synthesizer, "fitting it", lambda: FittedHourlyDemand(model).fit(orders))
         if not fitted.real_series:  # the fit keeps demand only: a file of returns or cancellations has none
             raise NoUsableRows(path, f"{load.summary()}; no demand left after removing cancelled lines", load)
-        synth = fitted.generate()
+        synth = _run(synthesizer, "sampling from it", fitted.generate)
         metrics = fidelity_report(fitted.real_series, synth, fitted.ppd)
         rows = [(str(i), "real", round(v, 4)) for i, v in enumerate(fitted.real_series)]
         rows += [(str(i), "synthetic", round(v, 4)) for i, v in enumerate(synth)]
@@ -130,7 +136,15 @@ def evaluate(
         return EvaluationRun(synthesizer, source, "series", used, metrics, table, repeatable, load)
 
     real = read_retail_feature_table(path, date_format=date_format)
-    synth_rows = model.fit(TableData(rows=real, columns=FEATURE_COLUMNS)).sample() if real else []
+    synth_rows = (
+        _run(
+            synthesizer,
+            "fitting and sampling it",
+            lambda: model.fit(TableData(rows=real, columns=FEATURE_COLUMNS)).sample(),
+        )
+        if real
+        else []
+    )
     metrics = privacy_report(real, synth_rows)
     if "error" in metrics:
         raise NoUsableRows(path, metrics["error"])
@@ -138,6 +152,14 @@ def evaluate(
     rows += [("synthetic", *(round(float(v), 4) for v in r)) for r in synth_rows]
     table = Table(_info(synthesizer, "table", TABLE_FIELDS), rows)
     return EvaluationRun(synthesizer, source, "table", used, metrics, table, repeatable)
+
+
+def _run(synthesizer: str, step: str, call):
+    """``call()``; an exception from the synthesizer's code becomes ``RunFailed``, so it never reads as a bad request."""
+    try:
+        return call()
+    except Exception as exc:
+        raise RunFailed(f"{synthesizer} failed while {step}: {type(exc).__name__}: {exc}") from exc
 
 
 def _resolve(source: str) -> str:

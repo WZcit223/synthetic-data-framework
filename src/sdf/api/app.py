@@ -41,7 +41,7 @@ from sdf.simulation.experiment import OUTCOME_FIELDS, Experiment
 from sdf.synthesis.materialise import WarehouseRefused
 from sdf.synthesis.registry import SynthesizerRegistry, default_registry
 from sdf.synthesis.spec import GenerationSpec
-from sdf.validation.evaluation import evaluate, sources
+from sdf.validation.evaluation import RunFailed, evaluate, sources
 from sdf.validation.quality import structural_quality_check
 from sdf.workflow import warehouse_pipeline
 from . import schemas as s
@@ -234,7 +234,11 @@ def create_app(
         """The sample data a run may be fitted on, by ID (the server's own files; a client never sends a path)."""
         return {"sources": [{"id": sid, "label": Path(path).name} for sid, path in sources().items()]}
 
-    @api.post("/synthesis/runs", response_model=s.SynthesisRunResult, responses={422: {"description": "not runnable"}})
+    @api.post(
+        "/synthesis/runs",
+        response_model=s.SynthesisRunResult,
+        responses={422: {"description": "not runnable"}, 500: {"description": "the synthesizer failed"}},
+    )
     def synthesis_run(body: s.SynthesisRunRequest):
         """Fit one synthesizer on one source and score it; the parameters are checked before it is created."""
         listed = sources()
@@ -242,6 +246,8 @@ def create_app(
             raise HTTPException(status_code=422, detail=f"unknown source {body.source!r}; choose from {sorted(listed)}")
         try:
             run = evaluate(body.synthesizer, source=body.source, params=body.params, registry=registry)
+        except RunFailed as exc:  # the plug-in's own code failed: not the request's fault
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
         except KeyError as exc:  # unknown or unavailable synthesizer
             raise HTTPException(status_code=422, detail=exc.args[0]) from exc
         except ValueError as exc:  # a warehouse generator, a parameter it refuses, a source with no usable row

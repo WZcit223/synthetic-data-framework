@@ -363,6 +363,10 @@ def test_params_of_a_plug_in_with_bounds_and_string_annotations():
         ({"scale": (0,)}, "must be a (min, max) pair"),
         ({"scale": ("0", 1)}, "must be a (min, max) pair"),
         ({"scale": (1.0, 0.0)}, "has min 1.0 above max 0.0"),
+        ({"scale": (float("nan"), 1.0)}, "must be finite numbers or None"),
+        ({"scale": (0.0, float("inf"))}, "must be finite numbers or None"),
+        ([], "must be a dict"),  # a falsy value is malformed, not "no bounds"
+        ("", "must be a dict"),
         ({"scale": (2.0, 3.0)}, "the default of scale breaks its own declaration: must be from 2.0 to 3.0, got 1.0"),
         ([("scale", (0, 1))], "must be a dict"),
     ],

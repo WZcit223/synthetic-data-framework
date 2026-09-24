@@ -11,7 +11,7 @@ from sdf.foundation.adapters.retail_csv import load_online_retail_csv
 from sdf.synthesis.api import SynthesizerInfo, TableData
 from sdf.synthesis.fit import FittedHourlyDemand
 from sdf.synthesis.registry import default_registry
-from .evaluation import EVALUATION_SEED, NoUsableRows, data_dir, evaluate, sources
+from .evaluation import EVALUATION_SEED, NoUsableRows, RunFailed, data_dir, evaluate, sources
 from .fidelity import fidelity_report
 from .privacy import FEATURE_COLUMNS, privacy_report, read_retail_feature_table
 
@@ -120,6 +120,23 @@ def test_a_source_id_whose_file_is_missing_names_the_folder(monkeypatch, tmp_pat
     monkeypatch.setenv("SDF_DATA_DIR", str(tmp_path))
     with pytest.raises(ValueError, match=r"source 'sample' is not available: .* does not exist \(set SDF_DATA_DIR"):
         evaluate("seasonal-profile", source="sample")
+
+
+class Broken(UnseededJitter):
+    """A plug-in whose own code raises ValueError while sampling."""
+
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo("broken-sample", "table", True, "x")
+
+    def sample(self, n=None, *, seed=None):
+        raise ValueError("internal bug")
+
+
+def test_a_failing_synthesizer_is_a_run_failure_not_a_bad_request():
+    reg = default_registry()
+    reg.register(Broken)
+    with pytest.raises(RunFailed, match="broken-sample failed while fitting and sampling it: ValueError: internal bug"):
+        evaluate("broken-sample", source="sample", registry=reg)
+    assert not issubclass(RunFailed, (KeyError, ValueError))
 
 
 def test_a_file_of_returns_only_has_no_demand_to_fit(tmp_path):

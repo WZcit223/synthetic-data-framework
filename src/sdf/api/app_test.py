@@ -723,3 +723,14 @@ def test_a_generator_that_returns_something_else_is_a_422_and_the_world_is_kept(
     res = post_world(c, synthesizer="not-a-warehouse", n_skus=30)
     assert res.status_code == 422 and "returned list, not a SyntheticWarehouse" in res.json()["detail"]
     assert get(c, "/world") == before
+
+
+def test_a_synthesizer_that_fails_is_a_500_that_names_it():
+    from sdf.synthesis.registry import default_registry
+    from sdf.validation.evaluation_test import Broken
+
+    synthesizers = default_registry()
+    synthesizers.register(Broken)
+    c = TestClient(create_app(synthesizers=synthesizers), raise_server_exceptions=False)
+    res = run(c, synthesizer="broken-sample", source="sample")
+    assert res.status_code == 500 and "broken-sample failed while fitting and sampling it" in res.json()["detail"]

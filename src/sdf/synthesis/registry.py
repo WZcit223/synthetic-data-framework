@@ -15,6 +15,7 @@ runtime (for example from a notebook) without packaging it.
 from __future__ import annotations
 
 import inspect
+import math
 import re
 import sys
 import types
@@ -167,7 +168,8 @@ def synthesizer_params(cls: type) -> tuple[Param, ...]:
     """
     name = getattr(getattr(cls, "info", None), "name", getattr(cls, "__name__", repr(cls)))
     hints = _constructor_hints(cls)
-    bounds = getattr(cls, "param_bounds", None) or {}
+    bounds = getattr(cls, "param_bounds", None)
+    bounds = {} if bounds is None else bounds  # only a missing attribute or None means "no bounds"
     if not isinstance(bounds, dict):
         raise TypeError(f"{name}: param_bounds must be a dict of name -> (min, max)")
     for key, pair in bounds.items():
@@ -178,6 +180,8 @@ def synthesizer_params(cls: type) -> tuple[Param, ...]:
         ):
             raise TypeError(f"{name}: param_bounds[{key!r}] must be a (min, max) pair of numbers or None")
         lo, hi = pair
+        if any(isinstance(b, float) and not math.isfinite(b) for b in pair):
+            raise TypeError(f"{name}: param_bounds[{key!r}] must be finite numbers or None, got {pair}")
         if lo is not None and hi is not None and lo > hi:
             raise TypeError(f"{name}: param_bounds[{key!r}] has min {lo} above max {hi}")
     params = []
