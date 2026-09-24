@@ -202,7 +202,13 @@ class _Run:
         if isinstance(intervention, Baseline):
             return world
         self._step(f"applying {intervention.name} in replicate {replicate}")
-        return intervention.apply(world)
+        if isinstance(intervention, SpecIntervention):
+            return intervention.apply(world)  # built-in: only builds a new world
+        before = snapshot(world)  # a custom intervention: its input must come out unchanged, every time
+        out = intervention.apply(world)
+        if snapshot(world) != before:
+            raise ValueError(f"intervention {intervention.name} modified its input world")
+        return out
 
     def _measure(self, world: World, arm: str, replicate: int) -> Values:
         values: Values = {}
@@ -229,12 +235,15 @@ class _Run:
         world_seconds = time.monotonic() - timed
         if reference_seconds is not None:
             world_seconds = (world_seconds + reference_seconds) / 2
+        if snapshot(reference) != reference_snapshot:  # the second call changed the first world's rows
+            raise ValueError("the generator modified an earlier world; regenerate the world")
         check_snapshot = snapshot(check)
 
+        # Paced on the fresh check world: the held world may already have its demand cached.
         timed = time.monotonic()
-        reference_values = self._measure(reference, "baseline", 0)
-        measure_seconds = (time.monotonic() - timed) / (len(study.policies) * len(study.outcomes))
         check_values = self._measure(check, "baseline", 0)
+        measure_seconds = (time.monotonic() - timed) / (len(study.policies) * len(study.outcomes))
+        reference_values = self._measure(reference, "baseline", 0)
         if check_snapshot != reference_snapshot or not _same(check_values, reference_values):
             raise ValueError(
                 f"generator {study.synthesizer} is not deterministic in its spec; paired effects need the same"
@@ -295,14 +304,9 @@ class _Run:
         for intervention in self.study.interventions:
             if isinstance(intervention, (Baseline, SpecIntervention)):
                 continue  # built-ins only build new worlds; the generator check covers SpecIntervention
-            before = snapshot(reference)
-            once = self._apply(intervention, reference, 0)
+            once = self._apply(intervention, reference, 0)  # _apply refuses one that changes its input
             once_snapshot = snapshot(once)
-            if snapshot(reference) != before:
-                raise ValueError(f"intervention {intervention.name} modified its input world")
             twice = self._apply(intervention, reference, 0)
-            if snapshot(reference) != before:
-                raise ValueError(f"intervention {intervention.name} modified its input world")
             if snapshot(twice) != once_snapshot:
                 raise ValueError(
                     f"intervention {intervention.name} is not deterministic; paired effects need the same world"

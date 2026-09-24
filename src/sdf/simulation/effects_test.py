@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import itertools
 import math
-import random
 import time
 from dataclasses import dataclass, replace
 from typing import ClassVar
@@ -221,14 +220,15 @@ def test_a_generator_that_mutates_an_earlier_world_is_refused():
 
 @dataclass(frozen=True)
 class RandomDrop:
-    """Drops a random SKU: its own random state, so two applications differ."""
+    """Drops a different SKU on every call: state of its own, so two applications always differ."""
 
     name: str = "random_drop"
+    calls = itertools.count()
 
     def apply(self, world):
         skus = world.stream("SKU")
-        keep = [s for s in skus if s is not random.choice(skus)]
-        return world.with_stream("SKU", keep, label=self.name)
+        drop = skus[next(self.calls) % len(skus)]
+        return world.with_stream("SKU", [s for s in skus if s is not drop], label=self.name)
 
 
 @dataclass(frozen=True)
@@ -240,6 +240,19 @@ class Appends:
     def apply(self, world):
         source = world.registry.sources()[0]
         source._rows.append(source._rows[0])
+        return world.with_stream("SKU", world.stream("SKU"), label=self.name)
+
+
+@dataclass(frozen=True)
+class AppendsLater:
+    """Leaves replicate 0's world alone, then appends to the rows of every later replicate's world."""
+
+    name: str = "appends_later"
+
+    def apply(self, world):
+        if world.spec.seed != SMALL.seed:
+            source = world.registry.sources()[0]
+            source._rows.append(source._rows[0])
         return world.with_stream("SKU", world.stream("SKU"), label=self.name)
 
 
@@ -258,6 +271,8 @@ def test_custom_interventions_must_be_deterministic_and_leave_their_input_alone(
         study(interventions=[RandomDrop()]).run()
     with pytest.raises(ValueError, match="intervention appends modified its input world"):
         study(interventions=[Appends()]).run()
+    with pytest.raises(ValueError, match="intervention appends_later modified its input world"):
+        study(interventions=[AppendsLater(), PROMO]).run()  # caught in replicate 1, before PROMO runs on it
     assert study(interventions=[Copies()]).run().effects.rows
 
 
