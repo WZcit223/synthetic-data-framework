@@ -45,4 +45,10 @@ class SpecIntervention:
     def apply(self, world: World) -> World:
         if world.spec is None:
             raise ValueError(f"{self.name}: the world has no GenerationSpec to regenerate from")
-        return World.generate(apply_scenario(world.spec, self.tweaks), label=self.name)
+        # the same generator from the same registry: a scenario never silently switches generator
+        return World.generate(
+            apply_scenario(world.spec, self.tweaks),
+            label=self.name,
+            synthesizer=world.synthesizer,
+            synthesizers=world.synthesizers,
+        )

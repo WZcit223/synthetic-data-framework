@@ -9,7 +9,7 @@ from typing import ClassVar
 import pytest
 
 from . import registry as registry_module
-from .api import SeriesData, SynthesizerInfo, TableData
+from .api import Param, SeriesData, SynthesizerInfo, TableData
 from .registry import SynthesizerRegistry, default_registry
 from .spec import GenerationSpec
 from .warehouse import SyntheticWarehouse
@@ -317,3 +317,106 @@ def test_gaussian_copula_leaves_numpy_global_state_alone():
     model.sample(10, seed=9)
     model.sample(10)
     assert (np.random.random_sample(3) == expected).all()
+
+
+# -- parameters -----------------------------------------------------------------------------
+
+
+class BoundedSeries(ShuffleSeries):
+    """A plug-in whose numeric parameters carry bounds, and whose other arguments are not parameters."""
+
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo("bounded-series", "series", True, "x")
+    param_bounds: ClassVar[dict[str, tuple[float | None, float | None]]] = {"scale": (0.0, None)}
+
+    def __init__(self, *, seed: int | None = None, scale: float = 1.0, mode: str = "a", model: object = None) -> None:
+        super().__init__(seed=seed or 0)
+        self.scale, self.mode, self.model = scale, mode, model
+
+
+def test_params_of_the_built_ins():
+    reg = default_registry()
+    assert reg.params("bootstrap-table") == (
+        Param("seed", "int", 7),
+        Param("jitter", "float", 0.05, min=0.0, max=1.0),
+    )
+    assert reg.params("seasonal-profile") == (Param("seed", "int", 7),)
+    assert reg.params("warehouse-spec") == ()  # its GenerationSpec comes from the world request
+    if "gaussian-copula" in reg.names():
+        assert reg.params("gaussian-copula") == (Param("seed", "int", None, nullable=True),)
+
+
+def test_params_of_a_plug_in_with_bounds_and_string_annotations():
+    reg = SynthesizerRegistry()
+    reg.register(BoundedSeries)
+    assert reg.params("bounded-series") == (
+        Param("seed", "int", None, nullable=True),
+        Param("scale", "float", 1.0, min=0.0),
+        Param("mode", "str", "a"),
+    )  # model: object is supplied by the framework, not a parameter
+
+
+@pytest.mark.parametrize(
+    ("bounds", "message"),
+    [
+        ({"mode": (0, 1)}, "names 'mode', which is not a numeric constructor parameter"),
+        ({"nope": (0, 1)}, "names 'nope'"),
+        ({"scale": (0,)}, "must be a (min, max) pair"),
+        ({"scale": ("0", 1)}, "must be a (min, max) pair"),
+        ({"scale": (1.0, 0.0)}, "has min 1.0 above max 0.0"),
+        ({"scale": (float("nan"), 1.0)}, "must be finite numbers or None"),
+        ({"scale": (0.0, float("inf"))}, "must be finite numbers or None"),
+        ([], "must be a dict"),  # a falsy value is malformed, not "no bounds"
+        ("", "must be a dict"),
+        ({"scale": (2.0, 3.0)}, "the default of scale breaks its own declaration: must be from 2.0 to 3.0, got 1.0"),
+        ([("scale", (0, 1))], "must be a dict"),
+    ],
+)
+def test_register_refuses_malformed_bounds(bounds, message):
+    bad = type(
+        "Bad", (BoundedSeries,), {"param_bounds": bounds, "info": SynthesizerInfo("bad-bounds", "series", True, "x")}
+    )
+    with pytest.raises(TypeError, match=message.replace("(", r"\(").replace(")", r"\)")):
+        SynthesizerRegistry().register(bad)
+
+
+def test_a_default_of_none_admits_none():
+    class LooseSeed(ShuffleSeries):
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("loose-seed", "series", True, "x")
+
+        def __init__(self, *, seed: int = None) -> None:  # type: ignore[assignment]
+            super().__init__(seed=seed or 0)
+
+    reg = SynthesizerRegistry()
+    reg.register(LooseSeed)
+    assert reg.params("loose-seed") == (Param("seed", "int", None, nullable=True),)
+
+
+def test_a_positional_only_argument_is_not_a_parameter():
+    class PositionalOnly(ShuffleSeries):
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("positional-only", "series", True, "x")
+
+        def __init__(self, scale: float = 1.0, /, *, seed: int = 0) -> None:
+            super().__init__(seed=seed)
+            self.scale = scale
+
+    reg = SynthesizerRegistry()
+    reg.register(PositionalOnly)
+    assert reg.params("positional-only") == (Param("seed", "int", 0),)
+    assert reg.create("positional-only", **{p.name: p.default for p in reg.params("positional-only")})
+
+
+def test_an_annotation_that_cannot_be_read_is_not_a_parameter():
+    namespace: dict = {}
+    exec(
+        "from __future__ import annotations\n"
+        "class Odd:\n"
+        "    def __init__(self, *, seed: int = 1, model: OnlyForTypeCheckers = None): pass\n"
+        "    def fit(self, data): return self\n"
+        "    def sample(self, n=None, *, seed=None): return []\n",
+        namespace,
+    )
+    odd = namespace["Odd"]
+    odd.info = SynthesizerInfo("odd-annotation", "series", True, "x")
+    reg = SynthesizerRegistry()
+    reg.register(odd)  # a type imported only for type checkers does not stop the plug-in mounting
+    assert reg.params("odd-annotation") == (Param("seed", "int", 1),)

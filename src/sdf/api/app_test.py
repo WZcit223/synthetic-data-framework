@@ -177,9 +177,9 @@ def test_scenarios_and_workflow_use_the_current_world(client, monkeypatch):
     generated = []
     real_generate = world_module.World.generate.__func__
 
-    def counting_generate(cls, spec, *, label=None):
+    def counting_generate(cls, spec, *, label=None, **generator):
         generated.append(label)
-        return real_generate(cls, spec, label=label)
+        return real_generate(cls, spec, label=label, **generator)
 
     monkeypatch.setattr(world_module.World, "generate", classmethod(counting_generate))
     monkeypatch.setattr(pipeline_module, "build_registry", lambda spec: pytest.fail("workflow regenerated the world"))
@@ -566,3 +566,171 @@ def test_the_experiment_result_carries_its_fields(client):
     assert [f["name"] for f in res["fields"]] == ["intervention", "policy", "metric", "value"]
     assert res["fields"][-1]["kind"] == "measure" and res["fields"][-1]["aggregate"] == "mean"
     assert set(res["rows"][0]) == {"intervention", "policy", "metric", "value"}  # rows stay objects
+
+
+# -- synthesizers and runs ----------------------------------------------------------------------
+
+
+def run(client, **body):
+    return client.post(V1 + "/synthesis/runs", json=body)
+
+
+def test_the_synthesizer_catalogue_lists_parameters_and_unavailable_ones(client):
+    body = get(client, "/synthesizers")
+    by_name = {e["name"]: e for e in body["synthesizers"]}
+    assert {"bootstrap-table", "seasonal-profile", "warehouse-spec"} <= set(by_name)
+    assert by_name["bootstrap-table"]["params"] == [
+        {"name": "seed", "type": "int", "default": 7, "min": None, "max": None, "exclusive": False, "nullable": False},
+        {
+            "name": "jitter",
+            "type": "float",
+            "default": 0.05,
+            "min": 0.0,
+            "max": 1.0,
+            "exclusive": False,
+            "nullable": False,
+        },
+    ]
+    assert by_name["warehouse-spec"]["params"] == [] and by_name["warehouse-spec"]["produces"] == "warehouse"
+    assert by_name["seasonal-profile"]["origin"] == "builtin" and by_name["seasonal-profile"]["requires"] == []
+    assert isinstance(body["unavailable"], dict)
+
+
+def test_the_sources_are_ids_and_file_names(client, monkeypatch, tmp_path):
+    assert get(client, "/synthesis/sources")["sources"] == [
+        {"id": "sample", "label": "sample_online_retail_ii.csv"},
+        {"id": "retail-10k", "label": "online_retail_ii_2010_10k.csv"},
+    ]
+    monkeypatch.setenv("SDF_DATA_DIR", str(tmp_path))
+    assert get(client, "/synthesis/sources")["sources"] == []
+
+
+def test_a_series_run_returns_its_params_scores_and_table(client):
+    res = run(client, synthesizer="seasonal-profile", source="sample", params={"seed": 7})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert (body["kind"], body["params"], body["repeatable"]) == ("series", {"seed": 7}, True)
+    assert {"ks_statistic", "profile_corr", "mean_delta_pct", "std_delta_pct", "fidelity_score"} <= set(body["metrics"])
+    assert [f["name"] for f in body["fields"]] == ["step", "origin", "value"]
+    assert {r[1] for r in body["rows"]} == {"real", "synthetic"}
+
+
+def test_a_table_run_leaving_the_seed_out_is_repeatable(client):
+    first = run(client, synthesizer="bootstrap-table", source="sample").json()
+    assert first["params"] == {"seed": 7, "jitter": 0.05} and first["repeatable"]
+    assert first["metrics"]["verdict"] and first["fields"][0]["name"] == "origin"
+    again = run(client, synthesizer="bootstrap-table", source="sample", params=first["params"]).json()
+    assert again["rows"] == first["rows"]
+
+
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [
+        ({"synthesizer": "nope", "source": "sample"}, "unknown synthesizer 'nope'"),
+        ({"synthesizer": "seasonal-profile", "source": "sample", "params": {"jitter": 1}}, "takes no parameter"),
+        ({"synthesizer": "seasonal-profile", "source": "sample", "params": {"seed": "7"}}, "seed must be a number"),
+        (
+            {"synthesizer": "bootstrap-table", "source": "sample", "params": {"jitter": 5}},
+            "jitter must be from 0.0 to 1.0",
+        ),
+        ({"synthesizer": "seasonal-profile", "source": "elsewhere"}, "unknown source 'elsewhere'"),
+        (
+            {"synthesizer": "seasonal-profile", "source": "data/sample_online_retail_ii.csv"},
+            "unknown source",
+        ),  # never a path
+        ({"synthesizer": "warehouse-spec", "source": "sample"}, "produces a warehouse"),
+    ],
+)
+def test_a_run_that_cannot_happen_is_a_422_with_the_reason(client, body, message):
+    res = run(client, **body)
+    assert res.status_code == 422 and message in res.json()["detail"], res.text
+
+
+def test_an_unavailable_synthesizer_is_a_422_that_says_why(monkeypatch):
+    from importlib.metadata import EntryPoint
+
+    from sdf.synthesis import registry as registry_module
+    from sdf.synthesis.registry import default_registry
+
+    real_entry_points = registry_module.entry_points
+    extra = EntryPoint(
+        name="needs-absent-child", value="sdf.synthesis.registry_test:NeedsAbsentChild", group="sdf.synthesizers"
+    )
+    monkeypatch.setattr(registry_module, "entry_points", lambda group: [*real_entry_points(group=group), extra])
+    c = TestClient(create_app(synthesizers=default_registry()))
+    assert "needs-absent-child" in get(c, "/synthesizers")["unavailable"]
+    res = run(c, synthesizer="needs-absent-child", source="sample")
+    assert res.status_code == 422 and "needs no_such_parent_pkg.backend" in res.json()["detail"]
+
+
+def test_the_world_reports_and_keeps_its_generator():
+    from sdf.simulation.world_test import MyWarehouseGenerator
+    from sdf.synthesis.registry import default_registry
+
+    synthesizers = default_registry()
+    synthesizers.register(MyWarehouseGenerator)
+    app = create_app(synthesizers=synthesizers)
+    assert app.state.synthesizers is synthesizers
+    c = TestClient(app)
+    assert get(c, "/world")["synthesizer"] == "warehouse-spec"
+    assert "my-warehouse" in [e["name"] for e in get(c, "/synthesizers")["synthesizers"]]
+
+    MyWarehouseGenerator.built.clear()
+    res = post_world(c, synthesizer="my-warehouse", n_skus=30, horizon_days=20)
+    assert res.status_code == 200 and res.json()["synthesizer"] == "my-warehouse"
+    assert get(c, "/world")["synthesizer"] == "my-warehouse" and len(MyWarehouseGenerator.built) == 1
+    assert post_world(c, n_skus=30, horizon_days=21).json()["synthesizer"] == "my-warehouse"  # left out: kept
+
+    MyWarehouseGenerator.built.clear()
+    scenarios = get(c, "/scenarios")["scenarios"]
+    assert len(MyWarehouseGenerator.built) == len(scenarios) - 1  # every scenario but the baseline, with my-warehouse
+    MyWarehouseGenerator.built.clear()
+    body = {"interventions": ["promo_spike"], "policies": [{"kind": "naive"}], "outcomes": ["replenishment_need"]}
+    assert c.post(V1 + "/experiments", json=body).status_code == 200
+    assert len(MyWarehouseGenerator.built) == 1
+
+
+@pytest.mark.parametrize(
+    ("name", "message"), [("seasonal-profile", "produces a series, not a warehouse"), ("nope", "unknown synthesizer")]
+)
+def test_the_world_refuses_a_generator_that_is_not_a_warehouse(client, name, message):
+    res = post_world(client, synthesizer=name)
+    assert res.status_code == 422 and message in res.json()["detail"]
+
+
+def test_a_generator_that_returns_something_else_is_a_422_and_the_world_is_kept():
+    from typing import ClassVar
+
+    from sdf.synthesis.api import SynthesizerInfo
+    from sdf.synthesis.registry import default_registry
+
+    class NotAWarehouse:
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("not-a-warehouse", "warehouse", False, "claims a warehouse")
+
+        def __init__(self, *, spec=None) -> None:
+            self.spec = spec
+
+        def fit(self, data=None):
+            return self
+
+        def sample(self, n=None, *, seed=None):
+            return []
+
+    synthesizers = default_registry()
+    synthesizers.register(NotAWarehouse)
+    c = TestClient(create_app(synthesizers=synthesizers))
+    before = get(c, "/world")
+    res = post_world(c, synthesizer="not-a-warehouse", n_skus=30)
+    assert res.status_code == 422 and "returned list, not a SyntheticWarehouse" in res.json()["detail"]
+    assert get(c, "/world") == before
+
+
+def test_a_synthesizer_that_fails_is_a_500_that_names_it():
+    from sdf.synthesis.registry import default_registry
+    from sdf.validation.evaluation_test import Broken
+
+    synthesizers = default_registry()
+    synthesizers.register(Broken)
+    c = TestClient(create_app(synthesizers=synthesizers), raise_server_exceptions=False)
+    res = run(c, synthesizer="broken-sample", source="sample")
+    assert res.status_code == 500 and "broken-sample failed while fitting and sampling it" in res.json()["detail"]

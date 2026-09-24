@@ -19,13 +19,10 @@ from .application.intelligence import WarehouseIntelligence
 from .application.scenarios import run_scenarios
 from .application.snapshot import render_markdown, replace_doc_block, snapshot
 from .foundation.adapters.retail_csv import load_online_retail_csv
-from .synthesis.api import TableData
-from .synthesis.fit import FittedHourlyDemand
 from .synthesis.materialise import build_registry
 from .synthesis.registry import default_registry
 from .synthesis.spec import GenerationSpec
-from .validation.fidelity import fidelity_report
-from .validation.privacy import FEATURE_COLUMNS, privacy_report, read_retail_feature_table
+from .validation.evaluation import NoUsableRows, evaluate
 from .validation.quality import structural_quality_check
 from .validation.tstr import tstr_report
 from .workflow import warehouse_pipeline
@@ -145,20 +142,21 @@ def cmd_backtest(path: str, date_format: str | None = None) -> int:
 def cmd_synth(path: str, date_format: str | None = None, synthesizer: str = "seasonal-profile") -> int:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
 
-    _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
-    if _no_usable_rows(path, load):
+    try:
+        run = evaluate(synthesizer, source=path, date_format=date_format)
+    except NoUsableRows as exc:
+        print(f"  {path}: no usable rows ({exc.reason}); check the file and --date-format\n")
         return 1
-    model = FittedHourlyDemand(default_registry().create(synthesizer)).fit(orders)
-    synth = model.generate()
-    rep = fidelity_report(model.real_series, synth, model.ppd)
+    rep = run.metrics
+    n_real = sum(1 for row in run.table.rows if row[1] == "real")
 
     print("=" * 60)
     print("  Fitted synthesis + fidelity — real-data-conditioned (Phase 2.1)")
     print("=" * 60)
     print(f"  source          : {path}")
-    _print_load(load)
+    _print_load(run.load)
     print(f"  synthesizer      : {synthesizer}")
-    print(f"  real / synth pts : {len(model.real_series)} / {len(synth)}")
+    print(f"  real / synth pts : {n_real} / {len(run.table.rows) - n_real}")
     print(f"  KS statistic     : {rep['ks_statistic']}   (0 = identical dist.)")
     print(f"  profile corr     : {rep['profile_corr']}   (1 = identical seasonality)")
     print(f"  mean delta       : {rep['mean_delta_pct']} %")
@@ -300,10 +298,10 @@ def cmd_scenarios() -> int:
 def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "bootstrap-table") -> int:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
 
-    real = read_retail_feature_table(path, date_format=date_format)
-    model = default_registry().create(synthesizer)
-    synth = model.fit(TableData(rows=real, columns=FEATURE_COLUMNS)).sample() if real else []
-    rep = privacy_report(real, synth)
+    try:
+        rep = evaluate(synthesizer, source=path, date_format=date_format).metrics
+    except NoUsableRows as exc:
+        rep = {"error": exc.reason}
     print("=" * 60)
     print("  Synthetic-data privacy (B3)")
     print("=" * 60)
