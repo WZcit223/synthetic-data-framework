@@ -232,8 +232,8 @@ class DatasetCatalog(PluginRegistry[DatasetProvider]):
 
         The provider is asked for at most ``limit + 1`` rows: the one past the limit is a
         probe, never kept or checked, so nothing further is read. ``deadline`` (a
-        ``time.monotonic()`` instant) is checked when ``rows(world)`` returns and between
-        rows; once it has passed, ``ReadDeadline`` is raised. A provider that yields its
+        ``time.monotonic()`` instant) is checked when ``rows(world)`` returns, between rows
+        and when the read ends; once it has passed, ``ReadDeadline`` is raised. A provider that yields its
         rows is bounded in memory and time this way; one that returns a built list has
         built it whole before the first check, so for it only what is kept is bounded.
         """
@@ -253,6 +253,8 @@ class DatasetCatalog(PluginRegistry[DatasetProvider]):
                 more = True  # the probe: one row past the limit exists
                 break
             kept.append(tuple(row))
+        if deadline is not None and time.monotonic() > deadline:
+            raise late  # the provider took too long to finish after its last row
         return Table(cls.info, kept), more
 
 

@@ -876,8 +876,10 @@ POST /api/v1/causal/estimates
     most `MAX_ESTIMATE_ROWS + 1` rows. It does not bound time. Both bounds
     hold for a provider that yields its rows, as the built-ins do. One that
     returns a built list has built it whole before the first check, so for
-    it only what is kept and checked is bounded; the deadline is also checked
-    as soon as `rows(world)` returns (§5, plug-in code is best effort). A
+    it only what is kept and checked is bounded. The deadline is checked as
+    soon as `rows(world)` returns, between rows, and once more when the read
+    ends, so a provider that stalls before or after its rows is refused too
+    (§5, plug-in code is best effort). A
     provider can be slow per row, so the stream also checks the request's
     deadline between rows (§5). The missing-value rule then drops rows from
     those read, and the at-least-two-treated-and-control check applies to

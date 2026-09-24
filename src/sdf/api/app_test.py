@@ -1075,6 +1075,16 @@ class EagerAndSlow:
         return [(i % 2, float(i)) for i in range(10)]
 
 
+class SlowToFinish:
+    """Yields its rows at once, then takes longer than the budget before it ends."""
+
+    info: ClassVar[DatasetInfo] = DatasetInfo("slow-to-finish", "Slow to finish", "x", TY_INFO.fields)
+
+    def rows(self, world):
+        yield from [(i % 2, float(i)) for i in range(10)]
+        time.sleep(0.5)
+
+
 class OwnTimeout:
     """Fails with a TimeoutError of its own: a provider failure, not the request's deadline."""
 
@@ -1091,6 +1101,7 @@ def test_an_eager_provider_past_the_deadline_is_stopped_and_its_own_timeout_is_a
     monkeypatch.setattr(app_module, "MAX_ESTIMATE_SECONDS", 0.3)
     datasets = DatasetCatalog()
     datasets.register(EagerAndSlow)
+    datasets.register(SlowToFinish)
     datasets.register(OwnTimeout)
     c = TestClient(create_app(datasets=datasets), raise_server_exceptions=False)
     q = {"treatment": "t", "outcome": "y"}
@@ -1099,6 +1110,8 @@ def test_an_eager_provider_past_the_deadline_is_stopped_and_its_own_timeout_is_a
         res.status_code == 422
         and res.json()["detail"] == "dataset eager-and-slow did not deliver its rows within 0.3 s"
     )
+    res = estimates(c, estimators=["ipw"], dataset="slow-to-finish", question=q)
+    assert res.status_code == 422 and "slow-to-finish did not deliver its rows within 0.3 s" in res.json()["detail"]
     res = estimates(c, estimators=["ipw"], dataset="own-timeout", question=q)
     assert (
         res.status_code == 500
