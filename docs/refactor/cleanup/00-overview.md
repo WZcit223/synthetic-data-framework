@@ -1,7 +1,8 @@
 # Clean-up refactor — overview
 
 Status: implemented by clean-up PRs 1–4 (#22–#25, 1.1.0 → 1.3.1) after the plan
-(#21); the refactor is finished. Approved by the project lead on 2026-09-24
+(#21); the refactor is finished except the deletion of the merged remote
+branches, which the project lead runs (see [`04-finishing.md`](04-finishing.md)). Approved by the project lead on 2026-09-24
 ("完全同意你的方案"), including
 the version plan below. Fourth and last sequence of the refactor, after
 [`layout/`](../layout/00-overview.md), [`correctness/`](../correctness/00-overview.md)

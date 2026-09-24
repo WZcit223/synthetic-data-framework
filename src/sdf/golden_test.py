@@ -205,7 +205,7 @@ def test_real_10k_csv(full_snapshot):
         11,
         44,
     )
-    assert (bt["series_mean"], bt["test_len"]) == (approx(2049.2), 22)
+    assert (bt["series_mean"], bt["test_len"]) == (approx(2049.2), 14)  # 2 x 11 requested, capped at 44 // 3
     assert [r["model"] for r in bt["results"]] == ["naive", "ma11", "snaive11", "mean", "seas_linear11"]
     assert bt["results"][0]["MAE"] == approx(950.786)
     assert bt["results"][0]["MAPE_pct"] == approx(154.07)  # 99.04 before the MAPE fix (correctness PR 3)

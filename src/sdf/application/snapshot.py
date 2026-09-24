@@ -49,8 +49,9 @@ def _backtest(orders) -> dict:
         "granularity": freq,
         "seasonal_period": period,
         "series_len": len(series),
-        "series_mean": round(sum(series) / len(series), 1),
-        "test_len": 2 * period,
+        "series_mean": round(report["series_mean"], 1),
+        # the window actually scored: backtest() caps the 2-period request at a third of the series
+        "test_len": report["results"][0]["test_days"] if report["results"] else 0,
         "best_model": report["best_model"],
         "results": [{k: r[k] for k in _BACKTEST_KEYS} for r in report["results"]],
     }

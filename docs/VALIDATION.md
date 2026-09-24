@@ -166,7 +166,7 @@ Backtest (daily, seasonal period 7, 139 points averaging 137.6 units, last 14 he
 
 ### `online_retail_ii_2010_10k.csv` (hourly; 2,015 SKUs, 10,000 orders)
 
-Backtest (hourly, seasonal period 11, 44 points averaging 2,049.2 units, last 22 held out; ranked by MAE):
+Backtest (hourly, seasonal period 11, 44 points averaging 2,049.2 units, last 14 held out; ranked by MAE):
 
 | model | MAE | RMSE | MAPE % | WAPE % | bias |
 |---|---|---|---|---|---|
