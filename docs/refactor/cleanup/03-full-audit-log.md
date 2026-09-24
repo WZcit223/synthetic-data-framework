@@ -1,5 +1,12 @@
 # PR 3 — The audit log keeps everything
 
+> Status: implemented (clean-up sequence PR 3). Each sink line carries
+> `"record": "entry"` or `"record": "summary"`; the summary (with a `finished`
+> time) is written when the run closes, including a run whose step failed.
+> `RunLogger` is a context manager, and the agent and the pipeline close it.
+> Every trace returned by the agent, the workflow and the API is unchanged, and
+> `sdf demo` is byte-identical.
+
 ## Goal
 
 The durable audit log answers "what exactly ran, with what, producing what"
