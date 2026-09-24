@@ -36,6 +36,7 @@ from sdf.analytics.causal import (
     MAX_ESTIMATE_SECONDS,
     CausalQuestion,
     EstimatorRegistry,
+    check_confidence,
     check_question,
     default_estimators,
     score,
@@ -522,6 +523,10 @@ def create_app(
         world = store.current.world  # one snapshot for the draw, the dataset rows and the metadata
         if (body.benchmark is None) == (body.dataset is None):
             raise HTTPException(status_code=422, detail="give exactly one of benchmark and dataset")
+        try:
+            check_confidence(body.confidence)  # a request problem: refused before any draw or read
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         for name in body.estimators:
             try:
                 estimator_reg.info(name)

@@ -1112,7 +1112,9 @@ def test_an_eager_provider_past_the_deadline_is_stopped_and_its_own_timeout_is_a
     )
     res = estimates(c, estimators=["ipw"], dataset="slow-to-finish", question=q)
     assert res.status_code == 422 and "slow-to-finish did not deliver its rows within 0.3 s" in res.json()["detail"]
-    # a question that names the wrong fields is refused before the provider is read at all
+    # a confidence out of range, or a question that names the wrong fields, is refused before any row is read
+    bad = estimates(c, estimators=["ipw"], dataset="eager-and-slow", question=q, confidence=1.5)
+    assert bad.status_code == 422 and bad.json()["detail"] == "confidence must be above 0.5 and below 1, got 1.5"
     wrong = estimates(c, estimators=["ipw"], dataset="eager-and-slow", question={"treatment": "t", "outcome": "nope"})
     assert wrong.status_code == 422 and wrong.json()["detail"].startswith("unknown field 'nope'")
     res = estimates(c, estimators=["ipw"], dataset="own-timeout", question=q)
