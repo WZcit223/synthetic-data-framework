@@ -256,6 +256,44 @@ class AppendsLater:
         return world.with_stream("SKU", world.stream("SKU"), label=self.name)
 
 
+class ChangesLater:
+    """Deterministic on replicate 0, then answers differently on the second call for any later base."""
+
+    name = "changes_later"
+    calls = itertools.count()
+
+    def apply(self, world):
+        skus = world.stream("SKU")
+        if world.spec.seed != SMALL.seed and next(self.calls) % 2:
+            skus = skus[1:]
+        return world.with_stream("SKU", skus, label=self.name)
+
+
+class ReusesBaseRows(WarehouseSpecSynthesizer):
+    """Renames the previous call's SKUs on each call: from replicate 1 on, the base a custom arm reads changes."""
+
+    info: ClassVar[SynthesizerInfo] = SynthesizerInfo("reuses-base-rows", "warehouse", False, "mutates old rows")
+    previous: ClassVar[list] = []
+
+    def sample(self, n=None, *, seed=None):
+        for sku in ReusesBaseRows.previous:
+            sku.name += " (changed)"
+        wh = WarehouseGenerator(self.spec).generate()
+        if self.spec.seed != SMALL.seed:
+            ReusesBaseRows.previous = list(wh.skus)  # only later worlds are reused, so the reference stays intact
+        return wh
+
+
+def test_later_replicates_are_checked_too():
+    with pytest.raises(ValueError, match="intervention changes_later is not deterministic"):
+        study(interventions=[ChangesLater()]).run()
+    reg = registry_with(ReusesBaseRows)
+    # In replicate 1, PROMO regenerates after the base was snapshot, which renames the base's SKUs;
+    # the custom arm that reads the base next must refuse it.
+    with pytest.raises(ValueError, match="the generator modified an earlier world"):
+        study(synthesizer="reuses-base-rows", synthesizers=reg, interventions=[PROMO, Copies()]).run()
+
+
 @dataclass(frozen=True)
 class Copies:
     """Deterministic and non-mutating: a custom intervention that passes."""

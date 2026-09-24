@@ -151,8 +151,11 @@ Rules the implementation keeps:
     above covers it.
   - `POST /effects` accepts only these, by catalogue name.
   - A Python caller may pass any other `Intervention`. For each one that is
-    neither, the study applies it twice to replicate 0's baseline and
+    neither, the study applies it twice to every replicate's base and
     compares the two worlds source by source, as the generator check does.
+    It also checks that the base still equals its snapshot from when it was
+    generated, so a generator that changed it meanwhile is refused. Every
+    other world is measured as soon as it exists and never read again.
     If they differ, it refuses with `ValueError`: "intervention X is not
     deterministic; paired effects need the same world from the same input".
   - An intervention must also leave its input world unchanged. A `World` is

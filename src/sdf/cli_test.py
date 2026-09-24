@@ -247,6 +247,8 @@ def test_effects_groups_by_intervention_and_policy_and_marks_intervals_covering_
         (["--intervention", "promo_spike", "--replicates", "1"], "replicates must be from 2 to 20"),
         (["--intervention", "promo_spike", "--policy", "naive:0.9"], "only service-level takes a level"),
         (["--intervention", "promo_spike", "--policy", "service-level:high"], "the level must be a number"),
+        (["--intervention", "promo_spike", "--policy", "service-level:1.2"], "above 0.5 and below 1"),
+        (["--intervention", "promo_spike", "--policy", "service-level:0.5"], "above 0.5 and below 1"),
     ],
 )
 def test_effects_refuses_an_invalid_study(args, message):

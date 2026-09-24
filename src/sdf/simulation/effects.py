@@ -202,8 +202,8 @@ class _Run:
         if isinstance(intervention, Baseline):
             return world
         self._step(f"applying {intervention.name} in replicate {replicate}")
-        if isinstance(intervention, SpecIntervention):
-            return intervention.apply(world)  # built-in: only builds a new world
+        if _built_in(intervention):
+            return intervention.apply(world)  # only builds a new world
         before = snapshot(world)  # a custom intervention: its input must come out unchanged, every time
         out = intervention.apply(world)
         if snapshot(world) != before:
@@ -253,19 +253,22 @@ class _Run:
 
         self._project(world_seconds, measure_seconds)
 
-        # Replicate 0 reuses the checked reference; custom interventions are checked on it first.
-        first_arms = self._check_custom_interventions(reference)
+        # Every world is measured as soon as it exists and never read again, except a replicate's
+        # base, which custom interventions read: with any of those, the base is snapshot and rechecked.
+        custom = any(not _built_in(i) for i in study.interventions)
         per_replicate: list[dict[str, Values]] = []
         for r in range(study.replicates):
             seed = seed0 + r
             base = reference if r == 0 else self._generate(seed)
+            base_snapshot = (reference_snapshot if r == 0 else snapshot(base)) if custom else None
             measured: dict[str, Values] = {
                 "baseline": reference_values if r == 0 else self._measure(base, "baseline", r)
             }
             for intervention in study.interventions:
-                world = first_arms.get(intervention.name) if r == 0 else None
-                if world is None:
+                if _built_in(intervention):
                     world = self._apply(intervention, base, r)
+                else:
+                    world = self._apply_custom(intervention, base, base_snapshot, r)
                 measured[intervention.name] = self._measure(world, intervention.name, r)
             per_replicate.append(measured)
             self.replicates_done = r + 1
@@ -279,12 +282,14 @@ class _Run:
         study = self.study
         arms = len(self.arms)
         pairs = len(study.policies) * len(study.outcomes)
-        custom = sum(1 for i in study.interventions if not isinstance(i, (Baseline, SpecIntervention)))
+        custom = sum(1 for i in study.interventions if not _built_in(i))
         spent = time.monotonic() - self.start
         per_arm = world_seconds + pairs * measure_seconds
         # Replicate 0's baseline is measured; its other arms, then R - 1 full replicates, remain,
-        # plus one extra application of each custom intervention for its check.
-        remaining = (arms - 1) * per_arm + (study.replicates - 1) * arms * per_arm + custom * world_seconds
+        # plus the second application of each custom intervention in every replicate (its check).
+        remaining = (
+            (arms - 1) * per_arm + (study.replicates - 1) * arms * per_arm + custom * study.replicates * world_seconds
+        )
         if spent + remaining <= MAX_EFFECT_SECONDS:
             return
         fits = 1 + math.floor((MAX_EFFECT_SECONDS - spent - (arms - 1) * per_arm) / (arms * per_arm))
@@ -298,22 +303,24 @@ class _Run:
             f" generator {study.synthesizer} takes {world_seconds:.2f} s per world; {advice}"
         )
 
-    def _check_custom_interventions(self, reference: World) -> dict[str, World]:
-        """Apply each custom intervention twice to replicate 0's baseline: same world, input unchanged."""
-        first: dict[str, World] = {}
-        for intervention in self.study.interventions:
-            if isinstance(intervention, (Baseline, SpecIntervention)):
-                continue  # built-ins only build new worlds; the generator check covers SpecIntervention
-            once = self._apply(intervention, reference, 0)  # _apply refuses one that changes its input
-            once_snapshot = snapshot(once)
-            twice = self._apply(intervention, reference, 0)
-            if snapshot(twice) != once_snapshot:
-                raise ValueError(
-                    f"intervention {intervention.name} is not deterministic; paired effects need the same world"
-                    " from the same input"
-                )
-            first[intervention.name] = once
-        return first
+    def _apply_custom(self, intervention: Intervention, base: World, base_snapshot: Snapshot, replicate: int) -> World:
+        """Apply a custom intervention twice to an unchanged base: the same world, the input left alone."""
+        if snapshot(base) != base_snapshot:
+            raise ValueError("the generator modified an earlier world; regenerate the world")
+        once = self._apply(intervention, base, replicate)  # _apply refuses one that changes its input
+        once_snapshot = snapshot(once)
+        twice = self._apply(intervention, base, replicate)
+        if snapshot(twice) != once_snapshot:
+            raise ValueError(
+                f"intervention {intervention.name} is not deterministic; paired effects need the same world"
+                " from the same input"
+            )
+        return once
+
+
+def _built_in(intervention: Intervention) -> bool:
+    """Built-in interventions only build new worlds from the spec, so the generator check covers them."""
+    return isinstance(intervention, (Baseline, SpecIntervention))
 
 
 def snapshot(world: World) -> Snapshot:

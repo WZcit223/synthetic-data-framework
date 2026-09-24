@@ -368,9 +368,12 @@ def _policy(text: str):
     kind, _, level = text.partition(":")
     if kind == "service-level" and level:
         try:
-            return catalog.policy(kind, service_level=float(level))
+            value = float(level)
         except ValueError as exc:
             raise click.BadParameter(f"{text!r}: the level must be a number, e.g. service-level:0.95") from exc
+        if not 0.5 < value < 1:  # the bounds POST /experiments and /effects enforce
+            raise click.BadParameter(f"{text!r}: the level must be above 0.5 and below 1")
+        return catalog.policy(kind, service_level=value)
     if level:
         raise click.BadParameter(f"{text!r}: only service-level takes a level")
     return catalog.policy(kind)
