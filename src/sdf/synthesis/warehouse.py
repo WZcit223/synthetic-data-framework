@@ -131,7 +131,7 @@ class WarehouseGenerator:
         return locs
 
     def _gen_inventory(self, skus: list[SKU], locations: list[Location]) -> list[InventorySnapshot]:
-        # ALGORITHM-HOOK: on-hand levels here are heuristic. A real system fits
+        # ALGORITHM-HOOK[A1]: on-hand levels here are heuristic. A real system fits
         # these from historical inventory series (seasonality, safety stock).
         snaps: list[InventorySnapshot] = []
         ts = self.spec.start + timedelta(days=self.spec.horizon_days)
@@ -177,13 +177,13 @@ class WarehouseGenerator:
         return orders
 
     def _gen_outbound(self, skus: list[SKU]) -> list[OutboundOrder]:
-        # ALGORITHM-HOOK: demand is a class-scaled Poisson-ish draw. The real
+        # ALGORITHM-HOOK[A2]: demand is a class-scaled Poisson-ish draw. The real
         # system models demand with a fitted time-series / intermittent-demand
         # model (Croston, DeepAR, TimeGAN) learned from order history.
         orders: list[OutboundOrder] = []
         rate = {"A": self.spec.daily_orders_per_a_sku, "B": 1.5, "C": 0.3}
         # Inject a few demand shocks (promo spikes / supply drops) so the C3
-        # anomaly detector has real events to surface. # ALGORITHM-HOOK: real
+        # anomaly detector has real events to surface. # ALGORITHM-HOOK[A2]: real
         # anomalies come from the data, not injection.
         shock = {
             d: 3.2 for d in self._rng.sample(range(self.spec.horizon_days), k=max(1, self.spec.horizon_days // 40))
@@ -224,7 +224,7 @@ class WarehouseGenerator:
         for loc in sample:
             cap = max(1, loc.capacity_units)
             b = book.get(loc.location_id, 0)
-            # DATA-HOOK: est_units would come from the CV counting pipeline (reuse
+            # DATA-HOOK[C5]: est_units would come from the CV counting pipeline (reuse
             # of the fabric-defect / multimodal work). Here it is a synthetic
             # estimate that closely tracks the book value, with a few injected
             # mismatches so the stocktake view has realistic discrepancies.

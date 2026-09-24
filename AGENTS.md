@@ -88,9 +88,12 @@ intent still applies.
 
 1. **Framework and algorithm are separate.** The framework proves the end-to-end
    flow with deterministic, dependency-free stand-ins; real models plug in at the
-   points marked `# ALGORITHM-HOOK` and real data at `# DATA-HOOK`, catalogued in
-   [`docs/ALGORITHM_AND_DATA_CHECKLIST.md`](docs/ALGORITHM_AND_DATA_CHECKLIST.md).
-   Keep those markers when moving code and add one when introducing a new stand-in.
+   points marked `ALGORITHM-HOOK[<#>]` and real data at `DATA-HOOK[<#>]`, where
+   `<#>` is a row of [`docs/ALGORITHM_AND_DATA_CHECKLIST.md`](docs/ALGORITHM_AND_DATA_CHECKLIST.md).
+   Keep those markers when moving code, add one (with its row) when introducing a
+   new stand-in, and regenerate the checklist's index with `uv run sdf hooks
+   --update-doc docs/ALGORITHM_AND_DATA_CHECKLIST.md`; `hooks_test.py` fails when
+   a marker names no row or the index is stale.
 2. **The core's runtime dependencies are numpy, scipy, scikit-learn and click**
    (decided 2026-09-23; before that the core was standard-library only). Anything
    heavier (SDV/copulas, FastAPI, LightGBM, the pywhy causal stack) lives in the

@@ -291,7 +291,7 @@ B1 number. (Note: 0.92 and 0.78 score different representations — the tabular
 line-item joint vs the hourly demand series — so they are complementary, not a
 strict apples-to-apples delta.)
 
-> ALGORITHM-HOOK: swap GaussianCopula for **CTGAN/TVAE** (adds torch) for complex
+> ALGORITHM-HOOK[A1]: swap GaussianCopula for **CTGAN/TVAE** (adds torch) for complex
 > distributions; add privacy (DCR) and detection-AUC (B3–B4). Same SDMetrics harness.
 
 ## Phase 3 — real forecasting model + TSTR utility (checklist B2, C1)
@@ -336,10 +336,10 @@ needing an order at 95 % from 38 to 62 (40 of them intermittent) and the total
 safety stock from 3 788 to 4 541 units; the economics counterfactual now leaves
 0 instead of 17 unmet units, at a slightly lower annualised saving (1 858 631
 instead of 1 887 834) because the larger buffers cost holding. Croston/TSB
-forecasting remains the model-based replacement (ALGORITHM-HOOK C2).
+forecasting remains the model-based replacement (ALGORITHM-HOOK[C2]).
 
 **Reading it:** the classic service/inventory tradeoff, quantified — raising the
-service level from 90→99 % lifts required safety stock by roughly 80 %. ALGORITHM-HOOK: a
+service level from 90→99 % lifts required safety stock by roughly 80 %. ALGORITHM-HOOK[C2]: a
 cost-based newsvendor with a fitted lead-time-demand distribution replaces the
 normal approximation.
 
@@ -368,13 +368,13 @@ small/short series; the meaningful quantity is the ratio, which is robust to tha
 robust-z (MAD-scaled) flags demand spikes/drops resistant to the outliers it
 hunts. On the demo world it recovers the injected shock days (e.g. a spike of
 ~2400 vs an expected ~740, robust-z ≫ 3.5). Live in the dashboard.
-ALGORITHM-HOOK: Isolation Forest / autoencoder over multivariate state.
+ALGORITHM-HOOK[C3]: Isolation Forest / autoencoder over multivariate state.
 
 **C6 — grounded knowledge Q&A** (`application/knowledge.py`): a natural-language
 interface that routes questions to computed facts and answers with real numbers —
 stockouts, (s,S) safety stock, forecast accuracy, anomalies, vision stocktake,
 ABC, inventory value. Every answer is backed by data, nothing invented. Live in
-the dashboard ("Ask the warehouse"). ALGORITHM-HOOK: LLM over a knowledge graph,
+the dashboard ("Ask the warehouse"). ALGORITHM-HOOK[C6]: LLM over a knowledge graph,
 same "answers grounded in computed facts" contract.
 
 ## Phase 4 — agent, workflow, economics, privacy, scenarios
@@ -397,7 +397,7 @@ The stockout units (naive → ours), units avoided and the annualised estimate a
 under [Reproducible numbers → Default world](#reproducible-numbers).
 
 > These are estimates on synthetic demand with assumed unit costs — a *method* for
-> turning metrics into money, not a claim. DATA-HOOK: client's real unit costs +
+> turning metrics into money, not a claim. DATA-HOOK[C2]: client's real unit costs +
 > current policy give the true before/after.
 
 **Synthetic-data privacy (B3)** — `validation/privacy.py` scores the `bootstrap-table`
@@ -421,4 +421,4 @@ scenario table under [Reproducible numbers](#reproducible-numbers) — quantifie
 - Add SDV/CTGAN synthesis fitted on the real series, then **SDMetrics** fidelity
   (checklist B1) and **TSTR** utility (B2) — train on synthetic, test on real,
   comparing the gap to the baselines above.
-- ALGORITHM-HOOK: beat `snaive7` with DeepAR / TFT / LightGBM on the same harness.
+- ALGORITHM-HOOK[C1]: beat `snaive7` with DeepAR / TFT / LightGBM on the same harness.

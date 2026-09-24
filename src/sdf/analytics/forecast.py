@@ -6,7 +6,7 @@ a walk-forward split and reports error metrics (MAE / RMSE / MAPE / WAPE / bias;
 conventions in ``analytics/metrics.py``).
 
 These baselines (mean, naive, moving average, seasonal-naive) are honest,
-dependency-free reference points. ALGORITHM-HOOK: swap in DeepAR / TFT / LightGBM
+dependency-free reference points. ALGORITHM-HOOK[C1]: swap in DeepAR / TFT / LightGBM
 to beat them — the backtest harness stays the same and gives you the comparison.
 """
 

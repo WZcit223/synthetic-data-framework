@@ -5,7 +5,7 @@ routing intents to the Application Layer's computed facts, then phrasing a
 grounded answer with the real numbers. Every answer is backed by data the layers
 produced — nothing is invented.
 
-This is the transparent, dependency-free version of the capability. ALGORITHM-HOOK:
+This is the transparent, dependency-free version of the capability. ALGORITHM-HOOK[C6]:
 replace the intent router + templated phrasing with an **LLM over a knowledge
 graph** (retrieval across the entity graph → grounded generation), keeping the
 same "answers must be grounded in computed facts" contract.

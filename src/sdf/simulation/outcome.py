@@ -19,7 +19,7 @@ class Outcome(Protocol):
 
 @dataclass
 class CostModel:
-    """Explicit, client-overridable cost assumptions. DATA-HOOK: real unit costs."""
+    """Explicit, client-overridable cost assumptions. DATA-HOOK[C2]: real unit costs."""
 
     holding_cost_annual_rate: float = 0.25  # 25%/yr of unit cost to hold
     stockout_penalty_mult: float = 1.0  # penalty = this × unit margin per lost unit
@@ -76,7 +76,7 @@ class SimulatedCost:
     """Replay each SKU's demand history under the policy and price the result.
 
     Covers the first ``max_skus`` SKUs with demand in first-appearance order.
-    ALGORITHM-HOOK: the replay is deterministic on history; a stochastic
+    ALGORITHM-HOOK[C2]: the replay is deterministic on history; a stochastic
     lead-time and demand model gives distributions instead of one number.
     """
 

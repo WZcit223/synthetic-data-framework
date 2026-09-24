@@ -11,7 +11,7 @@ leakage risk between a synthetic table and the real table it was derived from:
           (DCR below a small epsilon) — a direct membership-leakage proxy.
 
 Features are min-max normalised so distances are comparable across columns.
-ALGORITHM-HOOK: for production add full membership-inference attacks and, if
+ALGORITHM-HOOK[B3]: for production add full membership-inference attacks and, if
 sharing externally, differential-privacy guarantees.
 """
 

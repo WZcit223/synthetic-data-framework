@@ -28,6 +28,7 @@ RANK = {
     "analytics": 1,
     "synthesis": 2,
     "observability": 2,
+    "hooks": 0,
     "validation": 3,
     "simulation": 4,
     "application": 5,

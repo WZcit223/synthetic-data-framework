@@ -21,7 +21,7 @@ def latest_vision(reg: DataSourceRegistry) -> dict:
 def shelf_occupancy_grid(reg: DataSourceRegistry) -> list[dict]:
     """Zone → aisle → cells, each cell an occupancy ratio for a heatmap.
 
-    DATA-HOOK: occupancy is a synthetic CV estimate. Replace with real
+    DATA-HOOK[C5]: occupancy is a synthetic CV estimate. Replace with real
     shelf-occupancy from the vision pipeline (camera frames / defect model).
     """
     locs = {l.location_id: l for l in reg.stream("Location")}
@@ -54,7 +54,7 @@ def stocktake_discrepancies(reg: DataSourceRegistry, *, rel_threshold: float = 0
 
     This is the 'AI stocktake' story: the camera mostly confirms the books,
     but flags locations where physical ≠ system (miscount / misplacement /
-    shrinkage). ALGORITHM-HOOK: the real unit estimate comes from a trained
+    shrinkage). ALGORITHM-HOOK[C5]: the real unit estimate comes from a trained
     counting/detection model, not occupancy × capacity.
     """
     latest = latest_vision(reg)

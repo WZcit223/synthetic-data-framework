@@ -11,8 +11,9 @@ scenario is **AI Warehouse Management**.
 > **Framework-first philosophy.** This repo is the *engineering framework*: it proves the
 > end-to-end flow and the user-facing effect with zero heavy dependencies and
 > rule-based stand-ins. Where a full implementation needs real algorithms or data,
-> the seam is marked `# ALGORITHM-HOOK` / `# DATA-HOOK` in code and catalogued in
-> [`docs/ALGORITHM_AND_DATA_CHECKLIST.md`](docs/ALGORITHM_AND_DATA_CHECKLIST.md).
+> the seam is marked `ALGORITHM-HOOK[<#>]` / `DATA-HOOK[<#>]` in code, where `<#>`
+> is a row of [`docs/ALGORITHM_AND_DATA_CHECKLIST.md`](docs/ALGORITHM_AND_DATA_CHECKLIST.md);
+> the checklist's generated index (`uv run sdf hooks`) shows where each row plugs in.
 
 ## Quickstart
 

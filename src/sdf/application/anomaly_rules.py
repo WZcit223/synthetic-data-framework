@@ -13,7 +13,7 @@ from sdf.foundation.registry import DataSourceRegistry
 def rule_anomalies(reg: DataSourceRegistry) -> list[dict]:
     """Flag stockouts and dead stock.
 
-    ALGORITHM-HOOK: replace threshold rules with an anomaly-detection model
+    ALGORITHM-HOOK[C3]: replace threshold rules with an anomaly-detection model
     (isolation forest / autoencoder) over the multivariate inventory series.
     """
     inv = reg.stream("InventorySnapshot")

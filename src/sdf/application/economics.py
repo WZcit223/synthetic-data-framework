@@ -8,7 +8,7 @@ in stockouts and holding.
 
 All unit costs are explicit ASSUMPTIONS (a ``CostModel``) — in a real engagement
 they come from the client's finance team. Every number here is therefore an
-estimate with stated assumptions, not a claim. # DATA-HOOK: real unit costs.
+estimate with stated assumptions, not a claim. # DATA-HOOK[C2]: real unit costs.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from .intelligence import WarehouseIntelligence
 def financial_impact(intel: WarehouseIntelligence, *, cost_model: CostModel | None = None, max_skus: int = 400) -> dict:
     """Counterfactual £: our (s,S) policy vs a naive no-safety-stock policy.
 
-    ALGORITHM-HOOK: the naive baseline stands in for "current practice"; plug in
+    ALGORITHM-HOOK[C2]: the naive baseline stands in for "current practice"; plug in
     the client's real current policy for a true before/after.
     """
     cm = cost_model or CostModel()
@@ -62,5 +62,5 @@ def financial_impact(intel: WarehouseIntelligence, *, cost_model: CostModel | No
         },
         "annualised_net_saving": round(net_period * scale),
         "note": "Estimate on synthetic demand with assumed unit costs (CostModel). "
-        "DATA-HOOK: real costs + real current policy give the true figure.",
+        "DATA-HOOK[C2]: real costs + real current policy give the true figure.",
     }

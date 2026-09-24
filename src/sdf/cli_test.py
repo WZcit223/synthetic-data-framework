@@ -27,6 +27,7 @@ COMMANDS = [
     "scenarios",
     "privacy",
     "validate",
+    "hooks",
 ]
 
 
@@ -170,3 +171,26 @@ def test_unknown_synthesizer_is_a_usage_error_listing_the_names():
     result = run("privacy", SAMPLE_CSV, "--synthesizer", "nope")
     assert result.exit_code == 2
     assert "Invalid value for '--synthesizer': 'nope'" in result.output and "bootstrap-table" in result.output
+
+
+def test_hooks_prints_the_index_and_updates_a_doc(tmp_path, monkeypatch):
+    monkeypatch.chdir(ROOT)
+    result = run("hooks")
+    assert result.exit_code == 0, result.output
+    assert "| C2 | Replenishment |" in result.output
+    doc = tmp_path / "checklist.md"
+    doc.write_text(
+        (ROOT / "docs" / "ALGORITHM_AND_DATA_CHECKLIST.md")
+        .read_text(encoding="utf-8")
+        .replace("| C2 | Replenishment |", "| C2 | Replenishment (stale) |", 1),
+        encoding="utf-8",
+    )
+    assert "updated" in run("hooks", "--update-doc", str(doc)).output
+    assert "already up to date" in run("hooks", "--update-doc", str(doc)).output
+
+
+def test_hooks_fails_on_an_unknown_row(tmp_path):
+    doc = tmp_path / "checklist.md"
+    doc.write_text("| # | Item |\n|---|---|\n| C1 | Demand forecast |\n", encoding="utf-8")
+    result = run("hooks", "--checklist", str(doc))
+    assert result.exit_code == 1 and "names no checklist row" in result.output

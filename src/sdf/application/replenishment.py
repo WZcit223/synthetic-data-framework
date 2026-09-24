@@ -105,7 +105,7 @@ def demand_series(reg: DataSourceRegistry, sku_id: str, forecast_days: int = 14)
     ``history`` lists the days on which the SKU shipped (what the chart
     plots). The forecast is the mean over the last 14 *calendar* days of the
     table, zero days included, like every other daily rate in the package.
-    ALGORITHM-HOOK: the forecast here is a trailing mean. Replace with a
+    ALGORITHM-HOOK[C1]: the forecast here is a trailing mean. Replace with a
     fitted model (DeepAR / TFT / LightGBM) to get real predictive intervals.
     """
     table = demand_table(reg)

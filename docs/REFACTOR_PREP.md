@@ -302,7 +302,7 @@ src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
 | 5 | 实现 | ~~**API 状态模型**~~ 已完成（structure 序列 PR 6–7：`create_app()`、`WorldStore` 原子替换不可变快照、`GenerateLimits`、端点契约测试；随后 API 迁到 `/api/v1`，`POST /world` 取代 `/generate`）：`create_app()`、不可变 `World`、原子替换、`/generate` 参数上限收紧并记录耗时 | 并发 `POST /generate` + `GET` 压测无撕裂；单例仍导出为 `app` |
 | 6 | 实现 | ~~**Agent 执行器**~~ 已完成（structure 序列 PR 5）：`agent/` 子包；审批门在 `executor.call` 强制；`ToolResult`；`Planner` 接口 | 新测试：注册一个有副作用的审批工具，断言 `fn` 未被调用 |
 | 7 | 实现 | **CLI**：~~迁 argparse~~ 已于 PR #3 迁到 click（子命令名与默认值不变，`--help`/`--version` 可用，`cli_test.py` 覆盖）；~~本步只剩新增 `validate` 子命令~~ 已完成（correctness 序列 PR 1）：`sdf validate` 输出 §2.5 全部黄金数字（JSON / markdown），`golden_test.py` 与 `VALIDATION.md` 的生成块读同一份快照 | `cli_test.py` 不变通过；`sdf validate` 输出与 `test_golden.py` 一致 |
-| 8 | 实现 | **HOOK 规范化**：统一标记 + `test_hooks.py`；`CHECKLIST.md` 每行加"代码位置"列（由测试生成） | `grep` 结果与 CHECKLIST ID 集合相等 |
+| 8 | 实现 | ~~**HOOK 规范化**~~ 已完成（cleanup 序列 PR 1）：标记统一为 `ALGORITHM-HOOK[<编号>]` / `DATA-HOOK[<编号>]`；`src/sdf/hooks.py` 扫描标记，`sdf hooks --update-doc` 在清单末尾生成"各条目在代码中的位置"表（`路径::符号`，不含行号），`hooks_test.py` 断言每个标记都对应清单编号且该表是最新的 | `grep` 结果与 CHECKLIST ID 集合相等 |
 | 9 | 实现 | 收尾：删 `feature/repo-governance` 远端分支；`VALIDATION.md` 中"默认世界手工调用"类数字改由第 7 步的 `sdf validate` 重跑生成；`observability` 完整落盘 | — |
 
 第 3 步是唯一会改变黄金数字的步骤，因此把它放在第 2 步（纯搬家）之后、第 4 步（纯拆分）之前，使每个 PR 的 diff 只解释一种变化。

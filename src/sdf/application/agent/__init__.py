@@ -5,7 +5,7 @@
 - ``planner`` — ``PlannedCall``, the ``Planner`` protocol and ``KeywordPlanner``;
 - ``agent`` — ``WarehouseAgent``, which plans, executes and composes the answer.
 
-ALGORITHM-HOOK: replace ``KeywordPlanner`` with an LLM tool-use planner; the
+ALGORITHM-HOOK[C7]: replace ``KeywordPlanner`` with an LLM tool-use planner; the
 tools, the executor's guardrails and the audit log stay identical.
 """
 

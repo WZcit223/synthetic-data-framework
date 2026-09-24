@@ -11,7 +11,7 @@ import os
 
 import click
 
-from . import __version__
+from . import __version__, hooks
 from .analytics.forecast import build_series, compare_models, models_for
 from .application.agent import WarehouseAgent
 from .application.economics import financial_impact
@@ -32,6 +32,7 @@ from .workflow import warehouse_pipeline
 
 DEFAULT_CSV = os.path.join("data", "sample_online_retail_ii.csv")
 DEFAULT_RETAIL_CSV = os.path.join("data", "online_retail_ii_2010_10k.csv")
+DEFAULT_CHECKLIST = os.path.join("docs", "ALGORITHM_AND_DATA_CHECKLIST.md")
 
 
 def cmd_demo() -> int:
@@ -137,7 +138,7 @@ def cmd_backtest(path: str, date_format: str | None = None) -> int:
         print(f"  {r['model']:<13}{r['MAE']:>10}{r['RMSE']:>10}{mape:>8}{wape:>8}{r['bias']:>10}")
     print("  MAPE% averages |error|/actual over days with sales; WAPE% = Σ|error| / Σactual.")
     print(f"\n  best (lowest MAE): {report['best_model']}")
-    print("  ALGORITHM-HOOK: beat these baselines with DeepAR/TFT/LightGBM.\n")
+    print("  ALGORITHM-HOOK[C1]: beat these baselines with DeepAR/TFT/LightGBM.\n")
     return 0
 
 
@@ -163,7 +164,7 @@ def cmd_synth(path: str, date_format: str | None = None, synthesizer: str = "sea
     print(f"  mean delta       : {rep['mean_delta_pct']} %")
     print(f"  std delta        : {rep['std_delta_pct']} %")
     print(f"  fidelity score   : {rep['fidelity_score']} / 100")
-    print("  ALGORITHM-HOOK: swap in SDV CTGAN/TVAE + SDMetrics for full B1.\n")
+    print("  ALGORITHM-HOOK[B1]: swap in SDV CTGAN/TVAE + SDMetrics for full B1.\n")
     return 0
 
 
@@ -268,7 +269,7 @@ def cmd_impact() -> int:
     print(f"  ANNUALISED net saving : ≈ {rep['annualised_net_saving']:,}")
     print(
         f"  (assumptions: {rep['assumptions']['holding_cost_annual_rate']:.0%} holding, "
-        f"z={rep['assumptions']['service_z']})  DATA-HOOK: real unit costs.\n"
+        f"z={rep['assumptions']['service_z']})  DATA-HOOK[C2]: real unit costs.\n"
     )
     return 0
 
@@ -306,7 +307,7 @@ def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "b
     print(f"  {'synthesizer':<16}: {synthesizer}")
     for k in ("n_real", "n_synth", "dcr_median", "dcr_p05", "nndr_median", "clone_risk_pct", "verdict"):
         print(f"  {k:<16}: {rep.get(k)}")
-    print("  ALGORITHM-HOOK: full membership-inference + differential privacy.\n")
+    print("  ALGORITHM-HOOK[B3]: full membership-inference + differential privacy.\n")
     return 0
 
 
@@ -470,6 +471,42 @@ def validate(fmt: str, sample_csv: str, retail_csv: str, doc_path: str | None) -
         click.echo(f"{doc_path}: {'updated' if updated != text else 'already up to date'}")
         return
     click.echo(render_markdown(snap) if fmt == "markdown" else json.dumps(snap, indent=2, ensure_ascii=False))
+
+
+@main.command("hooks")
+@click.option(
+    "--checklist",
+    default=DEFAULT_CHECKLIST,
+    show_default=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="The checklist whose row IDs the markers must name.",
+)
+@click.option(
+    "--update-doc",
+    "doc_path",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Rewrite the block between the sdf-hooks markers in this markdown file (and read its IDs).",
+)
+def hooks_command(checklist: str, doc_path: str | None) -> None:
+    """Print where each checklist item plugs into the code, from the hook markers in the source."""
+    with open(doc_path or checklist, encoding="utf-8") as fh:
+        text = fh.read()
+    found = hooks.scan()
+    ids = hooks.checklist_ids(text)
+    bad = hooks.problems(found, ids)
+    if bad:
+        for line in bad:
+            click.echo(line, err=True)
+        raise click.exceptions.Exit(1)
+    index = hooks.render_index(found, ids)
+    if doc_path:
+        updated = hooks.replace_doc_block(text, index)
+        if updated != text:
+            with open(doc_path, "w", encoding="utf-8") as fh:
+                fh.write(updated)
+        click.echo(f"{doc_path}: {'updated' if updated != text else 'already up to date'}")
+        return
+    click.echo(index, nl=False)
 
 
 if __name__ == "__main__":

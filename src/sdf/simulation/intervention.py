@@ -29,7 +29,7 @@ class Baseline:
 class SpecIntervention:
     """Regenerate the world from its spec with one scenario's tweaks applied.
 
-    ALGORITHM-HOOK: for a true digital twin, replace the parametric spec
+    ALGORITHM-HOOK[A4]: for a true digital twin, replace the parametric spec
     transforms with a discrete-event simulator or an agent-based model.
     """
 
