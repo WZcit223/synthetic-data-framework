@@ -21,7 +21,9 @@ confidence interval, and the relative change.
     current world's spec and generator;
   - the work budget: `MEASURE_WEIGHT` and `MAX_EFFECT_WORK`, re-measured and
     set in this PR, counting generations and policy × outcome measurements,
-    and published in `GET /api/v1/experiments/catalog` under `effects`;
+    evaluated only on the server; `"check_only": true` answers the work,
+    the size and whether it is within budget without generating anything;
+    `GET /api/v1/experiments/catalog` gains `effects.max_replicates`;
   - `PolicyChoice` reused from `POST /experiments`, and the same catalogue
     names;
   - the endpoint in the OpenAPI schema and the UI contract test's list of
@@ -56,6 +58,8 @@ confidence interval, and the relative change.
   - the endpoint studies a world built by a runtime-registered warehouse
     generator, which a default registry would not know, through the
     snapshot's own registry;
+  - `check_only` equal to a real run's budget decision, and generating
+    nothing;
   - the budget's 422, and a request at the limit with 6 policies × 6 outcomes
     that finishes under 30 s;
   - the CLI output on a small spec.

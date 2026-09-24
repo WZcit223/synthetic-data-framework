@@ -22,10 +22,11 @@ opens in Explore like any other table.
   - interventions (without `baseline`), policies with their service level, and
     outcomes;
   - replicates (2 to 20) and confidence (80 %, 90 %, 95 %, 99 %);
-  - the work budget checked before sending, with the size shown ("10
-    replicates × 3 arms × 2 policies × 1 outcome × 200 SKUs × 90 days"), with the
-    formula of the contract (§1.5) and the constants from the catalogue's
-    `effects` entry, so the page cannot drift from the server.
+  - the work budget shown while the user edits: the page asks
+    `POST /effects` with `"check_only": true` (contract §1.5) and displays
+    the server's `size` and `within_budget`. The page computes no part of
+    the budget itself; a run the server refuses shows the server's 422
+    message.
 - **The result:**
   - **An interval chart, one per metric.** Metrics have different units, so
     each gets its own horizontal axis (one axis per chart, small multiples).
@@ -49,7 +50,7 @@ opens in Explore like any other table.
   new page (paths in OpenAPI, no inline handler, assets and modules load,
   navigation links).
 - Tests (Node):
-  - the budget computation;
+  - showing the server's `check_only` answer (the page holds no budget formula);
   - reading the interval ("covers 0" at the edges, including a zero-width
     interval at 0);
   - the chart's scale with a common zero;
@@ -72,7 +73,8 @@ opens in Explore like any other table.
   - The study of PR 1's acceptance shows `holding_cost` excluding 0 and
     `unmet_units` covering 0, with the same numbers as `sdf effects`.
   - Open in Explore reproduces both tables.
-  - A request over budget is stopped in the page with its size shown.
+  - A request over budget is shown as such from the server's `check_only`
+    answer, with its size, before the user runs it.
   - The page reads correctly from 700 to 1440 px wide.
   - There is no failed request and no console error.
 - The chart's two colours pass the palette validator on the dark surface.

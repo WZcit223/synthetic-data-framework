@@ -135,8 +135,11 @@ Rules the implementation keeps:
   the intervention does not move.
 - **The relative effect** is `effect / baseline mean`, or `None` when the
   baseline mean is 0.
-- The study never touches the API's current world. It generates its own worlds
-  from `spec`, with the given generator.
+- The study never mutates the API's current world. In the API, the snapshot's
+  world is passed as `baseline` and read as replicate 0's baseline and the
+  determinism check's reference (§1.2), never changed. Every other world the
+  study generates itself from `spec`, with the given generator. In the CLI,
+  with no `baseline`, it generates the reference too.
 - It refuses `replicates` outside 2 … `MAX_REPLICATES`, `confidence` outside
   (0.5, 1), an empty list, and an intervention named `baseline`, with messages
   that name the field.
@@ -281,9 +284,21 @@ POST /api/v1/effects
   exploration contract ([`../explore/interfaces.md`](../explore/interfaces.md)
   §3.2) by PR 2: `{ effects: { request: {...}, table: "effects" | "replicates" } }`,
   where `request` is the body above.
-- **The limits are published.** `GET /api/v1/experiments/catalog` gains
-  `"effects": {"max_replicates": 20, "measure_weight": 0.25, "max_work": …}`,
-  so a client checks a request with the server's own numbers.
+- **The server is the only authority on the budget.** The body accepts
+  `"check_only": true`. The study then validates the request and computes
+  its work, without generating anything, and answers 200:
+
+  ```text
+  {"work": 1_458_000, "max_work": …, "within_budget": true,
+   "size": "10 replicates × 3 arms × 2 policies × 1 outcome × 200 SKUs × 90 days"}
+  ```
+
+  An invalid request gets the same 422 as a real run. The page asks this
+  while the user edits the form, and shows the answer. It computes no part of
+  the formula itself. `GET /api/v1/experiments/catalog` gains
+  `"effects": {"max_replicates": 20}` for the form's input bounds only. The
+  timing projection for plug-in generators needs a real generation, so it is
+  known only to a real run, which refuses with 422 as above.
 - The response models follow the existing rule: declared fields plus
   pass-through.
 
@@ -414,10 +429,13 @@ class Estimator(Protocol):
     adjustment set is;
   - a `confidence` outside (0.5, 1), as for `EffectStudy`;
   - a table with fewer than two treated or two control rows;
-  - a design that cannot identify the effect: an intercept, treatment and
-    encoded covariates of rank below their number, or no more rows than
-    columns plus one, so no residual degree of freedom is left. The check
-    uses the columns the estimator uses: for one with
+  - a design that cannot identify the effect. The design matrix X is the
+    full matrix the estimator fits: an intercept column, the treatment
+    column, and the encoded covariate columns it uses. The design is refused
+    when `rank(X) < columns(X)` (collinear) or when
+    `kept_rows <= columns(X)` (no residual degree of freedom). It is kept
+    exactly when `rank(X) == columns(X)` and `kept_rows > columns(X)`. The
+    check uses the columns the estimator uses: for one with
     `info.uses_covariates = False` (`difference-in-means`), only the
     intercept and the treatment, so redundant covariates never refuse the
     naive estimate. `score` runs the check once per estimator on the same
@@ -557,7 +575,14 @@ class PromotionBenchmark:
     noise: float = 0.25          # lognormal sigma of weekly units; 0 to 1
     seed: int = 7
 
+    def __post_init__(self) -> None:
+        """Refuse a value outside its bounds, naming the field, as GenerationSpec does."""
+
     def draw(self, world: World) -> "BenchmarkDraw": ...
+
+    # The same bounds are declared once, as param_bounds, and published as
+    # benchmark.params (§3.4), so the Python constructor, the API's Param.check
+    # and the page's form cannot disagree.
 
 
 @dataclass(frozen=True)
@@ -685,8 +710,10 @@ POST /api/v1/causal/estimates
   (`order-lines`, 28 897 rows on the default world), PR 4 measures the
   slowest built-in and sets `MAX_ESTIMATE_ROWS` so that six estimators at the
   cap finish under 30 s. The limits are published in `GET /estimators` as
-  `"limits": {"max_rows": …, "max_estimators": 6, "max_seconds": 30}`, and the
-  page checks them before sending.
+  `"limits": {"max_rows": …, "max_estimators": 6, "max_seconds": 30}`. The page
+  shows them and bounds its estimator list to `max_estimators`. The server's
+  422 stays the authority: the row count is only known once the server reads
+  the dataset.
 - **The 30 s bound (§5) is guaranteed for the built-ins, and enforced between
   estimators for plug-ins.** An estimator runs in the request's own thread,
   and Python cannot interrupt it safely, so:
