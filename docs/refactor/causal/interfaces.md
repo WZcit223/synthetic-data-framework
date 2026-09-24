@@ -72,6 +72,7 @@ class EffectStudy:
     confidence: float = 0.95                  # of the interval; above 0.5, below 1
     synthesizer: str = "warehouse-spec"       # the world generator, as World.generate takes it
     synthesizers: SynthesizerRegistry | None = None
+    baseline: World | None = None             # replicate 0's baseline, when the caller already holds it (the API's current world)
 
     def run(self) -> "EffectResult": ...
 
@@ -99,14 +100,19 @@ Rules the implementation keeps:
   synthesizer contract does not yet require it of a plug-in, so:
   - PR 1 adds that requirement to the warehouse generator's contract and to
     the plug-in guide;
-  - the study checks it before any replicate runs. It generates replicate 0's
-    baseline world twice and compares every policy × outcome value of the
-    two. If any differs, it refuses with `ValueError`: "generator X is not
-    deterministic in its spec; paired effects need the same world for the
-    same seed" (422 through the API).
+  - the study checks it before any replicate runs, against a reference world
+    for replicate 0's spec. The reference is `baseline` when given; the API
+    passes the snapshot's current world, the very world `POST /experiments`
+    measures. Without `baseline` (the CLI), the reference is one generation
+    of that spec. The study generates the spec once more and compares every
+    policy × outcome value with the reference's. If any differs, it refuses
+    with `ValueError`: "generator X is not deterministic in its spec; paired
+    effects need the same world for the same seed" (422 through the API).
 
-  The check costs one extra generation. With it, replicate 0 equals the world
-  `POST /experiments` measures, whatever the generator.
+  The reference is kept as replicate 0's baseline. In the API, replicate 0 is
+  therefore the held world itself, not a regeneration that might differ from
+  it. A generator whose output changed since the world was built (stateful
+  across calls) is refused by the comparison, not trusted.
 - **Pairing buys precision, not validity.** The check proves a generator is
   repeatable for a given spec. It cannot prove that the baseline and an
   intervention's changed spec share one random stream, and the effects do not
@@ -216,7 +222,8 @@ POST /api/v1/effects
   dashboard's world was built from. The handler reads `store.current` once and
   takes all three from that one snapshot: `snapshot.world.spec`,
   `snapshot.world.synthesizer` and `snapshot.world.synthesizers`. They go to
-  `EffectStudy(spec=…, synthesizer=…, synthesizers=…)`, so a generator mounted
+  `EffectStudy(spec=…, synthesizer=…, synthesizers=…, baseline=snapshot.world)`,
+  so the held world is replicate 0's baseline and a generator mounted
   at runtime or from a plug-in resolves exactly as it did for the current
   world. The store replaces its snapshot atomically, so
   a concurrent `POST /world` cannot mix two worlds. The
@@ -245,19 +252,20 @@ POST /api/v1/effects
   that case.
 - **The budget covers the built-in generator; a timing check covers the
   others.** The work formula is calibrated on `warehouse-spec`. A plug-in
-  generator can be much slower per world, so the study also times replicate
-  0's baseline generation during the determinism check. It projects the whole
+  generator can be much slower per world, so the study also times the
+  determinism check's generation. It projects the whole
   study as:
 
   ```text
-  projected = time already spent (both check generations and their measurements)
+  projected = time already spent (the check's generations and their measurements)
             + measured seconds per world × (replicates × arms − 1)
             + measured seconds per measurement × the measurements still to run
   ```
 
-  The first check world is kept as replicate 0's baseline, so the study
-  generates `replicates × arms + 1` worlds in all; the `+ 1` in the work
-  formula above is the second check world. If the projection exceeds
+  The reference is kept as replicate 0's baseline, so the study generates
+  `replicates × arms` worlds in the API (the held world replaces one
+  generation, the check adds one) and `replicates × arms + 1` in the CLI. The
+  `+ 1` in the work formula above is that upper bound. If the projection exceeds
   `MAX_EFFECT_SECONDS = 30`, the study refuses before generating further
   (422), naming the generator, its measured time per world, and the most
   replicates that would fit, with the check's own cost counted. What this

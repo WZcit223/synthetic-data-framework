@@ -38,6 +38,10 @@ confidence interval, and the relative change.
   - the study leaves the API's current world unchanged;
   - the determinism check: a runtime generator that ignores `spec.seed` is
     refused with the message of §1.2, and `warehouse-spec` passes;
+  - the check compares against the held world: a runtime generator whose
+    first call differs from its later, mutually identical calls is refused
+    through the API, and replicate 0's baseline rows equal
+    `POST /experiments` on the current world;
   - `warehouse-spec`'s pairing: the baseline and `promo_spike` worlds of one
     seed share their SKU and location tables;
   - the cooperative deadline (§5): a runtime generator that is fast on the
