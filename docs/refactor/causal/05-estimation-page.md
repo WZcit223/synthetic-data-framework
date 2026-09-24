@@ -38,6 +38,9 @@ finds in the plug-in guide how to write, mount and score their own estimator.
 - **The plug-in guide** (`docs/PLUGINS.md`) gains an estimator section:
   - the protocol, `design`, the `sdf.estimators` group, and how to score an
     estimator with `sdf estimate` and the API;
+  - the time expectation: an estimator finishes in a few seconds at the
+    published `max_rows`, because a request's 30 s budget is enforced only
+    between estimators;
   - a worked example, run by `src/sdf/plugins_guide_test.py` as written.
 - **UI contract test:** the page's new paths are covered.
 - **Docs:** README and this plan's status note.

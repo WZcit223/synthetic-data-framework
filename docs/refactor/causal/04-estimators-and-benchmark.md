@@ -53,7 +53,11 @@ on data where the truth is known.
       in the control rows, which is kept;
     - no residual degree of freedom;
   - the registry's guard (§3.1): an estimator returning a non-finite value,
-    and `ipw` on a perfectly separating covariate, each give an error row;
+    and `ipw` on a perfectly separating covariate (its overlap check, §3.2),
+    each give an error row; `ipw` with a few extreme propensities clips them
+    and reports the count in `method`;
+  - the time budget: after an estimator that uses up `MAX_ESTIMATE_SECONDS`,
+    the ones not yet started are error rows, not run;
     a constant outcome shared by both groups gives a finite zero-width row
     that stays;
   - the benchmark: exact truth, `confounding=0` is unconfounded, and the

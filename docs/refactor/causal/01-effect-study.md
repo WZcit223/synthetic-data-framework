@@ -40,7 +40,8 @@ confidence interval, and the relative change.
     refused with the message of §1.2, and `warehouse-spec` passes;
   - the timing check: a runtime generator that sleeps per world is refused
     before the study runs, with the measured time and the number of
-    replicates that would fit;
+    replicates that would fit; the projection counts the two check
+    generations, and a study at the limit finishes within 30 s;
   - the endpoint studies a world built by a runtime-registered warehouse
     generator, which a default registry would not know, through the
     snapshot's own registry;

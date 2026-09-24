@@ -215,7 +215,7 @@ POST /api/v1/effects
   every arm measures every policy × outcome pair:
 
   ```text
-  work = replicates × (1 + len(interventions)) × (1 + MEASURE_WEIGHT × len(policies) × len(outcomes)) × n_skus × horizon_days
+  work = (replicates × (1 + len(interventions)) + 1) × (1 + MEASURE_WEIGHT × len(policies) × len(outcomes)) × n_skus × horizon_days
   ```
 
   `work` must not exceed `MAX_EFFECT_WORK`. Spike on the default world:
@@ -232,12 +232,21 @@ POST /api/v1/effects
   others.** The work formula is calibrated on `warehouse-spec`. A plug-in
   generator can be much slower per world, so the study also times replicate
   0's baseline generation during the determinism check. It projects the whole
-  study as `measured seconds per world × replicates × arms`, plus the
-  measurements. If the projection exceeds `MAX_EFFECT_SECONDS = 30`, it
-  refuses before generating further (422), naming the generator, its measured
-  time per world, and the most replicates that would fit. A request therefore
-  stays within the time limit whatever the generator, at the cost of the two
-  timed generations.
+  study as:
+
+  ```text
+  projected = time already spent (both check generations and their measurements)
+            + measured seconds per world × (replicates × arms − 1)
+            + measured seconds per measurement × the measurements still to run
+  ```
+
+  The first check world is kept as replicate 0's baseline, so the study
+  generates `replicates × arms + 1` worlds in all; the `+ 1` in the work
+  formula above is the second check world. If the projection exceeds
+  `MAX_EFFECT_SECONDS = 30`, the study refuses before generating further
+  (422), naming the generator, its measured time per world, and the most
+  replicates that would fit. The request therefore stays within the time
+  limit whatever the generator, with the check's own cost counted.
 - **Explore links** replay this request. The source shape is added to the
   exploration contract ([`../explore/interfaces.md`](../explore/interfaces.md)
   §3.2) by PR 2: `{ effects: { request: {...}, table: "effects" | "replicates" } }`,
@@ -444,11 +453,22 @@ def design(table: Table, question: CausalQuestion) -> Design:
 |---|---|---|---|
 | `difference-in-means` | treated mean − control mean; ignores the covariates | Welch t | core |
 | `regression-adjustment` | least squares of the outcome on the treatment and the covariates; the treatment coefficient | HC1 robust errors, t | core |
-| `ipw` | Hajek inverse propensity weighting; logistic propensity on the covariates, clipped to 0.01 to 0.99 | 200 bootstrap resamples with `seed`, percentile | core (scikit-learn) |
+| `ipw` | Hajek inverse propensity weighting; logistic propensity on the covariates, clipped to 0.01 to 0.99 after an overlap check (below) | 200 bootstrap resamples with `seed`, percentile | core (scikit-learn) |
 | `dowhy-backdoor` | DoWhy, back-door criterion over the declared covariates, linear regression | DoWhy's interval | `dowhy` (`causal` extra, Python 3.13) |
 | `econml-dml` | EconML `LinearDML` with the covariates as controls | EconML's interval | `econml` (`causal` extra) |
 
 The five are declared in the `sdf.estimators` group of `pyproject.toml`.
+
+**`ipw`'s overlap check comes before clipping.** Clipping keeps the weights
+finite, but on its own it would turn a design with no overlap into a plausible
+number. So `ipw` first counts the rows whose fitted, unclipped propensity lies
+outside [0.01, 0.99]:
+- **More than 10 % of the rows:** there is too little overlap to weight
+  across. `ipw` raises, and the registry records an error row: "no overlap: N
+  of M rows have a propensity outside [0.01, 0.99]". Perfect separation always
+  lands here.
+- **10 % or fewer:** those rows are clipped, and `method` reports how many
+  ("… , 12 rows clipped"), so the reader sees it.
 
 The registry is a `PluginRegistry` (§2.2) with `kind = "estimator"`,
 `info_type = EstimatorInfo` and `group = "sdf.estimators"`, plus one method:
@@ -612,8 +632,23 @@ POST /api/v1/causal/estimates
   (`order-lines`, 28 897 rows on the default world), PR 4 measures the
   slowest built-in and sets `MAX_ESTIMATE_ROWS` so that six estimators at the
   cap finish under 30 s. The limits are published in `GET /estimators` as
-  `"limits": {"max_rows": …, "max_estimators": 6}`, and the page checks them
-  before sending.
+  `"limits": {"max_rows": …, "max_estimators": 6, "max_seconds": 30}`, and the
+  page checks them before sending.
+- **The 30 s bound is guaranteed for the built-ins, and enforced between
+  estimators for plug-ins.** An estimator runs in the request's own thread,
+  and Python cannot interrupt it safely, so:
+  - The estimators run one after another. Before starting each one, the
+    handler compares the time already spent with `MAX_ESTIMATE_SECONDS = 30`.
+    Once the budget is spent, each estimator not yet started becomes an error
+    row: "not run: the request's 30 s were used".
+  - A single plug-in that runs far longer still delays its own request. The
+    plug-in guide (PR 5) states the expectation: an estimator finishes in a
+    few seconds at `max_rows`. The page lists the time each estimator took,
+    so a slow plug-in is visible.
+
+  The measured guarantee covers the built-ins. For plug-ins it is a bound on
+  how many start, not on how long one runs, and the contract says so rather
+  than claiming more.
 - **Explore links** replay this request, through the source shape PR 5 adds to
   the exploration contract (§3.2): `{ estimates: { request: {...}, table:
   "scores" | "data" } }`, where `request` is the body above.
