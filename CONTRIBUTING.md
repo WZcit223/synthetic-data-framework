@@ -9,7 +9,7 @@ a clean, reviewable history that a new engineer can trust as a production baseli
 | --- | --- |
 | `main` | Protected, always-releasable default branch. No direct pushes. |
 | `feature/*` | All new work: features, refactors, fixes. Branched from `main`, merged back via PR. |
-| `system-v1/synthetic-data-generation` | Frozen snapshot of the initial v1 build, kept for reference. Not part of ongoing flow. |
+| tag `system-v1-snapshot` | Frozen snapshot of the initial v1 build, kept for reference (formerly the `system-v1/synthetic-data-generation` branch). Not part of ongoing flow. |
 
 Examples: `feature/synthetic-pipeline`, `feature/api-refactor`.
 
