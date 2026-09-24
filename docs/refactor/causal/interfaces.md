@@ -496,7 +496,8 @@ class Estimator(Protocol):
     therefore refused for a dimension, with the values seen listed: "priority
     has values ['express', 'standard']; set treated_value to one of them".
     The question is never silently all-control;
-  - an outcome that is not a measure, or a covariate that is a time field;
+  - an outcome that is not a measure, or the treatment itself as the outcome;
+  - a covariate that is a time field;
   - a covariate that is the treatment or the outcome itself, or a duplicate
     covariate name. Adjusting for the outcome would leak it into the
     estimate. Whether a covariate is measured before the treatment cannot be

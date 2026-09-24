@@ -87,6 +87,8 @@ def design(table: Table, question: CausalQuestion) -> Design:
     if unknown:
         raise ValueError(f"unknown field {unknown[0]!r}; {table.info.name} has {sorted(fields)}")
     treatment, outcome = fields[question.treatment], fields[question.outcome]
+    if treatment.name == outcome.name:
+        raise ValueError(f"{treatment.name} is both the treatment and the outcome; an effect needs two fields")
     if treatment.kind == "time":
         raise ValueError(f"treatment {treatment.name} is a time field; use a dimension or a measure holding 0 and 1")
     if outcome.kind != "measure":

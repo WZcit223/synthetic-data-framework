@@ -171,6 +171,9 @@ def test_design_refuses_questions_about_the_wrong_fields():
     tab = table({**BASE, "d": ["2025-01-01"] * 6, "c": list("abcabc")}, kinds={"d": "time"})
     assert refusal(tab, CausalQuestion("t", "nope")).startswith("unknown field 'nope'; test-table has ")
     assert refusal(tab, CausalQuestion("t", "c")) == "outcome c is a dimension; it must be a measure"
+    assert (
+        refusal(tab, CausalQuestion("t", "t")) == "t is both the treatment and the outcome; an effect needs two fields"
+    )
     assert refusal(tab, CausalQuestion("t", "y", ("d",))) == "covariate d is a time field; use a dimension or a measure"
     assert refusal(tab, CausalQuestion("t", "y", ("t",))) == "covariate t is the treatment itself"
     assert "covariate y is the outcome itself" in refusal(tab, CausalQuestion("t", "y", ("y",)))
