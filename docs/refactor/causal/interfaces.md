@@ -92,6 +92,21 @@ Rules the implementation keeps:
   generated, and a `SpecIntervention` regenerates from it with the same seed
   (it already does). The effect is the mean of the R paired differences
   `treated − baseline`.
+- **Pairing needs a deterministic generator.** A warehouse generator is called
+  as today, `reg.create(name, spec=spec).sample()`. Pairing holds only if that
+  call returns the same world for the same spec, which means the generator
+  takes its randomness from `spec.seed`. `warehouse-spec` does. The
+  synthesizer contract does not yet require it of a plug-in, so:
+  - PR 1 adds that requirement to the warehouse generator's contract and to
+    the plug-in guide;
+  - the study checks it before any replicate runs. It generates replicate 0's
+    baseline world twice and compares every policy × outcome value of the
+    two. If any differs, it refuses with `ValueError`: "generator X is not
+    deterministic in its spec; paired effects need the same world for the
+    same seed" (422 through the API).
+
+  The check costs one extra generation. With it, replicate 0 equals the world
+  `POST /experiments` measures, whatever the generator.
 - **The interval** is Student's t on the paired differences, with R − 1
   degrees of freedom (`scipy.stats.t`). When every difference is equal, the
   interval collapses to the point (zero width), which is correct for a metric
@@ -213,6 +228,16 @@ POST /api/v1/effects
   `MAX_EFFECT_WORK` so that a request at the limit stays under 30 s whatever
   its mix (6 policies × 6 outcomes of `simulated_cost` included), and tests
   that case.
+- **The budget covers the built-in generator; a timing check covers the
+  others.** The work formula is calibrated on `warehouse-spec`. A plug-in
+  generator can be much slower per world, so the study also times replicate
+  0's baseline generation during the determinism check. It projects the whole
+  study as `measured seconds per world × replicates × arms`, plus the
+  measurements. If the projection exceeds `MAX_EFFECT_SECONDS = 30`, it
+  refuses before generating further (422), naming the generator, its measured
+  time per world, and the most replicates that would fit. A request therefore
+  stays within the time limit whatever the generator, at the cost of the two
+  timed generations.
 - **Explore links** replay this request. The source shape is added to the
   exploration contract ([`../explore/interfaces.md`](../explore/interfaces.md)
   §3.2) by PR 2: `{ effects: { request: {...}, table: "effects" | "replicates" } }`,
@@ -346,9 +371,13 @@ class Estimator(Protocol):
   - a table with fewer than two treated or two control rows;
   - a design that cannot identify the effect: an intercept, treatment and
     encoded covariates of rank below their number, or no more rows than
-    columns plus one, so no residual degree of freedom is left. The message
-    names the covariates at fault, for example "abc_class=A is constant within
-    the treated rows".
+    columns plus one, so no residual degree of freedom is left. Rank is
+    `numpy.linalg.matrix_rank` of that matrix on the kept rows, so a covariate
+    that is constant within one group but varies in the other is kept. The
+    message names the encoded columns of a dependency, for example
+    "abc_class=B and abc_class=C sum to 1 on every kept row, so with the
+    intercept they are collinear" (every row is B or C), or "log_price equals
+    log_price_copy".
 
   These are request problems (422 through the API).
 - **What can still fail inside an estimator** is data the checks above cannot
@@ -536,6 +565,7 @@ GET /api/v1/estimators
 → {
     "estimators": [{"name", "description", "origin", "requires"}],
     "unavailable": {"name": "reason"},
+    "limits": {"max_rows": …, "max_estimators": 6},   // MAX_ESTIMATE_ROWS and the estimator cap (below)
     "benchmark": {
       "params": [Param, ...],        // uplift, confounding, noise, seed: the synthesizer Param shape (name, type, default, min, max, exclusive, nullable)
       "question": {...}              // the benchmark's CausalQuestion: treatment, outcome, the covariates a client may drop

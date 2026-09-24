@@ -47,12 +47,15 @@ on data where the truth is known.
     - a time treatment, or a measure treatment with values other than 0 and 1;
     - a time covariate;
     - a confidence of 0.5 or 1;
-    - a rank-deficient design, for example a covariate constant within the
-      treated rows;
+    - a rank-deficient design by `matrix_rank`, for example two covariates
+      that are exact copies, or dummies that with the intercept are
+      collinear; and a covariate constant within the treated rows but varying
+      in the control rows, which is kept;
     - no residual degree of freedom;
-  - the registry's guard: a non-finite `Estimate`, a perfectly separating
-    covariate for `ipw`, and a constant outcome each give an error row, never
-    a number;
+  - the registry's guard (§3.1): an estimator returning a non-finite value,
+    and `ipw` on a perfectly separating covariate, each give an error row;
+    a constant outcome shared by both groups gives a finite zero-width row
+    that stays;
   - the benchmark: exact truth, `confounding=0` is unconfounded, and the
     parameter bounds;
   - `score`: a failing estimator becomes a row; without a truth the truth
@@ -62,8 +65,6 @@ on data where the truth is known.
   - the row limit's 422, reached without reading past `MAX_ESTIMATE_ROWS + 1`
     rows of a provider that yields endlessly, and a request at the limits with
     six estimators that finishes under 30 s;
-  - a constant outcome giving a finite zero-width row, and an estimator
-    returning NaN giving an error row;
   - the CLI output;
   - the contract examples in §3 run as written.
 - **Hook markers.** The built-in estimators and the benchmark are stand-ins, so

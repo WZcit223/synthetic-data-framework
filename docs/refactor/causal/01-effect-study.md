@@ -36,13 +36,20 @@ confidence interval, and the relative change.
   - the relative effect with a zero baseline;
   - every refusal message;
   - the study leaves the API's current world unchanged;
+  - the determinism check: a runtime generator that ignores `spec.seed` is
+    refused with the message of §1.2, and `warehouse-spec` passes;
+  - the timing check: a runtime generator that sleeps per world is refused
+    before the study runs, with the measured time and the number of
+    replicates that would fit;
   - the endpoint studies a world built by a runtime-registered warehouse
     generator, which a default registry would not know, through the
     snapshot's own registry;
   - the budget's 422, and a request at the limit with 6 policies × 6 outcomes
     that finishes under 30 s;
   - the CLI output on a small spec.
-- Docs: `ARCHITECTURE.md` (the simulation layer gains effects), README's
+- Docs: the plug-in guide (`docs/PLUGINS.md`) states that a warehouse
+  generator must be deterministic in its spec (its randomness from
+  `spec.seed`); `ARCHITECTURE.md` (the simulation layer gains effects), README's
   command list, and this plan's status note with the measured timing.
 
 ## Non-goals
