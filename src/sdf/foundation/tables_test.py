@@ -67,6 +67,8 @@ def test_table_accepts_values_that_match_their_fields():
         (("2025-01-02", "store"), "has 2 values for 3 fields"),
         ((date(2025, 1, 2), "store", 1), "field day: a time field holds an ISO date"),
         (("2025-13-01", "store", 1), "field day: a time field holds an ISO date"),
+        (("2025-W01-1", "store", 1), "field day: a time field holds an ISO date"),
+        (("２０２５-01-01", "store", 1), "field day: a time field holds an ISO date"),
         (("2025-01-02", 7, 1), "field channel: a dimension holds text, got int"),
         (("2025-01-02", "store", "3"), "field qty: a measure holds a number, got str"),
         (("2025-01-02", "store", True), "field qty: a measure holds a number, got bool"),

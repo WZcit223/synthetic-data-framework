@@ -19,6 +19,7 @@ Aggregate = Literal["sum", "mean", "min", "max"]
 
 _FIELD_NAME = re.compile(r"[a-z][a-z0-9]*(_[a-z0-9]+)*")
 _DATASET_NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
+_ISO_DATE = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}")  # the calendar form only: fromisoformat also takes "2025-W01-1"
 
 
 @dataclass(frozen=True)
@@ -110,7 +111,7 @@ class Table:
 
 
 def _is_iso_date(text: str) -> bool:
-    if len(text) != 10:
+    if not _ISO_DATE.fullmatch(text):
         return False
     try:
         date.fromisoformat(text)
