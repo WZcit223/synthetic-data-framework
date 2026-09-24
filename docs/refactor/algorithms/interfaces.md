@@ -101,8 +101,9 @@ class Forecaster(Protocol):
 New on `DemandTable` (PR 1), so a history can be cut at an origin:
 
 ```python
-table.until(day: date) -> DemandTable   # the days before `day`, same SKUs; ValueError if none is left
-table.window(start: date, days: int) -> DemandTable   # `days` days from `start`, for scoring
+class DemandTable:  # the two additions only
+    def until(self, day: date) -> "DemandTable": ...  # the days before `day`, same SKUs; ValueError if none is left
+    def window(self, start: date, days: int) -> "DemandTable": ...  # `days` days from `start`, for scoring
 ```
 
 **The registry's guard** (in `ForecasterRegistry.forecast`, which the backtest
@@ -405,7 +406,7 @@ class PolicyInput:
     unit_cost: float
     unit_price: float
 
-levels_for(policy, item) -> Levels
+def levels_for(policy: Policy, item: PolicyInput) -> Levels: ...
 ```
 
 `levels_for` calls `policy.levels_for(item)` when the policy defines it, and
@@ -511,8 +512,15 @@ class Detection:
 
 class Detector(Protocol):
     info: ClassVar[DetectorInfo]
-    def detect(self, frame: SignalFrame) -> list[Detection]: ...
+    def scores(self, frame: SignalFrame) -> np.ndarray: ...     # SKUs × days, float, finite; larger is more anomalous
+    def detect(self, frame: SignalFrame) -> list[Detection]: ...  # the points it reports at its own threshold
 ```
+
+`scores` rates every SKU-day, not only the reported ones, so a detector can
+be ranked apart from its threshold (§6.3's `top-k` cut); `detect` reports the
+points it would alarm on. The registry checks that `scores` has the frame's
+shape and finite values and that every detection names a SKU and day of the
+frame; otherwise the detector's result is refused and becomes an error row.
 
 `ENTRY_POINT_GROUP = "sdf.detectors"`, `DetectorRegistry`,
 `default_detectors()` and `score_detectors` live in `sdf.analytics.detectors`
@@ -528,7 +536,11 @@ gains `record=True`, which fills two new trace fields, `on_hand` and
 `receipts` (tuples per day, empty by default). Built-ins:
 
 - `seasonal-residual`: today's rule per SKU on `demand`, with `k` (2 to 10,
-  default 3.5) and `period` (2 to 28, default 7);
+  default 3.5) and `period` (2 to 28, default 7). Its `scores` are the
+  absolute robust z of every point, from the same seasonal profile and
+  scale (`seasonal_residual_anomalies` gains the internal helper that
+  returns them, and keeps its answer); a SKU too short for the rule scores
+  0 everywhere;
 - `isolation-forest`: scikit-learn's `IsolationForest` over per-SKU scaled
   features of every signal in the frame (the value, its residual from the
   weekday median, from the rolling median, the zero indicator, and the day's
@@ -572,8 +584,9 @@ scores = score_detectors(["seasonal-residual", "isolation-forest"], frame, injec
   | `seconds` | Run time | measure | s | sum |
   | `error` | Error | dimension | | |
 
-  `threshold` keeps the detections the detector reports; `top-k` keeps its
-  `len(injected)` highest scores. Both are reported so a detector is not
+  `threshold` keeps the detections `detect` reports; `top-k` keeps the
+  `len(injected)` SKU-days with the highest `scores`, ties broken by SKU
+  order and then day, so the cut is reproducible. Both are reported so a detector is not
   judged by its threshold alone. `precision` is empty when nothing is
   flagged. Per kind, `precision` counts only detections at an injected
   place of that kind or at no injected place.
@@ -618,7 +631,7 @@ class TableData:
 ```python
 from sdf.validation.detection import detection_report
 
-detection_report(real_rows, synth_rows, *, folds=5, seed=7)
+detection_report(real_rows, synth_rows, folds=5, seed=7)   # folds and seed are keyword-only
 # {'auc': 0.68, 'auc_low': 0.66, 'auc_high': 0.70, 'n_real': 3000, 'n_synth': 3000,
 #  'model': 'HistGradientBoostingClassifier, 5-fold', 'top_features': ['price', 'qty', 'hour'],
 #  'verdict': 'distinguishable'}
@@ -664,8 +677,16 @@ uv run sdf prepare-retail online_retail_II_2009-2010.csv online_retail_II_2010-2
 - reads the UCI file as CSV (the workbook's two sheets saved as CSV, or the
   CSV copies that circulate with the same columns), with the existing
   adapter (rows without a `StockCode` skipped, negative quantities as
-  cancelled orders) and its new option `drop_non_product=True` (postage,
-  manual and fee codes left out; off by default, PR 7). Reading the `.xlsx` directly would need `openpyxl`, which no
+  cancelled orders) and its new option `drop_non_product=True` (off by
+  default, PR 7). The rule is exact, so two implementations give the same
+  totals: the `StockCode` is stripped of surrounding whitespace and
+  upper-cased; it is a non-product code when it equals one of `POST`,
+  `DOT`, `M`, `C2`, `D`, `S`, `B`, `CRUK`, `PADS`, `ADJUST`, `ADJUST2`,
+  `AMAZONFEE`, `BANK CHARGES`, or starts with `GIFT_` or `TEST`. The list
+  is one constant in the adapter (`NON_PRODUCT_CODES`, `NON_PRODUCT_PREFIXES`).
+  Codes that contain no digit and are not on the list are kept, and counted
+  by code in the load report, so a code the list misses is visible
+  rather than silently kept or dropped. Reading the `.xlsx` directly would need `openpyxl`, which no
   extra installs today; PR 7 adds it to the `synthesis` extra only if the
   project lead prefers that to a one-time conversion;
 - writes a wide daily table: one `date` column and one column per SKU (the

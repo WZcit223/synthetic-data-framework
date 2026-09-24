@@ -36,8 +36,11 @@ the 5-day extract.
 
 ## Tests
 
-- `drop_non_product`: off, the adapter loads exactly as today; on, the
-  listed non-product codes are skipped and counted in the load report.
+- `drop_non_product`: off, the adapter loads exactly as today; on, every
+  code of the contract's list (§9) is skipped, whatever its case and
+  surrounding whitespace (` post `, `Post`), as are codes starting with
+  `GIFT_` or `TEST`, and each is counted in the load report; a code with no
+  digit that is not on the list (for example `XYZ`) is kept and reported.
 - `prepare-retail` on a small hand-made file in the UCI layout: cancelled
   lines and non-product codes left out of demand, days with no sale present
   as 0, SKUs ranked by units, the header comment written.

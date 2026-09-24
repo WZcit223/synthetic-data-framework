@@ -46,7 +46,11 @@ its alarms are real.
 - `seasonal-residual` gives the same anomalies as the function it wraps.
 - `isolation-forest` finds `shrinkage`, which `seasonal-residual` cannot
   (recall 0 on that kind by construction).
-- Both cuts (`threshold`, `top-k`) are reported.
+- Both cuts (`threshold`, `top-k`) are reported; `top-k` ranks every
+  SKU-day by `scores`, so a detector with no alarm still has a `top-k` row;
+  ties are broken by SKU order and day.
+- The registry refuses `scores` of the wrong shape or with a non-finite
+  value, and a detection outside the frame.
 - The API's 422 cases and a failing detector as an error row.
 - The layering test passes: `sdf.analytics.detectors` imports nothing from
   `simulation`.
