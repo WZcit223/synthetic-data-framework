@@ -27,7 +27,9 @@ on data where the truth is known.
 - **New `sdf.simulation.benchmark`**: `PromotionBenchmark`, `BenchmarkDraw`,
   and the `promotion-benchmark` table info.
 - **API:**
-  - `GET /api/v1/estimators`, with the benchmark's parameters and question;
+  - `GET /api/v1/estimators`, with the benchmark's parameters and question and
+    the request limits;
+  - `MAX_ESTIMATE_ROWS`, measured and set in this PR (contract §3.4);
   - `POST /api/v1/causal/estimates`, on the benchmark or on a catalogue
     dataset over the current world;
   - `create_app(estimators=…)`, like `synthesizers` and `datasets`;
@@ -57,6 +59,8 @@ on data where the truth is known.
     fields are empty; with a zero truth `relative_bias` is empty;
   - the API's 422 and 500 cases, a failing estimator answered as a row in a
     200, and the benchmark's `params` and `question` in `GET /estimators`;
+  - the row limit's 422 and a request at the limits with six estimators that
+    finishes under 30 s;
   - the CLI output;
   - the contract examples in §3 run as written.
 - **Hook markers.** The built-in estimators and the benchmark are stand-ins, so

@@ -381,8 +381,25 @@ class MedianDifference:
         return Estimate(self.info.name, effect, None, None, int(d.treated.sum()), int((~d.treated).sum()), "medians")
 ```
 
-`design(table, question) -> Design` is the shared preparation (the missing-value
-rule and the encoding above), so no estimator re-implements it.
+`design` is the shared preparation (the missing-value rule, the refusals and
+the encoding above), so no estimator re-implements it:
+
+```python
+import numpy as np
+
+
+@dataclass(frozen=True)
+class Design:
+    treated: np.ndarray            # bool, one per kept row
+    outcome: np.ndarray            # float, one per kept row
+    covariates: np.ndarray         # float, 2-D: kept rows × encoded columns (0 columns without covariates)
+    columns: tuple[str, ...]       # the encoded columns' names, e.g. ("log_demand", "abc_class=B", "abc_class=C")
+    dropped: int                   # rows left out for a missing value
+
+
+def design(table: Table, question: CausalQuestion) -> Design:
+    """Raises ValueError for every refusal listed above, naming the field or covariate."""
+```
 
 ### 3.2 Target (after PR 4): the built-ins and the `causal` extra
 
@@ -462,6 +479,25 @@ class BenchmarkDraw:
   - The table shows `y(promoted)` only.
 
 ```python
+def score(
+    table: Table,
+    question: CausalQuestion,
+    registry: EstimatorRegistry,
+    *,
+    names: Sequence[str],
+    true_effect: float | None = None,
+    confidence: float = 0.95,
+    seed: int = 7,
+) -> Table:
+    """Run every estimator in ``names`` on the same rows; one row each, in ``names`` order.
+
+    Raises ValueError, as ``design`` does, when the question cannot be answered
+    at all (that is a request problem), and KeyError for an unknown name. An
+    estimator that raises, or returns a non-finite value, becomes an error row.
+    """
+```
+
+```python
 from sdf.analytics.causal import score
 
 draw = PromotionBenchmark(confounding=1.0).draw(world)
@@ -521,6 +557,18 @@ POST /api/v1/causal/estimates
   `benchmark` and `dataset`, or a benchmark value outside
   the bounds `GET /estimators` publishes. The server checks each value with the
   same `Param.check` the synthesizer runs use, so the form and the server agree.
+- **Limits.** Estimation runs synchronously, so its size is bounded like an
+  effect study's:
+  - at most `MAX_ESTIMATE_ROWS` rows after the missing-value rule; a larger
+    dataset answers 422 naming the limit and its row count;
+  - at most 6 estimators per request.
+
+  `ipw`'s 200 bootstrap fits dominate. On the largest built-in dataset
+  (`order-lines`, 28 897 rows on the default world), PR 4 measures the
+  slowest built-in and sets `MAX_ESTIMATE_ROWS` so that six estimators at the
+  cap finish under 30 s. The limits are published in `GET /estimators` as
+  `"limits": {"max_rows": …, "max_estimators": 6}`, and the page checks them
+  before sending.
 - **Explore links** replay this request, through the source shape PR 5 adds to
   the exploration contract (§3.2): `{ estimates: { request: {...}, table:
   "scores" | "data" } }`, where `request` is the body above.
