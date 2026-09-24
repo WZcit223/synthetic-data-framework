@@ -392,7 +392,9 @@ class CausalQuestion:
     treatment: str                         # a field: a dimension, or a measure holding 0 and 1
     outcome: str                           # a measure field
     covariates: tuple[str, ...] = ()       # the adjustment set: the user's claim, not discovered
-    treated_value: Any = 1                 # the treatment value that counts as treated; every other value is control
+    treated_value: Any = 1                 # the value that counts as treated (every other value is control):
+                                           # for a 0/1 measure treatment, 1 by default; for a dimension
+                                           # treatment, a text value the caller must give (below)
 
 
 @dataclass(frozen=True)
@@ -426,6 +428,11 @@ class Estimator(Protocol):
   - a treatment that is neither a dimension nor a measure holding only 0 and 1
     (a time field, or a measure with any other value, is refused, naming the
     field and its kind);
+  - for a dimension treatment, a `treated_value` that is not text or is not
+    among the treatment's values in the kept rows. The default `1` is
+    therefore refused for a dimension, with the values seen listed: "priority
+    has values ['express', 'standard']; set treated_value to one of them".
+    The question is never silently all-control;
   - an outcome that is not a measure, or a covariate that is a time field;
   - a covariate that is the treatment or the outcome itself, or a duplicate
     covariate name. Adjusting for the outcome would leak it into the

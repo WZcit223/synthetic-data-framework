@@ -45,6 +45,8 @@ on data where the truth is known.
   - the interval methods and the seeded bootstrap;
   - `design`: missing rows, the one-hot encoding, and every refusal:
     - a time treatment, or a measure treatment with values other than 0 and 1;
+    - a dimension treatment with the default or an absent `treated_value`,
+      refused with the values seen;
     - a time covariate, the treatment or outcome among the covariates, and a
       duplicate covariate;
     - a confidence of 0.5 or 1;
