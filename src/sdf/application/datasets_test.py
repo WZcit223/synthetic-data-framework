@@ -55,6 +55,35 @@ class BadValues:
         return [(world.stream("OutboundOrder")[0].ts,)]
 
 
+class Counter:
+    """A large provider: 100 000 rows, yielded one at a time, the last one invalid."""
+
+    info: ClassVar[DatasetInfo] = DatasetInfo(
+        name="counter",
+        label="Counter",
+        description="Integers",
+        fields=(Field("n", "N", "measure"),),
+    )
+    yielded = 0
+
+    def rows(self, world):
+        for n in range(100_000):
+            Counter.yielded += 1
+            yield (n,) if n < 99_999 else ("not a number",)
+
+
+class NeedsArgument:
+    info: ClassVar[DatasetInfo] = DatasetInfo(
+        name="needs-argument", label="x", description="x", fields=(Field("n", "N", "measure"),)
+    )
+
+    def __init__(self, path):
+        self.path = path
+
+    def rows(self, world):
+        return []
+
+
 def test_the_built_ins_are_mounted_from_the_entry_point_group(cat):
     assert cat.names() == ["inventory", "order-lines", "replenishment-plan", "skus"]
     assert {cat.origin(n) for n in cat.names()} == {"builtin"} and cat.unavailable() == {}
@@ -129,6 +158,23 @@ def test_register_rejects_a_class_that_is_not_a_provider():
         cat.info("nope")
 
 
+def test_head_keeps_and_checks_only_the_first_rows_and_counts_the_rest(world):
+    cat = DatasetCatalog()
+    cat.register(Counter)
+    Counter.yielded = 0
+    table, total = cat.head("counter", world, 3)
+    assert table.rows == [(0,), (1,), (2,)] and total == 100_000 == Counter.yielded
+    with pytest.raises(ValueError, match="field n: a measure holds a number"):
+        cat.head("counter", world, 100_000)
+    with pytest.raises(ValueError, match="limit must be at least 1"):
+        cat.head("counter", world, 0)
+
+
+def test_register_rejects_a_provider_whose_constructor_needs_arguments():
+    with pytest.raises(TypeError, match=r"needs-argument: every constructor argument needs a default.*\['path'\]"):
+        DatasetCatalog().register(NeedsArgument)
+
+
 def _entry_point(name, value, dist=None):
     ep = EntryPoint(name=name, value=value, group=datasets_module.ENTRY_POINT_GROUP)
     if dist is None:
@@ -152,6 +198,7 @@ def test_plug_ins_mount_and_a_broken_or_clashing_one_is_listed_not_raised(monkey
         _entry_point("channel-mix", f"{__name__}:ChannelMix", "vendor-pkg"),
         _entry_point("missing", "no_such_package.tables:Nope", "vendor-pkg"),
         _entry_point("wrong-name", f"{__name__}:ChannelMix", "vendor-pkg"),
+        _entry_point("needs-argument", f"{__name__}:NeedsArgument", "vendor-pkg"),
     ]
     monkeypatch.setattr(datasets_module, "entry_points", lambda group: eps)
     cat = default_datasets()
@@ -161,3 +208,4 @@ def test_plug_ins_mount_and_a_broken_or_clashing_one_is_listed_not_raised(monkey
     assert "name already taken" in problems["order-lines (vendor-pkg)"]
     assert "failed to load" in problems["missing"]
     assert "differs from info.name" in problems["wrong-name"]
+    assert "constructor argument needs a default" in problems["needs-argument"]

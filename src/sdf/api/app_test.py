@@ -463,6 +463,16 @@ def test_the_app_serves_a_provider_registered_on_its_catalogue():
     assert [r[0] for r in rows] == ["ecommerce", "store", "wholesale"]
 
 
+def test_the_row_limit_applies_while_a_provider_is_read():
+    from sdf.application.datasets import DatasetCatalog
+    from sdf.application.datasets_test import Counter
+
+    datasets = DatasetCatalog()
+    datasets.register(Counter)  # its last row is invalid: a capped response never stores or checks it
+    body = get(TestClient(create_app(datasets=datasets)), "/datasets/counter?limit=5")
+    assert (body["rows"], body["total_rows"], body["truncated"]) == ([[0], [1], [2], [3], [4]], 100_000, True)
+
+
 def test_the_experiment_catalogue_lists_names_and_parameter_bounds(client):
     body = get(client, "/experiments/catalog")
     assert body["interventions"][0] == "baseline" and "promo_spike" in body["interventions"]

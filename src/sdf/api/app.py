@@ -158,18 +158,17 @@ def create_app(
         """One dataset over the current world; rows are arrays in field order."""
         world = store.current.world
         try:
-            table = catalogue.build(name, world)
+            table, total = catalogue.head(name, world, min(limit or MAX_DATASET_ROWS, MAX_DATASET_ROWS))
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=exc.args[0]) from exc
-        cap = min(limit or MAX_DATASET_ROWS, MAX_DATASET_ROWS)
         return {
             "name": table.info.name,
             "label": table.info.label,
             "world": world.label,
             "fields": [f.to_dict() for f in table.info.fields],
-            "rows": [list(r) for r in table.rows[:cap]],
-            "total_rows": len(table.rows),
-            "truncated": len(table.rows) > cap,
+            "rows": [list(r) for r in table.rows],
+            "total_rows": total,
+            "truncated": total > len(table.rows),
         }
 
     @api.get("/experiments/catalog", response_model=s.ExperimentCatalog)

@@ -149,7 +149,11 @@ cat.build("channel-mix", world).rows     # [('ecommerce', …), ('store', …), 
 `DatasetCatalog` mirrors `SynthesizerRegistry`: `register(cls, *, replace=False)`,
 `load_entry_points(group="sdf.datasets")`, `names(*, origin=None)`, `info(name)`,
 `origin(name)` (`"builtin"`, `"plugin"` or `"runtime"`), `unavailable()`, and
-`build(name, world)` (raises `KeyError` listing the valid names). The built-ins
+`build(name, world)` (raises `KeyError` listing the valid names), and
+`head(name, world, limit)`, which returns the first `limit` rows as a checked
+`Table` plus the dataset's total row count, storing and checking only the rows
+it keeps. `register` rejects a class without `info`, without `rows(world)`, or
+whose constructor has an argument without a default. The built-ins
 are declared in this package's `pyproject.toml`:
 
 ```toml
@@ -205,7 +209,8 @@ curl -s localhost:8000/api/v1/datasets/nope                        # 404 {"detai
 ```
 
 A response holds at most `MAX_DATASET_ROWS = 250_000` rows (and at most `limit`
-when given); `truncated` says whether rows were left out.
+when given), read through `head`, so the cap bounds the rows the server keeps
+while a provider yields them; `truncated` says whether rows were left out.
 
 ```bash
 curl -s localhost:8000/api/v1/experiments/catalog

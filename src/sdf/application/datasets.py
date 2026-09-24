@@ -16,9 +16,11 @@ and aggregates what it receives.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Iterable
 from dataclasses import dataclass
 from importlib.metadata import EntryPoint, entry_points
+from itertools import islice
 from typing import Any, ClassVar, Protocol
 
 from sdf.foundation.tables import DatasetInfo, Field, Table
@@ -200,6 +202,15 @@ class DatasetCatalog:
             raise TypeError(f"{getattr(cls, '__name__', cls)!r} has no DatasetInfo `info` class attribute")
         if not callable(getattr(cls, "rows", None)):
             raise TypeError(f"{info.name}: a dataset provider needs a rows(world) method")
+        required = [
+            p.name
+            for p in inspect.signature(cls).parameters.values()
+            if p.default is p.empty and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)
+        ]
+        if required:
+            raise TypeError(
+                f"{info.name}: every constructor argument needs a default so build(name) works; missing {required}"
+            )
         if info.name in self._entries and not replace:
             raise ValueError(f"dataset {info.name!r} is already registered; pass replace=True to override")
         self._entries[info.name] = Registration(cls, origin)
@@ -259,6 +270,21 @@ class DatasetCatalog:
         """The table ``name`` over ``world``; every value is checked against its field."""
         cls = self._entry(name).cls
         return Table(cls.info, [tuple(row) for row in cls().rows(world)])
+
+    def head(self, name: str, world: World, limit: int) -> tuple[Table, int]:
+        """The first ``limit`` rows of ``name`` over ``world``, checked, and the dataset's total row count.
+
+        Only the kept rows are stored and checked; the rest are counted as the
+        provider yields them, so a response cap bounds memory for a provider
+        that yields its rows instead of returning a list.
+        """
+        if limit < 1:
+            raise ValueError(f"limit must be at least 1, got {limit}")
+        cls = self._entry(name).cls
+        rows = iter(cls().rows(world))
+        kept = [tuple(row) for row in islice(rows, limit)]
+        total = len(kept) + sum(1 for _ in rows)
+        return Table(cls.info, kept), total
 
     def _entry(self, name: str) -> Registration:
         if name not in self._entries:
