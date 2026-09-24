@@ -56,6 +56,7 @@ from sdf.synthesis.spec import GenerationSpec
 from .intervention import Intervention
 from .outcome import Outcome
 from .policy import Policy
+from .world import World
 
 MAX_REPLICATES = 20
 
