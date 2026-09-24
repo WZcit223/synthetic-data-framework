@@ -1,7 +1,8 @@
 # Structure refactor — overview
 
-Status: approved by the project lead on 2026-09-23, including the version plan
-below. Third sequence after [`docs/refactor/layout/`](../layout/00-overview.md) and
+Status: implemented by structure PRs 1–7 (#14–#20, 1.0.0); followed by
+[`cleanup/`](../cleanup/00-overview.md). Approved by the project lead on
+2026-09-23, including the version plan below. Third sequence after [`docs/refactor/layout/`](../layout/00-overview.md) and
 [`docs/refactor/correctness/`](../correctness/00-overview.md). It covers steps 4–6
 of [`docs/REFACTOR_PREP.md`](../../REFACTOR_PREP.md) §5 and prepares three
 extension points the project lead asked for.

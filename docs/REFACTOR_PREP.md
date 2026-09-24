@@ -303,7 +303,7 @@ src/sdf/（测试与源码同目录，`testpaths = ["src"]`）
 | 6 | 实现 | ~~**Agent 执行器**~~ 已完成（structure 序列 PR 5）：`agent/` 子包；审批门在 `executor.call` 强制；`ToolResult`；`Planner` 接口 | 新测试：注册一个有副作用的审批工具，断言 `fn` 未被调用 |
 | 7 | 实现 | **CLI**：~~迁 argparse~~ 已于 PR #3 迁到 click（子命令名与默认值不变，`--help`/`--version` 可用，`cli_test.py` 覆盖）；~~本步只剩新增 `validate` 子命令~~ 已完成（correctness 序列 PR 1）：`sdf validate` 输出 §2.5 全部黄金数字（JSON / markdown），`golden_test.py` 与 `VALIDATION.md` 的生成块读同一份快照 | `cli_test.py` 不变通过；`sdf validate` 输出与 `test_golden.py` 一致 |
 | 8 | 实现 | ~~**HOOK 规范化**~~ 已完成（cleanup 序列 PR 1）：标记统一为 `ALGORITHM-HOOK[<编号>]` / `DATA-HOOK[<编号>]`；`src/sdf/hooks.py` 扫描标记，`sdf hooks --update-doc` 在清单末尾生成"各条目在代码中的位置"表（`路径::符号`，不含行号），`hooks_test.py` 断言每个标记都对应清单编号且该表是最新的 | `grep` 结果与 CHECKLIST ID 集合相等 |
-| 9 | 实现 | 收尾：删 `feature/repo-governance` 远端分支；`VALIDATION.md` 中"默认世界手工调用"类数字改由第 7 步的 `sdf validate` 重跑生成；`observability` 完整落盘 | — |
+| 9 | 实现 | **收尾**：除删除远端分支外已完成（cleanup 序列 PR 2–4）：实体字段校验与 `WarehouseRun`（PR 2）；`observability` 的 sink 写完整 JSON 与收尾摘要行，`agent`/`pipeline` 有 `--audit-log`（PR 3）；`VALIDATION.md` 叙述中的数字改为引用生成块，块内新增序列均值与留出窗口，块外数字标明为记录或示意；测试客户端改用 `httpx2`；UI 加 favicon；删除已合并的远端分支**待办**：会话的 git 权限拒绝删除（HTTP 403），由项目负责人用 `04-finishing.md` 中的命令执行（先打 `system-v1-snapshot` 标签） | `sdf validate --update-doc` 后 `VALIDATION.md` 无 diff；分支删除后远端只剩 `main` 与标签 `system-v1-snapshot` |
 
 第 3 步是唯一会改变黄金数字的步骤，因此把它放在第 2 步（纯搬家）之后、第 4 步（纯拆分）之前，使每个 PR 的 diff 只解释一种变化。
 

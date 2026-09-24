@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from .snapshot import DOC_BEGIN, DOC_END, doc_block, render_markdown, replace_doc_block
+from .snapshot import DOC_BEGIN, DOC_END, _backtest, doc_block, render_markdown, replace_doc_block
 
 VALIDATION_MD = Path(__file__).resolve().parents[3] / "docs" / "VALIDATION.md"
 
@@ -36,3 +36,8 @@ def test_replace_doc_block_only_touches_the_marked_block():
 def test_replace_doc_block_requires_markers():
     with pytest.raises(ValueError, match="sdf-validate"):
         replace_doc_block("# no markers\n", "x\n")
+
+
+def test_backtest_of_no_orders_reports_an_empty_series():
+    bt = _backtest([])
+    assert (bt["series_len"], bt["series_mean"], bt["test_len"], bt["results"]) == (0, 0.0, 0, [])

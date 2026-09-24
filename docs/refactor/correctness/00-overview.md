@@ -1,6 +1,7 @@
 # Correctness refactor — overview
 
-Status: implemented by correctness PRs 1–4 (#9–#12, 2026-09-23). Approved for
+Status: implemented by correctness PRs 1–4 (#9–#12, 2026-09-23); followed by
+[`structure/`](../structure/00-overview.md). Approved for
 execution by the maintainer directing this refactor, together with the two recommended decisions below; the project
 lead's review is recorded on the plan PR. Second sequence after [`docs/refactor/layout/`](../layout/00-overview.md);
 it implements step 3 of [`docs/REFACTOR_PREP.md`](../../REFACTOR_PREP.md) §5 and

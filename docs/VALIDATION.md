@@ -92,7 +92,7 @@ MAPE % averages |error| / actual over the test points whose actual is positive; 
 | vision stocktake: scanned / matched / flagged | 40 / 32 / 8 |
 | vision stocktake: net unit variance | -923 |
 
-Backtest (daily, seasonal period 7, 90 points; ranked by MAE):
+Backtest (daily, seasonal period 7, 90 points averaging 671.6 units, last 14 held out; ranked by MAE):
 
 | model | MAE | RMSE | MAPE % | WAPE % | bias |
 |---|---|---|---|---|---|
@@ -140,7 +140,7 @@ Agent, "should I reorder and what is the money impact?": plan `replenishment →
 
 ### `sample_online_retail_ii.csv` (daily; 12 SKUs, 3,428 orders)
 
-Backtest (daily, seasonal period 7, 139 points; ranked by MAE):
+Backtest (daily, seasonal period 7, 139 points averaging 137.6 units, last 14 held out; ranked by MAE):
 
 | model | MAE | RMSE | MAPE % | WAPE % | bias |
 |---|---|---|---|---|---|
@@ -166,7 +166,7 @@ Backtest (daily, seasonal period 7, 139 points; ranked by MAE):
 
 ### `online_retail_ii_2010_10k.csv` (hourly; 2,015 SKUs, 10,000 orders)
 
-Backtest (hourly, seasonal period 11, 44 points; ranked by MAE):
+Backtest (hourly, seasonal period 11, 44 points averaging 2,049.2 units, last 14 held out; ranked by MAE):
 
 | model | MAE | RMSE | MAPE % | WAPE % | bias |
 |---|---|---|---|---|---|
@@ -214,12 +214,12 @@ Real *Online Retail II* extract. **Coverage caveat:** these 10k rows span only
 **4 days** (2010-12-01 → 05), so a daily/weekly model is not yet possible — the
 harness falls back to **hourly** granularity (intraday seasonality).
 
-The per-model table (MAE, RMSE, MAPE, WAPE, bias) is under
+The per-model table (MAE, RMSE, MAPE, WAPE, bias) and the series it runs on
+(business-hour buckets, their mean, the held-out window) are under
 [Reproducible numbers → `online_retail_ii_2010_10k.csv`](#reproducible-numbers).
-Series: 44 business-hour buckets, mean 2049 units/hour, 2015 SKUs, 10k orders.
 
 **Reading it:** on a 4-day slice, **persistence (naive) wins** and no baseline is
-strong (WAPE ~74 %, MAPE ~154 %) — hourly retail demand is volatile and 4 days is too little to
+strong (see its WAPE and MAPE in that table) — hourly retail demand is volatile and 4 days is too little to
 learn seasonality. This is the honest signal that we need the **full ~2-year
 dataset** to fit a real daily/weekly model. The pipeline, however, ingests real
 data end-to-end and produces measured numbers — that part is proven.
@@ -229,9 +229,9 @@ data end-to-end and produces measured numbers — that part is proven.
 > Schema-compatible SAMPLE (not real UCI). It has the 120-day span the real
 > extract lacks, so it exercises the **daily/weekly** path.
 
-The per-model table is under
+The per-model table and the series it runs on (days, their mean, the held-out
+window) are under
 [Reproducible numbers → `sample_online_retail_ii.csv`](#reproducible-numbers).
-Series: 139 days, mean 137.6 units/day, test window 14 days.
 
 **Reading it:** with enough history, seasonal-naive wins decisively — the harness
 correctly surfaces a **weekly pattern**. That is the bar a production model beats,
@@ -249,18 +249,15 @@ Reproduce:
 uv run sdf synth data/online_retail_ii_2010_10k.csv
 ```
 
-Result on the real 10k extract:
+The result on the real 10k extract (KS statistic, profile correlation, mean and
+std delta, fidelity score) is under
+[Reproducible numbers → `online_retail_ii_2010_10k.csv`](#reproducible-numbers).
+The score is (1 − KS) · profile correlation, on a 0–100 scale; KS 0 and profile
+correlation 1 mean identical.
 
-| metric | value | meaning |
-|--------|-------|---------|
-| KS statistic | **0.136** | 0 = identical distribution |
-| profile correlation | **0.904** | 1 = identical intraday seasonality |
-| mean delta | −5.0 % | synthetic vs real average |
-| std delta | −14.5 % | synthetic slightly under-disperses |
-| **fidelity score** | **78 / 100** | (1−KS)·profile_corr |
-
-**Reading it:** the fitted synthesizer captures the **seasonality strongly (0.90)**
-and the demand distribution reasonably (KS 0.16), under-dispersing a little — a
+**Reading it:** the fitted synthesizer captures the **intraday seasonality
+strongly** (profile correlation about 0.9) and the demand distribution
+reasonably (KS about 0.14), under-dispersing a little (negative std delta) — a
 credible first B1 number with clear headroom. That headroom is exactly what a
 learned model closes.
 
@@ -274,6 +271,9 @@ on the transaction-line table `[Quantity, Price, hour, weekday]`.
 uv sync --extra synthesis
 uv run sdf sdv data/online_retail_ii_2010_10k.csv
 ```
+
+Recorded from one run with the `synthesis` extra; these scores are not in the
+generated block (the extra is optional) and are not checked by the drift test.
 
 | SDMetrics dimension | score (1.0 = identical) |
 |---------------------|-------------------------|
@@ -302,7 +302,8 @@ strict apples-to-apples delta.)
 least-squares forecaster (trend + cycle dummies + lag-1 + lag-period), solved with
 pure-Python normal equations. It plugs into the same backtest harness.
 
-**Capability check** (controlled series, so the result is unambiguous):
+**Capability check** (controlled series, so the result is unambiguous; an
+illustrative one-off run, not part of the generated block):
 
 | series | seasonal_linear MAE | snaive MAE | winner |
 |--------|--------------------|-----------|--------|
@@ -338,8 +339,9 @@ safety stock from 3 788 to 4 541 units; the economics counterfactual now leaves
 instead of 1 887 834) because the larger buffers cost holding. Croston/TSB
 forecasting remains the model-based replacement (ALGORITHM-HOOK[C2]).
 
-**Reading it:** the classic service/inventory tradeoff, quantified — raising the
-service level from 90→99 % lifts required safety stock by roughly 80 %. ALGORITHM-HOOK[C2]: a
+**Reading it:** the classic service/inventory tradeoff, quantified — in the
+(s,S) table under [Reproducible numbers](#reproducible-numbers), raising the
+service level from 90→99 % lifts the total safety stock by roughly 80 %. ALGORITHM-HOOK[C2]: a
 cost-based newsvendor with a fitted lead-time-demand distribution replaces the
 normal approximation.
 
@@ -366,8 +368,9 @@ small/short series; the meaningful quantity is the ratio, which is robust to tha
 
 **C3 — demand anomaly detection** (`analytics/anomaly.py`): seasonal-residual +
 robust-z (MAD-scaled) flags demand spikes/drops resistant to the outliers it
-hunts. On the demo world it recovers the injected shock days (e.g. a spike of
-~2400 vs an expected ~740, robust-z ≫ 3.5). Live in the dashboard.
+hunts. On the demo world it recovers the injected shock days; the largest one's
+value, expected value and robust-z are under
+[Reproducible numbers → Default world](#reproducible-numbers). Live in the dashboard.
 ALGORITHM-HOOK[C3]: Isolation Forest / autoencoder over multivariate state.
 
 **C6 — grounded knowledge Q&A** (`application/knowledge.py`): a natural-language
@@ -388,7 +391,7 @@ planner choose the calls and runs every call through one executor that logs it. 
 
 **Data Intelligence Workflow** — `workflow/pipeline.py` runs the DAG
 `ingest → validate → application → economics → report` with a per-step logged run
-record (5 steps, 0 errors).
+record (5 steps, 0 errors; `workflow/pipeline_test.py` checks both).
 
 **Business-outcome economics** — `application/economics.py`, counterfactual on the
 demo world (assumptions: 25% holding, 95% service, stated in the `CostModel`):
@@ -401,8 +404,9 @@ under [Reproducible numbers → Default world](#reproducible-numbers).
 > current policy give the true before/after.
 
 **Synthetic-data privacy (B3)** — `validation/privacy.py` scores the `bootstrap-table`
-synthesizer's output on the retail feature table:
-sample → DCR median 0.09, p05 0.02, clone-risk 4.4% ("low leakage"); full dataset →
+synthesizer's output on the retail feature table. Its DCR, clone risk and verdict
+for both bundled CSVs are under [Reproducible numbers](#reproducible-numbers)
+(the sample reads "low leakage risk"); the manual full-dataset run recorded
 clone-risk 9.5% ("review"). The metric discriminates and gates shareability.
 
 **Scenario simulation** — `application/scenarios.py` (spec transforms in

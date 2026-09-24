@@ -1,5 +1,15 @@
 # PR 4 — Finishing: loose ends and the refactor's records
 
+> Status: implemented (clean-up sequence PR 4). `httpx2` replaced `httpx`: the
+> test client's deprecation warning is gone, and the one warning left is
+> Starlette's own use of anyio's `BlockingPortal` alias, outside this
+> repository. The validation snapshot gained each backtest series' mean and
+> held-out window, and the `VALIDATION.md` prose now refers to the generated
+> block. The branch deletion could not run from the refactor's cloud session,
+> whose git access refuses branch deletions and tag pushes (HTTP 403). The
+> project lead has the exact command, which tags `system-v1-snapshot` first,
+> and runs it with their own access.
+
 ## Goal
 
 No known loose end of the refactor is left, and its records say it is finished.
