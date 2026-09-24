@@ -36,6 +36,7 @@ from sdf.analytics.causal import (
     MAX_ESTIMATE_SECONDS,
     CausalQuestion,
     EstimatorRegistry,
+    check_question,
     default_estimators,
     score,
 )
@@ -545,9 +546,11 @@ def create_app(
                 raise HTTPException(status_code=422, detail=f"a question is needed for dataset {body.dataset}")
             question = _question(body.question)
             try:
-                catalogue.info(body.dataset)
+                check_question(catalogue.info(body.dataset), question)  # before reading: no data needed
             except KeyError as exc:
                 raise HTTPException(status_code=422, detail=exc.args[0]) from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             try:
                 table, more = catalogue.read(body.dataset, world, limit=MAX_ESTIMATE_ROWS, deadline=deadline)
             except ReadDeadline as exc:  # the request's deadline; a provider's own TimeoutError is its failure (500)

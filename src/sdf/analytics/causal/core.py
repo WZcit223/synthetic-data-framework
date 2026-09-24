@@ -17,7 +17,7 @@ from typing import Any, ClassVar, Protocol
 
 import numpy as np
 
-from sdf.foundation.tables import Field, Table
+from sdf.foundation.tables import DatasetInfo, Field, Table
 
 
 @dataclass(frozen=True)
@@ -74,18 +74,17 @@ class Design:
     dropped: int  # rows left out for a missing value
 
 
-def design(table: Table, question: CausalQuestion) -> Design:
-    """The question's arrays over the table's complete rows; ``ValueError`` naming what cannot be answered.
+def check_question(info: DatasetInfo, question: CausalQuestion) -> None:
+    """The refusals that need only the table's fields, not its rows: unknown fields and wrong kinds.
 
-    Two checks are not design's, because they need more than the table and the
-    question: the confidence level (``check_confidence``), and identification
-    (``identify``), which depends on the columns an estimator uses.
+    ``design`` runs them first; a caller about to read rows (the API) runs them before
+    reading, so a question that names the wrong fields is refused without touching the data.
     """
-    fields = {f.name: f for f in table.info.fields}
+    fields = {f.name: f for f in info.fields}
     names = [question.treatment, question.outcome, *question.covariates]
     unknown = [n for n in names if n not in fields]
     if unknown:
-        raise ValueError(f"unknown field {unknown[0]!r}; {table.info.name} has {sorted(fields)}")
+        raise ValueError(f"unknown field {unknown[0]!r}; {info.name} has {sorted(fields)}")
     treatment, outcome = fields[question.treatment], fields[question.outcome]
     if treatment.name == outcome.name:
         raise ValueError(f"{treatment.name} is both the treatment and the outcome; an effect needs two fields")
@@ -105,6 +104,18 @@ def design(table: Table, question: CausalQuestion) -> Design:
         if fields[c].kind == "time":
             raise ValueError(f"covariate {c} is a time field; use a dimension or a measure")
 
+
+def design(table: Table, question: CausalQuestion) -> Design:
+    """The question's arrays over the table's complete rows; ``ValueError`` naming what cannot be answered.
+
+    Two checks are not design's, because they need more than the table and the
+    question: the confidence level (``check_confidence``), and identification
+    (``identify``), which depends on the columns an estimator uses.
+    """
+    check_question(table.info, question)
+    fields = {f.name: f for f in table.info.fields}
+    names = [question.treatment, question.outcome, *question.covariates]
+    treatment, outcome = fields[question.treatment], fields[question.outcome]
     at = {f.name: i for i, f in enumerate(table.info.fields)}
     idx = [at[n] for n in names]
     kept = [r for r in table.rows if all(not _missing(r[i]) for i in idx)]

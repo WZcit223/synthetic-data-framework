@@ -854,6 +854,9 @@ POST /api/v1/causal/estimates
   `benchmark` and `dataset`, or a benchmark value outside
   the bounds `GET /estimators` publishes. The server checks each value with the
   same `Param.check` the synthesizer runs use, so the form and the server agree.
+  The question's field checks (`check_question`: names and kinds) run against
+  the dataset's fields before any row is read; the checks that need rows run
+  after the bounded read.
 - **One world per request.** The handler reads `store.current` once, at the
   start, and uses that snapshot's world for the whole request. The benchmark
   draw, the catalogue dataset's rows, and the response's metadata all come

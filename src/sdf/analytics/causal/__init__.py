@@ -6,7 +6,17 @@ compares several on the same rows, against the true effect when it is known.
 The contract is ``docs/refactor/causal/interfaces.md`` §3.
 """
 
-from .core import CausalQuestion, Design, Estimate, Estimator, EstimatorInfo, check_confidence, design, identify
+from .core import (
+    CausalQuestion,
+    Design,
+    Estimate,
+    Estimator,
+    EstimatorInfo,
+    check_confidence,
+    check_question,
+    design,
+    identify,
+)
 from .registry import (
     ENTRY_POINT_GROUP,
     MAX_ESTIMATE_SECONDS,
@@ -28,6 +38,7 @@ __all__ = [
     "EstimatorInfo",
     "EstimatorRegistry",
     "check_confidence",
+    "check_question",
     "default_estimators",
     "design",
     "identify",
