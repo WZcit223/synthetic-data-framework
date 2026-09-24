@@ -38,12 +38,16 @@ No known loose end of the refactor is left, and its records say it is finished.
   - `refactor/cleanup-plan`, `refactor/cleanup-01-hook-markers`,
     `refactor/cleanup-02-data-contracts`, `refactor/cleanup-03-full-audit-log`,
     `refactor/cleanup-04-finishing`;
-  - `feature/repo-governance` (merged as #1).
+  - `feature/repo-governance` (merged as #1) and the session branch
+    `claude/upbeat-goodall-fb5jdk` (merged as #3);
+  - `system-v1/synthetic-data-generation`, whose tip is contained in `main`,
+    after tagging that tip `system-v1-snapshot`; `CONTRIBUTING.md`'s branching
+    table names the tag instead of the branch.
 
-  A branch whose PR is not merged is left and named in the comment. The PR's
-  closing comment lists what was deleted. Kept: `main`, the session branch
-  `claude/upbeat-goodall-fb5jdk`, and `system-v1/synthetic-data-generation`,
-  which `CONTRIBUTING.md` keeps as the frozen initial-v1 snapshot.
+  A branch whose PR is not merged, or whose tip moved after the merge, is left
+  and named in the comment. The PR's closing comment lists what was deleted.
+  Only `main` remains. The branches already merged when the plan merges are
+  deleted then; the clean-up branches go as each PR merges.
 
 ## Non-goals
 

@@ -43,13 +43,13 @@ context and unchecked entity records.
 3. `httpx` is replaced by `httpx2` in the `dev` group if FastAPI's test client
    works with it on the locked versions; otherwise `httpx` stays and the plan's
    status records why.
-4. After the last PR merges, the remote branches of this refactor are deleted
-   by exact name, each only once its PR is confirmed merged
-   ([`04-finishing.md`](04-finishing.md) lists them). `feature/repo-governance`
-   was merged as #1 and is deleted with them. The session branch
-   `claude/upbeat-goodall-fb5jdk` stays, and so does
-   `system-v1/synthetic-data-generation`, the frozen initial-v1 snapshot
-   `CONTRIBUTING.md` keeps for reference.
+4. Every merged remote branch is deleted (project lead's decision, 2026-09-24),
+   by exact name and only once its PR is confirmed merged with the branch tip
+   equal to the merged head ([`04-finishing.md`](04-finishing.md) lists them).
+   That includes `feature/repo-governance` (#1), the session branch
+   `claude/upbeat-goodall-fb5jdk` (#3) and `system-v1/synthetic-data-generation`,
+   whose tip is contained in `main`; the frozen initial-v1 snapshot stays
+   reachable as the tag `system-v1-snapshot`, and `CONTRIBUTING.md` says so.
 
 ## Sequence
 
