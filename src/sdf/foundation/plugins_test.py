@@ -220,6 +220,16 @@ def test_registering_a_listed_name_clears_its_reason(monkeypatch):
     assert reg.unavailable() == {} and reg.origin("widget") == "runtime"
 
 
+def test_the_catalogues_keep_the_names_their_modules_always_had():
+    from sdf.application import datasets
+    from sdf.synthesis import registry
+
+    for module in (registry, datasets):
+        assert module.DISTRIBUTION is plugins_module.DISTRIBUTION
+        assert module.Origin is plugins_module.Origin
+        assert module.Registration is plugins_module.Registration
+
+
 def test_another_group_can_be_named(monkeypatch):
     asked = []
     monkeypatch.setattr(plugins_module, "entry_points", lambda group: asked.append(group) or [])

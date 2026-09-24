@@ -22,7 +22,8 @@ from itertools import islice
 from typing import Any, ClassVar, Protocol
 
 from sdf.foundation.plugins import (
-    Origin as Origin,  # re-exported: the names this module always had
+    DISTRIBUTION as DISTRIBUTION,  # re-exported: the names this module always had
+    Origin as Origin,
     PluginRegistry,
     Registration as Registration,
 )
