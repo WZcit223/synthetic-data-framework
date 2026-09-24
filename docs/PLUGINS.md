@@ -197,8 +197,8 @@ app = create_app(synthesizers=synthesizers, datasets=datasets)   # serve it with
 
 ## When a plug-in does not load
 
-A broken plug-in never breaks the registry, the catalogue or the API. It is
-left out and listed with the reason:
+A broken plug-in installed through an entry point never breaks the registry,
+the catalogue or the API. It is left out and listed with the reason:
 
 - `default_registry().unavailable()` and `default_datasets().unavailable()`;
 - `"unavailable"` in `GET /api/v1/synthesizers` and `GET /api/v1/datasets`;
@@ -212,6 +212,10 @@ The usual reasons:
 - a constructor argument has no default;
 - `rows` does not take the world;
 - the parameter bounds are malformed, or a default breaks its own bounds.
+
+A class registered at runtime with `register()` is checked the same way, but
+the problem is raised at once as an exception instead of being listed, so a
+quick experiment fails where it is set up.
 
 ## Checking it
 
