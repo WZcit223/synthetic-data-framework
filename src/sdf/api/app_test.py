@@ -299,25 +299,48 @@ def test_reads_never_see_a_mixed_world():
 # -- the UI boundary --------------------------------------------------------------------------------
 
 
+def ui_scripts() -> dict[str, str]:
+    """Every page script in ui/ (the Node tests aside), by file name."""
+    return {
+        p.name: p.read_text(encoding="utf-8") for p in sorted(UI_DIR.glob("*.js")) if not p.name.endswith(".test.js")
+    }
+
+
 def ui_paths() -> set[str]:
-    """Every path ui/app.js passes to api(), without its query string."""
-    js = (UI_DIR / "app.js").read_text(encoding="utf-8")
-    return {m.split("?")[0] for m in re.findall(r"""api\(\s*["'`](/[^"'`]*)""", js)}
+    """Every path a ui/*.js script passes to api(), without its query string; ``${…}`` reads as ``{}``."""
+    paths = set()
+    for js in ui_scripts().values():
+        for m in re.findall(r"""api\(\s*["'`](/[^"'`]*)""", js):
+            paths.add(re.sub(r"\$\{[^}]*\}", "{}", m.split("?")[0]))
+    return paths
 
 
 def test_every_ui_path_is_in_the_openapi_schema(client):
-    schema_paths = {p.removeprefix(V1) for p in get(client, "/openapi.json")["paths"]}
+    schema_paths = {re.sub(r"\{[^}]*\}", "{}", p.removeprefix(V1)) for p in get(client, "/openapi.json")["paths"]}
     used = ui_paths()
-    assert len(used) >= 15, used
+    assert len(used) >= 19, used
+    assert {"/datasets", "/datasets/{}", "/experiments/catalog", "/experiments"} <= used
     assert used <= schema_paths, used - schema_paths
     assert re.findall(r'data-export="([a-z]+)"', (UI_DIR / "index.html").read_text(encoding="utf-8"))
     assert "/export" in schema_paths  # the export links are built from API + "/export"
 
 
 def test_ui_reaches_the_backend_only_through_api():
-    js = (UI_DIR / "app.js").read_text(encoding="utf-8")
-    assert js.count("fetch(") == 1  # the one inside api()
-    assert 'const API = window.SDF_API_BASE ?? "/api/v1";' in js
+    scripts = ui_scripts()
+    assert sum(js.count("fetch(") for js in scripts.values()) == 1  # the one inside api(), in common.js
+    assert "fetch(" in scripts["common.js"]
+    assert 'export const API = globalThis.SDF_API_BASE ?? "/api/v1";' in scripts["common.js"]
+
+
+def test_ui_has_no_inline_event_handler():
+    """The pages are ES modules, whose functions are not globals: every handler is registered in a script."""
+    for path in sorted(UI_DIR.glob("*.html")) + sorted(UI_DIR.glob("*.js")):
+        text = path.read_text(encoding="utf-8")
+        assert not re.findall(r"<[a-zA-Z][^>]*\son[a-z]+\s*=", text), path.name
+    for page in ("index.html", "explore.html"):
+        html = (UI_DIR / page).read_text(encoding="utf-8")
+        assert re.search(r'<script type="module" src="[a-z]+\.js">', html), page
+        assert 'href="index.html"' in html and 'href="explore.html"' in html  # the navigation bar
 
 
 def test_the_python_package_contains_no_html():
@@ -336,9 +359,14 @@ def test_openapi_describes_the_fields(client):
 def test_ui_dir_is_mounted_for_development_hosting():
     client = TestClient(create_app(ui_dir=UI_DIR))
     page = client.get("/")
-    assert page.status_code == 200 and '<script src="app.js">' in page.text
-    for asset in re.findall(r'(?:href|src)="([^":]+)"', page.text):  # every local file the page loads
-        assert client.get("/" + asset).status_code == 200, asset
+    assert page.status_code == 200 and '<script type="module" src="app.js">' in page.text
+    for url in ("/", "/explore.html"):
+        html = client.get(url).text
+        for asset in re.findall(r'(?:href|src)="([^":#]+)"', html):  # every local file the page loads or links
+            assert client.get("/" + asset).status_code == 200, (url, asset)
+        for js in re.findall(r'src="([^"]+\.js)"', html):  # and every module those scripts import
+            for module in re.findall(r'from "\./([^"]+)"', client.get("/" + js).text):
+                assert client.get("/" + module).status_code == 200, (js, module)
     assert 'rel="icon" href="favicon.svg"' in page.text
     assert client.get(V1 + "/health").json() == {"status": "ok"}  # API routes still win
 

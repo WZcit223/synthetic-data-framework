@@ -36,7 +36,8 @@ FastAPI; works offline):
 ```bash
 uv sync --extra api
 SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app --reload
-# open http://127.0.0.1:8000 (dashboard) or http://127.0.0.1:8000/api/v1/docs (API)
+# open http://127.0.0.1:8000 (dashboard), http://127.0.0.1:8000/explore.html (Explore)
+# or http://127.0.0.1:8000/api/v1/docs (API)
 ```
 
 The data behind the dashboard is also served as typed tables for exploration:
@@ -44,6 +45,14 @@ The data behind the dashboard is also served as typed tables for exploration:
 replenishment plan) with their fields, and `GET /api/v1/datasets/{name}` returns
 one. Another package can add a table through the `sdf.datasets` entry-point
 group.
+
+The **Explore** page pivots any of these tables, or the result of a policy
+experiment: drag fields onto Rows, Columns, Values and Filters; choose the
+aggregation (sum, count, distinct count, mean, median, min, max), the time grain
+(day to year, or weekday) and how values show (as they are, or as a share of the
+grand, row or column total); read the result as a table (subtotals, totals,
+heatmap shading, sorting by any column) or as a chart; export it as CSV. The
+whole view is kept in the page address, so a copied link reopens it.
 
 The dashboard has two views: a **framework capability overview** (for management)
 and a **replenishment deep dive**

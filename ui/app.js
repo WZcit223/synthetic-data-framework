@@ -1,24 +1,9 @@
-// The dashboard talks to the backend only through api(), so the base URL is
-// configurable (set window.SDF_API_BASE before this script to host the UI elsewhere)
-// and every path it uses can be checked against the OpenAPI schema.
+// The dashboard. It reaches the backend only through api() (ui/common.js), so the
+// base URL is configurable and every path it uses can be checked against the
+// OpenAPI schema.
 // UI rule: reshape what the API returned (sort, filter, group, pivot, chart);
 // never compute a business number here.
-const API = window.SDF_API_BASE ?? "/api/v1";
-async function api(path, options) {
-  const res = await fetch(API + path, options);
-  if (!res.ok) {
-    const err = new Error(`${path}: ${res.status}`);
-    err.status = res.status;
-    throw err;
-  }
-  return res.json();
-}
-
-const $ = s => document.querySelector(s);
-// Every string that came from the API is escaped before it goes into innerHTML:
-// product names, for one, come from imported files and may contain markup.
-const esc = v => String(v ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
-const fmt = n => (typeof n==="number" ? n.toLocaleString(undefined,{maximumFractionDigits:2}) : (n==null ? "–" : esc(n)));
+import { $, API, api, esc, fmt } from "./common.js";
 
 const CAPS = [
   {h:"Data management", p:"Multi-source overlay via the DataSourceRegistry; canonical entities keep synthetic & real interchangeable.", t:"Foundation Layer"},
@@ -206,7 +191,7 @@ async function ask(q){
 
 function renderChips(){
   $("#qchips").innerHTML = SAMPLE_Q.map(q =>
-    `<button type="button" class="pill chip" onclick="ask(${JSON.stringify(q).replace(/"/g,'&quot;')})">${esc(q)}</button>`).join("");
+    `<button type="button" class="pill chip" data-question="${esc(q)}">${esc(q)}</button>`).join("");
 }
 
 async function loadAnomalies(){
@@ -312,6 +297,19 @@ async function regen(){
   $("#status").textContent=`✓ updated (${g.generated_ms} ms)`;
   setTimeout(()=>$("#status").textContent="",1500);
 }
+
+// Every control is wired here: a module's functions are not globals, so the page has no inline handler.
+$("#regen").addEventListener("click", regen);
+$("#mover").addEventListener("change", () => loadSeries());
+$("#sl").addEventListener("change", () => { loadSS(); loadComparison(); });
+$("#askBtn").addEventListener("click", () => ask());
+$("#q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+$("#qchips").addEventListener("click", e => {
+  const chip = e.target.closest("[data-question]");
+  if (chip) ask(chip.dataset.question);
+});
+$("#agentBtn").addEventListener("click", () => agentAsk());
+$("#aq").addEventListener("keydown", e => { if (e.key === "Enter") agentAsk(); });
 
 for (const a of document.querySelectorAll("a[data-export]")) a.href = API + "/export?entity=" + a.dataset.export;
 loadLimits();
