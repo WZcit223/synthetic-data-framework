@@ -12,11 +12,15 @@ steps share their data through a typed object instead of underscore keys.
   - identifiers are non-empty strings;
   - quantities, capacities, costs, prices, weights and volumes are finite and
     not negative; order quantities are positive;
-  - `SKU.abc_class` ∈ {A, B, C}; `shelf_life_days` is `None` or positive;
+  - `SKU.abc_class` ∈ {A, B, C, ?}: `?` is "unclassified", the value the CSV
+    adapter gives an imported SKU whose velocity class the source does not
+    carry; `shelf_life_days` is `None` or positive;
   - `OutboundOrder.channel`, `.priority`, `.status`, `InboundOrder.status` and
     `SensorReading.modality` are in the sets the schema documents;
   - `SensorReading.value` is finite.
   The allowed sets become module constants that the generator and the docs use.
+  Every placeholder the adapter already writes for a field its source lacks
+  (such as `abc_class="?"`) is inside these rules, so no kept row changes.
 - The synthetic generator and the retail CSV adapter produce only valid records;
   a CSV row that cannot become a valid record is counted in `LoadReport.skipped`
   under `invalid_record`.
@@ -41,7 +45,9 @@ steps share their data through a typed object instead of underscore keys.
 uv run ruff check && uv run ruff format --check
 uv run pytest                                          # golden_test unchanged
 uv run sdf validate --update-doc docs/VALIDATION.md && git diff --exit-code docs/VALIDATION.md
-uv run sdf demo | diff <main's output> -               # byte-identical
+git worktree add /tmp/sdf-main origin/main && (cd /tmp/sdf-main && uv run sdf demo) > /tmp/demo-main.out
+uv run sdf demo | diff /tmp/demo-main.out -            # byte-identical
+git worktree remove /tmp/sdf-main
 ```
 
 ## Version

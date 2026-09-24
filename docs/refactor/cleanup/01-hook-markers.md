@@ -12,7 +12,7 @@ by a test.
   where `<ID>` is a row of `docs/ALGORITHM_AND_DATA_CHECKLIST.md` (A1–A5, B1–B4,
   C1–C7, D1–D5). Prose that names the convention itself writes it in double
   backticks (``` ``ALGORITHM-HOOK`` ```) and is not a marker.
-- Give each of the 43 existing markers its ID. CLI hints that print a marker
+- Give each of the 39 existing markers its ID (2 already carry `C2`). CLI hints that print a marker
   print the same form.
 - New root module `src/sdf/hooks.py` (imports nothing from `sdf`): scan the
   package for markers, read the checklist IDs, render the code index, replace a

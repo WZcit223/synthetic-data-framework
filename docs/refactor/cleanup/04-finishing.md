@@ -28,7 +28,7 @@ No known loose end of the refactor is left, and its records say it is finished.
 
 ```bash
 uv run ruff check && uv run ruff format --check
-uv sync --extra api && uv run pytest                   # no httpx deprecation warning (or its reason recorded)
+uv sync --locked --extra api && uv run pytest          # no httpx deprecation warning (or its reason recorded)
 uv run sdf validate --update-doc docs/VALIDATION.md && git diff --exit-code docs/VALIDATION.md
 # manual: the dashboard served from ui/ loads without a failed request
 ```

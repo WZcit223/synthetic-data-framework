@@ -10,9 +10,9 @@ context and unchecked entity records.
 
 ## Why
 
-- **Hook markers cannot be found by a program.** The code has 43 `ALGORITHM-HOOK`
-  / `DATA-HOOK` markers. Only 2 carry the checklist ID they belong to
-  (`ALGORITHM-HOOK[C2]`); nothing ties the other 41 to a row of
+- **Hook markers cannot be found by a program.** The code has 39 `ALGORITHM-HOOK`
+  / `DATA-HOOK` markers (and three prose mentions of the convention). Only 2 carry
+  the checklist ID they belong to (`ALGORITHM-HOOK[C2]`); nothing ties the other 37 to a row of
   `docs/ALGORITHM_AND_DATA_CHECKLIST.md`, and nothing notices when a row loses
   its last marker or a marker names a row that does not exist.
 - **Entity records accept anything.** `OutboundOrder(quantity=-5, status="lost")`
