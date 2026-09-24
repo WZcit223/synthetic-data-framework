@@ -339,6 +339,22 @@ The page keeps the whole view in its address, so a link reproduces it:
 { synthesis: { synthesizer: "seasonal-profile", source: "sample", params: { seed: 7 } } }  // POST /synthesis/runs (served since PR 4)
 ```
 
+Two more shapes come with the causal modelling sequence
+([`../causal/interfaces.md`](../causal/interfaces.md)). Each becomes valid only
+when its PR merges, and each is added to the page's source validator by that
+PR:
+
+```javascript
+{ effects: { request: {...}, table: "effects" | "replicates" } }   // POST /effects with request; causal PR 2
+{ estimates: { request: {...}, table: "scores" | "data" } }        // POST /causal/estimates with request; causal PR 5
+```
+
+`table` picks which of the response's tables the view pivots: the effects or
+their replicate rows; the estimator scores or the benchmark's observed rows.
+`"data"` needs a `benchmark` request, since a `dataset` request's rows are
+that catalogue dataset, opened as `{ dataset: name }`. The validator refuses
+the combination.
+
 Opening a link repeats that one request against the current world and applies
 the view. A source of an unknown shape, or a request the API rejects, shows the
 error and an empty view; it never falls back to another source.
@@ -507,15 +523,18 @@ of the wrong type, an unknown source, or a synthesizer that is unavailable.
 ## 5. Later
 
 These shapes are fixed now so the next sequences plug in without changing the
-pivot page or the table contract.
+pivot page or the table contract. The causal modelling sequence details its
+part in [`../causal/interfaces.md`](../causal/interfaces.md), which governs
+where the two differ: simulated effects are `POST /api/v1/effects`, and
+estimates from observational rows are `POST /api/v1/causal/estimates`.
 
 - **Causal modelling.** Experiment rows (§2.1) are already the treatment and
-  outcome table: `intervention` is the treatment, each `metric` an outcome. An
-  effect estimator publishes its estimates as a table, for example
-  `POST /api/v1/effects` answering `{"fields": [treatment, outcome, estimate,
-  ci_low, ci_high, method], "rows": [...]}`, which the pivot page opens like any
-  other table. New interventions keep implementing `Intervention` from the
-  structure contract.
+  outcome table: `intervention` is the treatment, each `metric` an outcome.
+  Effects and estimates are published as `{fields, rows}` tables, which the
+  pivot page opens like any other table; their fields are defined in
+  [`../causal/interfaces.md`](../causal/interfaces.md) §1.3 (effects) and §3.3
+  (estimator scores). New interventions keep implementing `Intervention` from
+  the structure contract.
 - **Algorithm phase.** A real algorithm's outputs are published as a dataset
   provider in the `sdf.datasets` group (for example `forecast-backtest`: date,
   model, actual, predicted, absolute error), and a real synthesizer is a plug-in
