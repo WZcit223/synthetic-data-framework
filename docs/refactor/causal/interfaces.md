@@ -119,6 +119,20 @@ Rules the implementation keeps:
   therefore the held world itself, not a regeneration that might differ from
   it. A generator whose output changed since the world was built (stateful
   across calls) is refused by the comparison, not trusted.
+- **Interventions must be deterministic too.** Pairing needs an intervention
+  to be a function of the world it is applied to, with no random state of
+  its own:
+  - `Baseline` and `SpecIntervention` meet this. `SpecIntervention` only
+    regenerates with the world's spec and generator, so the generator check
+    above covers it.
+  - `POST /effects` accepts only these, by catalogue name.
+  - A Python caller may pass any other `Intervention`. For each one that is
+    neither, the study applies it twice to replicate 0's baseline and
+    compares the two worlds source by source, as the generator check does.
+    If they differ, it refuses with `ValueError`: "intervention X is not
+    deterministic; paired effects need the same world from the same input".
+
+  These extra applications count in the timing projection.
 - **What the interval assumes.** The Student-t interval is valid when the R
   replicate differences are independent draws. That holds when different
   seeds give independent worlds, which is a requirement of the warehouse
@@ -787,15 +801,20 @@ POST /api/v1/causal/estimates
   the store's snapshot, not the one this request holds.
 - **Limits.** Estimation runs synchronously, so its size is bounded like an
   effect study's:
-  - at most `MAX_ESTIMATE_ROWS` rows **read from the provider**, before the
-    missing-value rule. The cap counts what is held in memory, so rows
-    dropped later for a missing value still count. A catalogue dataset is
-    read through a bounded stream: the handler takes rows from the provider's `rows(world)`
-    iterator and stops at `MAX_ESTIMATE_ROWS + 1`, without reading or counting
-    the rest. The `+ 1` is only there to detect overflow. A dataset that
-    reaches it answers 422: "more than MAX_ESTIMATE_ROWS rows". The cap
-    bounds memory: that many rows are held, the same rows
-    `GET /datasets/{name}?limit=` already reads. It does not bound time. A
+  - at most `MAX_ESTIMATE_ROWS` rows **retained** from the provider, counted
+    before the missing-value rule, so rows dropped later for a missing value
+    still count. A catalogue dataset is read through a bounded stream:
+    - The handler retains rows from the provider's `rows(world)` iterator up
+      to `MAX_ESTIMATE_ROWS`.
+    - It then asks the iterator for exactly one more row, the overflow probe.
+      The probe is not retained or used.
+    - If the probe exists, the request answers 422: "more than
+      MAX_ESTIMATE_ROWS rows". Nothing is estimated and nothing further is
+      read.
+
+    So memory holds at most `MAX_ESTIMATE_ROWS` rows, the same rows
+    `GET /datasets/{name}?limit=` already reads. The provider is asked for at
+    most `MAX_ESTIMATE_ROWS + 1` rows. It does not bound time. A
     provider can be slow per row, so the stream also checks the request's
     deadline between rows (§5). The missing-value rule then drops rows from
     those read, and the at-least-two-treated-and-control check applies to

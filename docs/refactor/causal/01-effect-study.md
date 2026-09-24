@@ -42,6 +42,8 @@ confidence interval, and the relative change.
   - the study leaves the API's current world unchanged;
   - the determinism check: a runtime generator that ignores `spec.seed` is
     refused with the message of §1.2, and `warehouse-spec` passes;
+  - a custom `Intervention` with its own random state is refused, and
+    `Baseline` and `SpecIntervention` are accepted without the extra check;
   - the check compares against the held world: a runtime generator whose
     first call differs from its later, mutually identical calls is refused
     through the API, including one that changes only an unmeasured stream

@@ -83,8 +83,9 @@ on data where the truth is known.
     reads its dataset does not change the rows or metadata of that response;
   - the API's 422 and 500 cases, a failing estimator answered as a row in a
     200, and the benchmark's `params` and `question` in `GET /estimators`;
-  - the row limit's 422, reached without reading past `MAX_ESTIMATE_ROWS + 1`
-    rows of a provider that yields endlessly, and a request at the limits with
+  - the row limit's 422, reached after retaining `MAX_ESTIMATE_ROWS` rows and
+    probing one more, never reading further from a provider that yields
+    endlessly, and a request at the limits with
     six estimators that finishes under 30 s;
   - the CLI output;
   - the contract examples in §3 run as written.
