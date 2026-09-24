@@ -23,6 +23,7 @@ class BootstrapTable:
         needs_fit=True,
         description="Per-column bootstrap + Gaussian jitter (jitter × column std)",
     )
+    param_bounds: ClassVar[dict[str, tuple[float | None, float | None]]] = {"jitter": (0.0, 1.0)}
 
     def __init__(self, *, seed: int = 7, jitter: float = 0.05) -> None:
         self.jitter = jitter

@@ -355,7 +355,7 @@ from sdf.synthesis.registry import default_registry
 reg = default_registry()
 reg.params("bootstrap-table")
 # (Param(name='seed', type='int', default=7, min=None, max=None, exclusive=False, nullable=False),
-#  Param(name='jitter', type='float', default=0.05, min=None, max=None, exclusive=False, nullable=False))
+#  Param(name='jitter', type='float', default=0.05, min=0.0, max=1.0, exclusive=False, nullable=False))
 reg.params("warehouse-spec")   # () : its GenerationSpec comes from the world request, not from a form
 ```
 
@@ -389,7 +389,7 @@ sources()          # {'sample': 'data/sample_online_retail_ii.csv', 'retail-10k'
                    # the two sample CSVs in the repository's data/ directory (they are not part of the
                    # installed package); resolved under $SDF_DATA_DIR, default ./data, and only the ones
                    # that exist are listed, so an API started elsewhere lists none until SDF_DATA_DIR is set
-run = evaluate("seasonal-profile", source="sample", params={"seed": 7})   # a source ID, or a CSV path
+run = evaluate("seasonal-profile", source="sample", params={"seed": 7})   # an EvaluationRun; a source ID, or a CSV path
 run.kind           # 'series'
 run.params         # {'seed': 7}: every parameter actually used, defaults included
 run.metrics        # {'ks_statistic': …, 'profile_corr': …, 'mean_delta_pct': …, 'std_delta_pct': …, 'fidelity_score': …}
@@ -490,7 +490,8 @@ curl -s -X POST localhost:8000/api/v1/synthesis/runs -H 'content-type: applicati
 curl -s -X POST localhost:8000/api/v1/world -H 'content-type: application/json' \
      -d '{"synthesizer": "warehouse-spec", "n_skus": 80}'
 # as today, plus "synthesizer": "warehouse-spec" (the generator that built the world);
-# a synthesizer that does not produce a warehouse answers 422
+# a synthesizer that does not produce a warehouse answers 422; left out, the current
+# world's generator builds the new world, so regenerating never switches generator
 
 curl -s localhost:8000/api/v1/world
 # as today, plus "synthesizer": "warehouse-spec", so a client can show and preselect

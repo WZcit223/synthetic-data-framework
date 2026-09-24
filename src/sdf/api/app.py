@@ -4,8 +4,9 @@
     SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app --reload
     # open http://127.0.0.1:8000 (the dashboard from ui/) or /api/v1/docs
 
-``create_app()`` builds an app with its own ``WorldStore`` (``app.state.store``)
-and dataset catalogue (``app.state.datasets``);
+``create_app()`` builds an app with its own ``WorldStore`` (``app.state.store``),
+dataset catalogue (``app.state.datasets``) and synthesizer registry
+(``app.state.synthesizers``);
 the module-level ``app`` reads ``SDF_UI_DIR`` (mount a UI directory at "/") and
 ``SDF_CORS_ORIGINS`` (comma-separated origins allowed to call the API). Every
 endpoint reads ``store.current`` once, so a request never mixes two worlds.
@@ -37,7 +38,9 @@ from sdf.application.knowledge import KnowledgeQA
 from sdf.application.scenarios import run_scenarios
 from sdf.simulation import catalog
 from sdf.simulation.experiment import OUTCOME_FIELDS, Experiment
+from sdf.synthesis.registry import SynthesizerRegistry, default_registry
 from sdf.synthesis.spec import GenerationSpec
+from sdf.validation.evaluation import evaluate, sources
 from sdf.validation.quality import structural_quality_check
 from sdf.workflow import warehouse_pipeline
 from . import schemas as s
@@ -76,12 +79,15 @@ def create_app(
     ui_dir: str | Path | None = None,
     cors_origins: list[str] | None = None,
     datasets: DatasetCatalog | None = None,
+    synthesizers: SynthesizerRegistry | None = None,
 ) -> FastAPI:
-    """A new app with its own world store and dataset catalogue.
+    """A new app with its own world store, dataset catalogue and synthesizer registry.
 
     ``datasets`` is the catalogue the app serves for its lifetime (default:
     ``default_datasets()``, built once), so a provider registered on it later is
-    served by later requests. ``POST /api/v1/world`` rejects parameters outside
+    served by later requests. ``synthesizers`` is likewise the one registry every
+    synthesizer comes from (default: ``default_registry()``, built once): the
+    catalogue, runs, the initial world, ``POST /world`` and scenario regeneration. ``POST /api/v1/world`` rejects parameters outside
     ``limits``. ``ui_dir``
     mounts a static UI at "/" for development hosting; ``cors_origins`` lets a
     UI hosted elsewhere call the API.
@@ -93,7 +99,9 @@ def create_app(
         docs_url=f"{PREFIX}/docs",
         redoc_url=None,
     )
-    store = WorldStore()
+    registry = synthesizers if synthesizers is not None else default_registry()
+    app.state.synthesizers = registry
+    store = WorldStore(synthesizers=registry)
     app.state.store = store
     app.state.limits = limits
     catalogue = datasets if datasets is not None else default_datasets()
@@ -109,24 +117,44 @@ def create_app(
         daily_orders_per_a_sku=(float, Field(6.0, ge=0.5, le=20.0)),
         stockout_pressure=(float, Field(0.08, ge=0.0, le=0.5)),
         seed=(int, 42),
+        # the warehouse generator; left out, the current world's generator builds the new one
+        synthesizer=(str | None, None),
     )
 
     @api.get("/health", response_model=s.Health)
     def health():
         return {"status": "ok"}
 
-    @api.get("/world", response_model=s.WorldSummary)
+    @api.get("/world", response_model=s.CurrentWorld)
     def world_summary():
-        return store.current.world.registry.summary()
+        world = store.current.world
+        return {**world.registry.summary(), "synthesizer": world.synthesizer}
 
-    @api.post("/world", response_model=s.WorldGenerated, responses={409: {"description": "a generation is running"}})
+    @api.post(
+        "/world",
+        response_model=s.WorldGenerated,
+        responses={409: {"description": "a generation is running"}, 422: {"description": "not a warehouse generator"}},
+    )
     def generate(body: WorldRequest):  # type: ignore[valid-type]
-        spec = GenerationSpec(**body.model_dump())
+        values = body.model_dump()
+        name = values.pop("synthesizer")
+        if name is not None:
+            _warehouse_synthesizer(name)
+        spec = GenerationSpec(**values)
         try:
-            snap = store.regenerate(spec)
+            snap = store.regenerate(spec, synthesizer=name)
         except GenerationBusy as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        return {"ok": True, "spec": body.model_dump(), "generated_ms": snap.generated_ms}
+        return {"ok": True, "spec": values, "generated_ms": snap.generated_ms, "synthesizer": snap.world.synthesizer}
+
+    def _warehouse_synthesizer(name: str) -> None:
+        """422 unless ``name`` is a mounted synthesizer that produces a warehouse."""
+        try:
+            produces = registry.info(name).produces
+        except KeyError as exc:
+            raise HTTPException(status_code=422, detail=exc.args[0]) from exc
+        if produces != "warehouse":
+            raise HTTPException(status_code=422, detail=f"{name} produces a {produces}, not a warehouse")
 
     @api.get("/world/limits", response_model=s.WorldLimits)
     def world_limits():
@@ -177,6 +205,53 @@ def create_app(
             "rows": [list(r) for r in table.rows],
             "total_rows": total,
             "truncated": total > len(table.rows),
+        }
+
+    @api.get("/synthesizers", response_model=s.SynthesizerList)
+    def synthesizers_list():
+        """Every mounted synthesizer with the parameters a run may set; and the declared ones that are unavailable."""
+        entries = []
+        for name in registry.names():
+            info = registry.info(name)
+            entries.append(
+                {
+                    "name": name,
+                    "produces": info.produces,
+                    "needs_fit": info.needs_fit,
+                    "origin": registry.origin(name),
+                    "description": info.description,
+                    "requires": list(info.requires),
+                    "params": [p.to_dict() for p in registry.params(name)],
+                }
+            )
+        return {"synthesizers": entries, "unavailable": registry.unavailable()}
+
+    @api.get("/synthesis/sources", response_model=s.SynthesisSources)
+    def synthesis_sources():
+        """The sample data a run may be fitted on, by ID (the server's own files; a client never sends a path)."""
+        return {"sources": [{"id": sid, "label": Path(path).name} for sid, path in sources().items()]}
+
+    @api.post("/synthesis/runs", response_model=s.SynthesisRunResult, responses={422: {"description": "not runnable"}})
+    def synthesis_run(body: s.SynthesisRunRequest):
+        """Fit one synthesizer on one source and score it; the parameters are checked before it is created."""
+        listed = sources()
+        if body.source not in listed:
+            raise HTTPException(status_code=422, detail=f"unknown source {body.source!r}; choose from {sorted(listed)}")
+        try:
+            run = evaluate(body.synthesizer, source=body.source, params=body.params, registry=registry)
+        except KeyError as exc:  # unknown or unavailable synthesizer
+            raise HTTPException(status_code=422, detail=exc.args[0]) from exc
+        except ValueError as exc:  # a warehouse generator, a parameter it refuses, a source with no usable row
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {
+            "synthesizer": run.synthesizer,
+            "source": run.source,
+            "kind": run.kind,
+            "params": run.params,
+            "repeatable": run.repeatable,
+            "metrics": run.metrics,
+            "fields": [f.to_dict() for f in run.table.info.fields],
+            "rows": [list(r) for r in run.table.rows],
         }
 
     @api.get("/experiments/catalog", response_model=s.ExperimentCatalog)

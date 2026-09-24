@@ -75,6 +75,24 @@ group. Callers choose one by name, for example
 `uv run sdf tstr --synthesizer seasonal-profile`; the contract is in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §2.
 
+A synthesizer's parameters are its constructor's keyword arguments typed `int`,
+`float`, `str` or `bool` (or one of those or `None`): `registry.params(name)`
+reads them, with bounds from an optional `param_bounds` class attribute, and
+publishes each as a `Param` (`synthesis/api.py`), the same shape the experiment
+catalogue uses. `validation/evaluation.py` runs any series or table synthesizer
+on one of the repository's sample CSVs (the sources, found under
+`$SDF_DATA_DIR`, default `./data`) and scores it with the existing checks:
+`fidelity_report` for a series, `privacy_report` for a table. A seed left out
+is filled with `EVALUATION_SEED`, so every run with a seed parameter can be
+repeated; `sdf synth` and `sdf privacy` use the same function. The world, too,
+is built by a chosen synthesizer: `World.generate(spec, synthesizer=…,
+synthesizers=…)` takes any synthesizer that produces a warehouse, and the world
+keeps both its generator and the registry it came from, so a scenario
+regenerates with the same generator. The API holds one synthesizer registry for
+its lifetime (`create_app(synthesizers=…)`); the catalogue, runs and every world
+it builds come from it. The contract is in
+[`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §4.
+
 ### Application Layer
 The AI Warehouse-Management demo. It consumes whatever the registry overlays and
 produces four capability families that generalise to other industrial domains:

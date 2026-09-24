@@ -46,6 +46,13 @@ replenishment plan) with their fields, and `GET /api/v1/datasets/{name}` returns
 one. Another package can add a table through the `sdf.datasets` entry-point
 group.
 
+The synthesis algorithms are served the same way: `GET /api/v1/synthesizers`
+lists them with the parameters each takes, `GET /api/v1/synthesis/sources` the
+sample data they can be fitted on, and `POST /api/v1/synthesis/runs` fits one and
+returns its quality scores (fidelity for a series, privacy for a table) with the
+real and synthetic data side by side. `POST /api/v1/world` accepts a
+`synthesizer` that produces a warehouse, to build the world with it.
+
 The **Explore** page pivots any of these tables, or the result of a policy
 experiment: drag fields onto Rows, Columns, Values and Filters; choose the
 aggregation (sum, count, distinct count, mean, median, min, max), the time grain

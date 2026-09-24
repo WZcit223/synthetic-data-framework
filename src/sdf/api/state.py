@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 from sdf.application.intelligence import WarehouseIntelligence
 from sdf.simulation.world import World
+from sdf.synthesis.materialise import DEFAULT_WAREHOUSE_SYNTHESIZER
+from sdf.synthesis.registry import SynthesizerRegistry, default_registry
 from sdf.synthesis.spec import GenerationSpec
 
 MIN_SKUS = 10
@@ -46,28 +48,40 @@ class GenerationBusy(RuntimeError):
     """Another generation is running; the caller should retry later."""
 
 
-def build_snapshot(spec: GenerationSpec) -> Snapshot:
+def build_snapshot(
+    spec: GenerationSpec,
+    *,
+    synthesizer: str = DEFAULT_WAREHOUSE_SYNTHESIZER,
+    synthesizers: SynthesizerRegistry | None = None,
+) -> Snapshot:
     t0 = time.perf_counter()
-    world = World.generate(spec)
+    world = World.generate(spec, synthesizer=synthesizer, synthesizers=synthesizers)
     intel = WarehouseIntelligence(world.registry)
     return Snapshot(world=world, intel=intel, generated_ms=int((time.perf_counter() - t0) * 1000))
 
 
 class WorldStore:
-    def __init__(self, spec: GenerationSpec | None = None) -> None:
+    """The current snapshot; every world it builds comes from ``synthesizers`` (default: ``default_registry()``)."""
+
+    def __init__(self, spec: GenerationSpec | None = None, *, synthesizers: SynthesizerRegistry | None = None) -> None:
         self._lock = threading.Lock()
-        self._current = build_snapshot(spec or GenerationSpec())
+        self.synthesizers = synthesizers if synthesizers is not None else default_registry()
+        self._current = build_snapshot(spec or GenerationSpec(), synthesizers=self.synthesizers)
 
     @property
     def current(self) -> Snapshot:
         return self._current
 
-    def regenerate(self, spec: GenerationSpec) -> Snapshot:
-        """Build a new snapshot and make it current in one assignment; raise ``GenerationBusy`` if one is running."""
+    def regenerate(self, spec: GenerationSpec, *, synthesizer: str | None = None) -> Snapshot:
+        """Build a new snapshot and make it current in one assignment; raise ``GenerationBusy`` if one is running.
+
+        ``synthesizer`` names the warehouse generator; ``None`` keeps the current world's.
+        """
         if not self._lock.acquire(blocking=False):
             raise GenerationBusy("another generation is running; retry when it finishes")
         try:
-            snapshot = build_snapshot(spec)
+            name = synthesizer if synthesizer is not None else self._current.world.synthesizer
+            snapshot = build_snapshot(spec, synthesizer=name, synthesizers=self.synthesizers)
             self._current = snapshot
             return snapshot
         finally:

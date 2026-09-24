@@ -1,5 +1,16 @@
 # PR 3 — Synthesizer catalogue, evaluation and world-generator choice (API)
 
+> Status: implemented (exploration sequence PR 3). Changes from this plan, each
+> recorded in `interfaces.md` §4: the run type is `EvaluationRun` (the layering
+> test keeps "synthes" names out of `sdf.validation`, where only scoring lives);
+> `POST /world` without `synthesizer` keeps the current world's generator;
+> `GET /world` answers with its own model (`CurrentWorld`), since `/overview`
+> reuses the world summary. `evaluate` also raises `NoUsableRows` (a
+> `ValueError`) with the load report, so `sdf synth` and `sdf privacy` print the
+> same messages as before. A `gaussian-copula` run takes about 25 s on the
+> sample (its sampling, not the run), so its repeatability is tested with a
+> fast stand-in that has the same nullable seed.
+
 Contract: [`interfaces.md`](interfaces.md) §4.
 
 ## Goal
@@ -22,7 +33,7 @@ produces a warehouse.
   of the repository's `data/` directory that exist under `$SDF_DATA_DIR`
   (default `./data`; the CSVs are not part of the installed package, so an API
   started outside the checkout sets `SDF_DATA_DIR` or lists no source), and `evaluate(synthesizer, *,
-  source, params=None, date_format=None, registry=None) -> SynthesisRun(synthesizer,
+  source, params=None, date_format=None, registry=None) -> EvaluationRun(synthesizer,
   source, kind, params, metrics, table)`, which fills a missing or `None` seed
   with `EVALUATION_SEED` and reports every parameter it used, where `source` is a source ID or a CSV path
   (the CLI passes its path and `--date-format`; the API passes IDs only). A series synthesizer is fitted on the source's hourly demand and

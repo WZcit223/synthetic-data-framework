@@ -31,6 +31,12 @@ class WorldSummary(Model):
     by_origin: dict[str, int]
 
 
+class CurrentWorld(WorldSummary):
+    """``GET /world``: the current world's sources and the warehouse generator that built it."""
+
+    synthesizer: str
+
+
 class Range(Model):
     min: int
     max: int
@@ -53,6 +59,7 @@ class WorldGenerated(Model):
     ok: bool
     spec: WorldSpec
     generated_ms: int
+    synthesizer: str  # the warehouse generator that built the world
 
 
 class Quality(Model):
@@ -400,3 +407,51 @@ class ExperimentCatalog(Model):
     policies: list[PolicyKind]
     outcomes: list[str]
     max_per_list: int
+
+
+# -- synthesis --------------------------------------------------------------------------------
+
+
+class SynthesizerEntry(Model):
+    name: str
+    produces: Literal["warehouse", "series", "table"]
+    needs_fit: bool
+    origin: Literal["builtin", "plugin", "runtime"]
+    description: str
+    requires: list[str]
+    params: list[ParamModel]  # what a run may set; a warehouse generator's spec comes from the world request
+
+
+class SynthesizerList(Model):
+    synthesizers: list[SynthesizerEntry]
+    unavailable: dict[str, str]  # declared synthesizers that could not be mounted, with the reason
+
+
+class SynthesisSource(Model):
+    id: str
+    label: str
+
+
+class SynthesisSources(Model):
+    sources: list[SynthesisSource]
+
+
+class SynthesisRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    synthesizer: str
+    source: str  # a source ID from GET /synthesis/sources; never a path
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class SynthesisRunResult(Model):
+    """One run: every parameter it used, its scores, and the real and synthetic data as a table."""
+
+    synthesizer: str
+    source: str
+    kind: Literal["series", "table"]
+    params: dict[str, Any]
+    repeatable: bool  # the same params give the same table: the synthesizer has a seed
+    metrics: dict[str, float | int | str | None]
+    fields: list[FieldModel]
+    rows: list[list[Any]]
