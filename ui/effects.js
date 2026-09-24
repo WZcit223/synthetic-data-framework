@@ -384,6 +384,13 @@ function dotTip(r, color) {
 // -- wiring ---------------------------------------------------------------------------------------
 
 async function loadFromAddress() {
+  // a new address is a new study: the previous result, and any run still in flight, no longer apply
+  state.runSeq++;
+  state.running = false;
+  state.result = null;
+  $("#result").classList.remove("busy");
+  $("#result").setAttribute("aria-busy", "false");
+  $("#result").innerHTML = `<div class="notice">Choose the interventions and what to measure, then run the study.</div>`;
   const link = readRequestHash(location.hash);
   const { request, dropped } = fitRequest(link?.request ?? null, state.catalog);
   renderForm(request);
