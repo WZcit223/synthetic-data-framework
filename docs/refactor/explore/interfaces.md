@@ -351,6 +351,9 @@ PR:
 
 `table` picks which of the response's tables the view pivots: the effects or
 their replicate rows; the estimator scores or the benchmark's observed rows.
+`"data"` needs a `benchmark` request, since a `dataset` request's rows are
+that catalogue dataset, opened as `{ dataset: name }`. The validator refuses
+the combination.
 
 Opening a link repeats that one request against the current world and applies
 the view. A source of an unknown shape, or a request the API rejects, shows the

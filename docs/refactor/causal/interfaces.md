@@ -400,9 +400,10 @@ class Estimator(Protocol):
     `numpy.linalg.matrix_rank` of that matrix on the kept rows, so a covariate
     that is constant within one group but varies in the other is kept. The
     message names the encoded columns of a dependency, for example
-    "abc_class=B and abc_class=C sum to 1 on every kept row, so with the
-    intercept they are collinear" (every row is B or C), or "log_price equals
-    log_price_copy".
+    "log_price equals log_price_copy", or "log_demand is 2 × log_units"
+    for any exact linear combination. The first level dropped by the
+    encoding is the first level present among the kept rows, so a level
+    absent from them never produces a column.
 
   These are request problems (422 through the API).
 - **What can still fail inside an estimator** is data the checks above cannot
@@ -668,7 +669,11 @@ POST /api/v1/causal/estimates
   than claiming more.
 - **Explore links** replay this request, through the source shape PR 5 adds to
   the exploration contract (§3.2): `{ estimates: { request: {...}, table:
-  "scores" | "data" } }`, where `request` is the body above.
+  "scores" | "data" } }`, where `request` is the body above. `table: "data"`
+  is valid only when `request` holds a `benchmark`, since only that response
+  carries the observed rows. With a `dataset`, the rows are the catalogue
+  dataset itself, which Explore opens as `{ dataset: name }`. The validator
+  refuses `"data"` with a `dataset` request, with that message.
 - With `benchmark`, `question` is optional. When it is given, it may only drop
   covariates from the benchmark's own question, so a user can watch the bias
   return.
@@ -687,6 +692,17 @@ difference-in-means     +38.1    …                 +30.9    no
 regression-adjustment    +7.7    …                  +0.5    yes
 ipw                      +8.1    …                  +0.9    yes
 ```
+
+---
+
+## 4. What the algorithm phase uses
+
+- A real estimator (double machine learning with gradient boosting, a causal
+  forest, a Bayesian model) is an `sdf.estimators` plug-in. It is scored by the
+  same benchmark and shown by the same page, with no UI change.
+- A real simulator of the warehouse (the `ALGORITHM-HOOK[A4]` digital twin)
+  plugs in as the world generator, and `EffectStudy` gives its effects with
+  intervals unchanged.
 
 ---
 
@@ -727,14 +743,3 @@ What is guaranteed:
 Making plug-in calls killable needs a worker process per call. That changes
 how plug-ins run and what they may share, and is left to a later sequence if
 it is ever needed.
-
----
-
-## 4. What the algorithm phase uses
-
-- A real estimator (double machine learning with gradient boosting, a causal
-  forest, a Bayesian model) is an `sdf.estimators` plug-in. It is scored by the
-  same benchmark and shown by the same page, with no UI change.
-- A real simulator of the warehouse (the `ALGORITHM-HOOK[A4]` digital twin)
-  plugs in as the world generator, and `EffectStudy` gives its effects with
-  intervals unchanged.

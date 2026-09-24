@@ -34,7 +34,8 @@ finds in the plug-in guide how to write, mount and score their own estimator.
     order, with a legend and direct labels.
   - **Open in Explore** for the scores and for the benchmark's observed table.
     This adds the `estimates` source shape to Explore's validator and loader
-    (exploration contract §3.2), with a round-trip Node test.
+    (exploration contract §3.2), with a round-trip Node test, and a test that
+    `table: "data"` with a `dataset` request is refused.
 - **The plug-in guide** (`docs/PLUGINS.md`) gains an estimator section:
   - the protocol, `design`, the `sdf.estimators` group, and how to score an
     estimator with `sdf estimate` and the API;
