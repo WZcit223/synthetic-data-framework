@@ -8,9 +8,11 @@ export const SHOW_AS = ["value", "share_of_total", "share_of_row", "share_of_col
 export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // The key part of the column that folds the columns past ``maxColumns``; sorts last.
-export const OTHER = "\u0002other";
+// An object, so no value in a table (text, a number or null) can equal it.
+export const OTHER = Object.freeze({ other: true });
 
-const SEP = "\u0001"; // joins key parts; never appears in a label
+// A key's identity: JSON of its parts, so no text can merge two keys and null stays apart from "null".
+export const keyId = parts => JSON.stringify(parts);
 const DAY_MS = 86_400_000;
 
 // A table payload (§2) whose rows are arrays in field order or objects keyed by field name.
@@ -157,7 +159,7 @@ export function pivot(table, view = {}, options = {}) {
     const probe = pivot(table, { ...view, rows: [], sort: undefined, showAs: "value" });
     if (probe.columns.length > max) {
       const ranked = probe.columns
-        .map((c, j) => ({ key: c.key.join(SEP), v: probe.totals.columns[j][0] }))
+        .map((c, j) => ({ key: keyId(c.key), v: probe.totals.columns[j][0] }))
         .sort((a, b) => (a.v == null) - (b.v == null) || Math.abs(b.v ?? 0) - Math.abs(a.v ?? 0));
       fold = { keep: new Set(ranked.slice(0, max - 1).map(c => c.key)), count: ranked.length - (max - 1) };
     }
@@ -188,8 +190,8 @@ export function pivot(table, view = {}, options = {}) {
     if (!keep.every(f => f(row))) continue;
     rowsUsed++;
     let cparts = colAxis.map(a => a.key(row[a.i]));
-    let ckey = cparts.join(SEP);
-    if (fold && !fold.keep.has(ckey)) { cparts = [OTHER]; ckey = OTHER; }
+    let ckey = keyId(cparts);
+    if (fold && !fold.keep.has(ckey)) { cparts = [OTHER]; ckey = keyId(cparts); }
     if (colAxis.length && !columns.has(ckey)) columns.set(ckey, cparts);
     let n = root;
     for (let d = -1; d < rowAxis.length; d++) {
@@ -209,7 +211,7 @@ export function pivot(table, view = {}, options = {}) {
   }
 
   const colList = [...columns.values()].sort(compareKeys);
-  const colKeys = colList.map(parts => parts.join(SEP));
+  const colKeys = colList.map(keyId);
   const read = list => (list ? list.map(a => a.value()) : values.map(() => null));
   const grand = read(root.total);
   const colTotals = colKeys.map(k => read(root.cells.get(k)));
@@ -226,7 +228,7 @@ export function pivot(table, view = {}, options = {}) {
 
   const sort = view.sort ?? { by: "label" };
   const dir = sort.dir === "desc" ? -1 : 1;
-  const sortCol = sort.by === "column" ? (sort.key ?? []).join(SEP) : null;
+  const sortCol = sort.by === "column" ? keyId(sort.key ?? []) : null;
   const metric = n => {
     if (sort.by === "value") return n.total[0]?.value() ?? null;
     if (sort.by === "column") return n.cells.get(sortCol)?.[0]?.value() ?? null;

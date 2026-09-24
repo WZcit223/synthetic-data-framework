@@ -250,3 +250,23 @@ test("a view from a link is checked for shape before it is used", () => {
   ];
   for (const [view, message] of bad) assert.match(viewError(view), new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), JSON.stringify(view));
 });
+
+test("no label can merge two columns or pass for the folded Other column", () => {
+  const t = toTable({
+    fields: FIELDS,
+    rows: [
+      ["2025-01-01", "a\u0001b", "x", 1],
+      ["2025-01-01", "a", "b\u0001x", 2],
+      ["2025-01-01", "\u0002other", "x", 4],
+      ["2025-01-01", "null", "x", 8],
+      ["2025-01-01", null, "x", 16],
+    ],
+  });
+  const r = pivot(t, { columns: [{ field: "region" }, { field: "channel" }], values: [{ field: "qty", agg: "sum" }] });
+  assert.equal(r.columns.length, 5);
+  assert.deepEqual(r.totals.columns.map(c => c[0]).sort((a, b) => a - b), [1, 2, 4, 8, 16]);
+  const folded = pivot(t, { columns: [{ field: "region" }], values: [{ field: "qty", agg: "sum" }] }, { maxColumns: 3 });
+  assert.deepEqual(folded.columns.map(c => c.key[0]), ["null", null, OTHER]); // the two largest kept, blank last; "\u0002other" folds like any value
+  assert.equal(folded.totals.columns[2][0], 7);
+  assert.equal(partLabel("\u0002other"), "\u0002other");
+});

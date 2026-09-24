@@ -5,7 +5,7 @@
 import { $, api, compactFormatter, esc, valueFormatter } from "./common.js";
 import { barChart, bindBars, bindLine, lineChart } from "./chart.js";
 import { HEAT, colorBook, heat, inkOn } from "./palette.js";
-import { AGGREGATIONS, GRAINS, OTHER, distinctValues, partLabel, pivot, toCsv, toTable, viewError } from "./pivot.js";
+import { AGGREGATIONS, GRAINS, OTHER, distinctValues, keyId, partLabel, pivot, toCsv, toTable, viewError } from "./pivot.js";
 
 const AGG_LABEL = { sum: "Sum", count: "Count", count_distinct: "Distinct", mean: "Mean", median: "Median", min: "Min", max: "Max" };
 const GRAIN_LABEL = { day: "Day", week: "Week", month: "Month", quarter: "Quarter", year: "Year", weekday: "Weekday" };
@@ -440,11 +440,11 @@ function renderTable(result) {
       const leaf = row === L - 1;
       let j = 0;
       while (j < result.columns.length) {
-        const prefix = result.columns[j].key.slice(0, row + 1).join("\u0001");
+        const prefix = keyId(result.columns[j].key.slice(0, row + 1));
         let k = j + 1;
-        while (k < result.columns.length && result.columns[k].key.slice(0, row + 1).join("\u0001") === prefix) k++;
+        while (k < result.columns.length && keyId(result.columns[k].key.slice(0, row + 1)) === prefix) k++;
         const key = result.columns[j].key;
-        const sorted = leaf && sort.by === "column" && (sort.key ?? []).join("\u0001") === key.join("\u0001");
+        const sorted = leaf && sort.by === "column" && keyId(sort.key ?? []) === keyId(key);
         const attrs = leaf ? ` data-sort="column" data-key="${esc(JSON.stringify(key))}" tabindex="0"${sorted ? ` aria-sort="${ariaSort}"` : ""}` : "";
         h += `<th class="colgroup${leaf ? " sortable" : ""}${!valueRow ? " num" : ""}" colspan="${(k - j) * nV}" style="${top(row)}"${attrs}>`
           + `${esc(partLabel(key[row]))}${sorted ? `<span class="dir">${dirMark}</span>` : ""}</th>`;
@@ -566,8 +566,10 @@ function renderChart() {
   const hasCols = v.columns.length > 0;
   const folded = res.stats.folded;
   const names = hasCols ? res.columns.map(c => (c.key[0] === OTHER ? `Other (${folded} more)` : c.key.map(partLabel).join(" / "))) : ["value"];
-  const otherName = folded ? names.at(-1) : null;
-  const palette = colors.assign(names, otherName);
+  // colours follow the column's key, not its label: two columns may read alike
+  const ids = hasCols ? res.columns.map(c => keyId(c.key)) : ["value"];
+  const byId = colors.assign(ids, folded ? keyId([OTHER]) : null);
+  const colorOf = j => byId.get(ids[j]);
   const width = Math.max(320, $("#result").clientWidth - 24);
   const stacked = state.display.stacked && additive() && hasCols && !isLine;
   const allRows = res.rows;
@@ -575,13 +577,13 @@ function renderChart() {
 
   let h = `<div class="chartwrap">`;
   if (hasCols && names.length > 1) { // one series needs no legend: the chart's title names it
-    h += `<div class="legend" aria-label="Legend">` + names.map(n => `<span class="item"><span class="${isLine ? "ln" : "sw"}" style="background:${palette.get(n)}"></span>${esc(n)}</span>`).join("") + `</div>`;
+    h += `<div class="legend" aria-label="Legend">` + names.map((n, j) => `<span class="item"><span class="${isLine ? "ln" : "sw"}" style="background:${colorOf(j)}"></span>${esc(n)}</span>`).join("") + `</div>`;
   }
   const blocks = [];
   v.values.forEach((x, k) => {
     const spec = { unit: field(x.field)?.unit, agg: x.agg, showAs: v.showAs };
     const format = valueFormatter(spec), compact = compactFormatter(spec);
-    const series = names.map(n => ({ name: hasCols ? n : valueLabel(x), color: palette.get(n) }));
+    const series = names.map((n, j) => ({ name: hasCols ? n : valueLabel(x), color: colorOf(j) }));
     const title = `${valueLabel(x)}${v.rows.length ? ` by ${v.rows.map(axisLabel).join(" and ")}` : ""}`;
     if (isLine) {
       const model = {
