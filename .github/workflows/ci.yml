@@ -34,6 +34,9 @@ jobs:
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run pytest
+      # The UI's pivot engine, chart colours and formatting are plain ES modules; Node (preinstalled on
+      # the runners) tests them. A shell glob, because `node --test ui/` does not search a folder on Node 22.
+      - run: node --version && node --test ui/*.test.js
       - run: uv run sdf demo
       - run: git diff --exit-code
       # The optional synthesis extra mounts the gaussian-copula plug-in; its tests skip without it.

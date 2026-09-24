@@ -51,7 +51,7 @@ write and mount their own synthesizer or dataset.
   - A test runs the guide's two examples (a series synthesizer and a dataset
     provider) through the registry and the catalogue.
   - The UI-path-in-OpenAPI check covers the new page.
-  - `node --test ui/` covers any new pure helper.
+  - `node --test ui/*.test.js` covers any new pure helper.
 
 ## Non-goals
 
@@ -66,7 +66,7 @@ write and mount their own synthesizer or dataset.
 uv sync --locked --extra api --extra synthesis     # synthesis: so gaussian-copula is available
 uv run ruff check && uv run ruff format --check
 uv run pytest
-node --test ui/
+node --test ui/*.test.js
 ```
 
 Manual, in a browser against `SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app`:

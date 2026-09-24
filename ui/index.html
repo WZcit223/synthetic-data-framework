@@ -10,6 +10,10 @@
 <body>
 <header>
   <h1>🧩 Synthetic Data Framework <span class="muted">— AI Warehouse</span></h1>
+  <nav class="nav" aria-label="Pages">
+    <a href="index.html" aria-current="page">Dashboard</a>
+    <a href="explore.html">Explore</a>
+  </nav>
   <div class="layers">
     <span class="badge">Foundation Layer</span>
     <span class="badge">Synthesis Layer</span>
@@ -42,7 +46,7 @@
         <label for="seed">Seed <output id="o_seed">42</output></label>
         <input id="seed" type="range" min="1" max="99" step="1" value="42">
       </div>
-      <button class="primary" onclick="regen()">↻ Regenerate synthetic world</button>
+      <button class="primary" id="regen">↻ Regenerate synthetic world</button>
       <span id="status" class="muted"></span>
     </div>
     <div class="note">Sliders re-drive the <code>GenerationSpec</code> (reference-dataset + generation
@@ -88,7 +92,7 @@
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
         <h3 style="margin:0;font-size:14px">Demand & forecast</h3>
-        <select id="mover" aria-label="SKU shown in the demand chart" onchange="loadSeries()"></select>
+        <select id="mover" aria-label="SKU shown in the demand chart"></select>
       </div>
       <div id="series"></div>
       <div id="seriesMeta" class="note"></div>
@@ -105,7 +109,7 @@
       <h3 style="margin:0;font-size:14px">(s, S) inventory optimisation
         <span class="pill">safety stock from demand variability</span></h3>
       <label for="sl" class="muted" style="font-size:12px;margin-left:auto">service level</label>
-      <select id="sl" onchange="loadSS();loadComparison()">
+      <select id="sl">
         <option value="0.90">90%</option>
         <option value="0.95" selected>95%</option>
         <option value="0.975">97.5%</option>
@@ -171,9 +175,8 @@
       <div style="display:flex;gap:8px">
         <input id="q" aria-label="Question about the warehouse data" placeholder="e.g. safety stock at 95%?  which SKUs are stockout?"
           style="flex:1;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
-          border-radius:8px;padding:9px 12px;font-size:13px"
-          onkeydown="if(event.key==='Enter')ask()">
-        <button class="primary" onclick="ask()">Ask</button>
+          border-radius:8px;padding:9px 12px;font-size:13px">
+        <button class="primary" id="askBtn">Ask</button>
       </div>
       <div id="answer" style="margin-top:12px;font-size:14px;min-height:40px"></div>
       <div id="qchips" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"></div>
@@ -202,9 +205,8 @@
       <div style="display:flex;gap:8px">
         <input id="aq" aria-label="Request for the warehouse agent" placeholder="e.g. should I reorder and what's the money impact?"
           style="flex:1;background:var(--panel2);color:var(--ink);border:1px solid var(--line);
-          border-radius:8px;padding:9px 12px;font-size:13px"
-          onkeydown="if(event.key==='Enter')agentAsk()">
-        <button class="primary" onclick="agentAsk()">Run</button>
+          border-radius:8px;padding:9px 12px;font-size:13px">
+        <button class="primary" id="agentBtn">Run</button>
       </div>
       <div id="aAnswer" style="margin-top:12px;font-size:14px;min-height:36px"></div>
       <div id="aAction"></div>
@@ -241,6 +243,6 @@
   </p>
 </main>
 
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

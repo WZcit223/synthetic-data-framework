@@ -130,6 +130,15 @@ helper whose base URL is configurable, so it can be served by `create_app(ui_dir
 during development or hosted anywhere else. The contract is in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §4.
 
+The pages are ES modules. `ui/common.js` holds what both pages share (`api()`,
+escaping, number formatting); the dashboard is `index.html` with `app.js`, the
+Explore page `explore.html` with `explore.js`. The pivot engine (`pivot.js`),
+the chart drawing (`chart.js`) and the chart colours (`palette.js`) are
+separate modules; the engine, the colours and the formatting touch no DOM and
+are tested with `node --test ui/*.test.js`. No page has an inline event
+handler; each script registers its own. The pivot contract is in
+[`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §3.
+
 ## 3. Why warehouse management is the first validation scenario
 - Real internal business demand exists (fast feedback, real stakeholders).
 - It exercises all four core capabilities, so it is representative of the wider

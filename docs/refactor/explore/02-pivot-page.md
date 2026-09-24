@@ -1,5 +1,16 @@
 # PR 2 — The Explore page: pivot table and chart
 
+> Status: implemented (exploration sequence PR 2). Changes from this plan, each
+> recorded in `interfaces.md` §3: the tests run with `node --test ui/*.test.js`
+> (Node 22 does not search a folder given as `ui/`); the link also carries the
+> display (table or chart, heatmap, totals, stacked); the heatmap uses six
+> discrete steps of the blue ramp, because at the middle step (`#2a78d6`)
+> neither white nor dark text reaches 4.5:1; charts fold past eight series with
+> `pivot(table, view, { maxColumns: 8 })`. Beyond the files listed here the page
+> has `ui/explore.css` and `ui/chart.js`, and `ui/common.test.js` covers the
+> number formatting. A synthesis link is read and answered with a clear message
+> until PR 3 adds its endpoint.
+
 Contract: [`interfaces.md`](interfaces.md) §2.1 (the tables it reads) and §3
 (the pivot engine).
 
@@ -92,10 +103,10 @@ both pages.
 **Tests and CI.**
 
 - `ui/package.json` (`{"type": "module"}` only) makes Node load `ui/*.js` as
-  ES modules. `ui/pivot.test.js` runs under `node --test ui/`. It covers each aggregation,
+  ES modules. `ui/pivot.test.js` runs under `node --test ui/*.test.js`. It covers each aggregation,
   each grain, filters, shares, sorting, subtotals, totals from rows,
   `null`-not-`0`, and both row forms of `toTable`.
-- CI gains a step that runs `node --test ui/` (Node is preinstalled on the
+- CI gains a step that runs `node --test ui/*.test.js` (Node is preinstalled on the
   runners).
 - `api/app_test.py`'s check that every UI path is in the OpenAPI schema reads
   every `ui/*.js`, not only `app.js`.
@@ -113,7 +124,7 @@ both pages.
 uv sync --locked --extra api
 uv run ruff check && uv run ruff format --check
 uv run pytest                                # includes the UI-path-in-OpenAPI check over every ui/*.js
-node --test ui/
+node --test ui/*.test.js
 ```
 
 Manual, in a browser against `SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app`:

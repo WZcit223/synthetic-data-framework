@@ -1,0 +1,306 @@
+// The pivot engine: a pure module (no DOM), so Node's test runner covers it.
+// Contract: docs/refactor/explore/interfaces.md §3. It reshapes the rows the API
+// returned (group, filter, aggregate, share); it computes no business number.
+
+export const GRAINS = ["day", "week", "month", "quarter", "year", "weekday"];
+export const AGGREGATIONS = ["sum", "count", "count_distinct", "mean", "median", "min", "max"];
+export const SHOW_AS = ["value", "share_of_total", "share_of_row", "share_of_column"];
+export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// The key part of the column that folds the columns past ``maxColumns``; sorts last.
+export const OTHER = "\u0002other";
+
+const SEP = "\u0001"; // joins key parts; never appears in a label
+const DAY_MS = 86_400_000;
+
+// A table payload (§2) whose rows are arrays in field order or objects keyed by field name.
+export function toTable(payload) {
+  const fields = payload.fields ?? [];
+  const rows = (payload.rows ?? []).map(r => (Array.isArray(r) ? r : fields.map(f => r[f.name] ?? null)));
+  return { ...payload, fields, rows };
+}
+
+// The key of an ISO date ("YYYY-MM-DD") at a time grain; null stays null.
+export function timeKey(iso, grain = "day") {
+  if (iso == null) return null;
+  const y = +iso.slice(0, 4), m = +iso.slice(5, 7), d = +iso.slice(8, 10);
+  switch (grain) {
+    case "day": return iso;
+    case "month": return iso.slice(0, 7);
+    case "year": return iso.slice(0, 4);
+    case "quarter": return `${iso.slice(0, 4)}-Q${Math.floor((m - 1) / 3) + 1}`;
+    case "weekday": return WEEKDAYS[(new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7];
+    case "week": {
+      // ISO 8601: the week belongs to the year of its Thursday.
+      const t = Date.UTC(y, m - 1, d);
+      const thursday = new Date(t + (3 - ((new Date(t).getUTCDay() + 6) % 7)) * DAY_MS);
+      const ty = thursday.getUTCFullYear();
+      const week = Math.floor((thursday - Date.UTC(ty, 0, 1)) / DAY_MS / 7) + 1;
+      return `${ty}-W${String(week).padStart(2, "0")}`;
+    }
+    default: throw new Error(`unknown time grain ${JSON.stringify(grain)}; choose from ${GRAINS.join(", ")}`);
+  }
+}
+
+// Order of two key parts: weekdays Mon..Sun, numbers numerically, text naturally; blanks last.
+export function compareParts(a, b) {
+  if (a === b) return 0;
+  if (a === OTHER) return 1;
+  if (b === OTHER) return -1;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  const wa = WEEKDAYS.indexOf(a), wb = WEEKDAYS.indexOf(b);
+  if (wa >= 0 && wb >= 0) return wa - wb;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), undefined, { numeric: true });
+}
+
+function compareKeys(a, b) {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    const c = compareParts(a[i], b[i]);
+    if (c) return c;
+  }
+  return a.length - b.length;
+}
+
+// Distinct values of one field with their row counts, in label order (the filter list).
+export function distinctValues(table, name) {
+  const i = fieldIndex(table, name);
+  const counts = new Map();
+  for (const row of table.rows) counts.set(row[i], (counts.get(row[i]) ?? 0) + 1);
+  return [...counts].map(([value, count]) => ({ value, count })).sort((a, b) => compareParts(a.value, b.value));
+}
+
+function fieldIndex(table, name) {
+  const i = table.fields.findIndex(f => f.name === name);
+  if (i < 0) throw new Error(`unknown field ${JSON.stringify(name)}`);
+  return i;
+}
+
+function accumulator(agg) {
+  switch (agg) {
+    case "count": { let n = 0; return { add() { n++; }, value: () => n }; }
+    case "count_distinct": {
+      const seen = new Set();
+      return { add(v) { if (v != null) seen.add(v); }, value: () => seen.size };
+    }
+    case "sum": case "mean": {
+      let s = 0, n = 0;
+      return { add(v) { if (v != null) { s += v; n++; } }, value: () => (n ? (agg === "sum" ? s : s / n) : null) };
+    }
+    case "min": case "max": {
+      let best = null;
+      const better = agg === "min" ? (v, b) => v < b : (v, b) => v > b;
+      return { add(v) { if (v != null && (best == null || better(v, best))) best = v; }, value: () => best };
+    }
+    case "median": {
+      const xs = [];
+      return {
+        add(v) { if (v != null) xs.push(v); },
+        value() {
+          if (!xs.length) return null;
+          xs.sort((a, b) => a - b);
+          const h = xs.length >> 1;
+          return xs.length % 2 ? xs[h] : (xs[h - 1] + xs[h]) / 2;
+        },
+      };
+    }
+    default: throw new Error(`unknown aggregation ${JSON.stringify(agg)}; choose from ${AGGREGATIONS.join(", ")}`);
+  }
+}
+
+function resolveAxis(table, specs = []) {
+  return specs.map(({ field, grain }) => {
+    const i = fieldIndex(table, field);
+    const kind = table.fields[i].kind;
+    if (grain != null && kind !== "time") throw new Error(`field ${field}: a time grain applies to a time field only`);
+    if (kind !== "time") return { i, key: v => v };
+    const g = grain ?? "day";
+    timeKey("2025-01-01", g); // rejects an unknown grain before any row is read
+    const cache = new Map();
+    return {
+      i,
+      key(v) {
+        let k = cache.get(v);
+        if (k === undefined) { k = timeKey(v, g); cache.set(v, k); }
+        return k;
+      },
+    };
+  });
+}
+
+function resolveFilters(table, filters = {}) {
+  return Object.entries(filters).map(([field, f]) => {
+    const i = fieldIndex(table, field);
+    if (f.include != null && f.exclude != null) throw new Error(`filter on ${field}: give include or exclude, not both`);
+    if (f.include != null) { const s = new Set(f.include); return row => s.has(row[i]); }
+    if (f.exclude != null) { const s = new Set(f.exclude); return row => !s.has(row[i]); }
+    throw new Error(`filter on ${field}: needs include or exclude`);
+  });
+}
+
+const now = () => (globalThis.performance ?? Date).now();
+
+/**
+ * Cross-tabulate ``table`` by ``view`` (interfaces.md §3.1).
+ * Every total is aggregated from the underlying rows, never from the cells it spans.
+ *
+ * ``options.maxColumns`` (for a chart's series) keeps the ``maxColumns - 1``
+ * columns with the largest first-value total and folds the rest into one column
+ * keyed ``[OTHER]``, aggregated from their rows like any other column.
+ */
+export function pivot(table, view = {}, options = {}) {
+  const t0 = now();
+  let fold = null;
+  const max = options.maxColumns;
+  if (max != null && view.columns?.length) {
+    const probe = pivot(table, { ...view, rows: [], sort: undefined, showAs: "value" });
+    if (probe.columns.length > max) {
+      const ranked = probe.columns
+        .map((c, j) => ({ key: c.key.join(SEP), v: probe.totals.columns[j][0] }))
+        .sort((a, b) => (a.v == null) - (b.v == null) || Math.abs(b.v ?? 0) - Math.abs(a.v ?? 0));
+      fold = { keep: new Set(ranked.slice(0, max - 1).map(c => c.key)), count: ranked.length - (max - 1) };
+    }
+  }
+  const rowAxis = resolveAxis(table, view.rows);
+  const colAxis = resolveAxis(table, view.columns);
+  const values = (view.values ?? []).map(({ field, agg }) => {
+    const i = fieldIndex(table, field);
+    accumulator(agg); // rejects an unknown aggregation up front
+    const kind = table.fields[i].kind;
+    if (kind !== "measure" && !["count", "count_distinct"].includes(agg)) {
+      throw new Error(`field ${field}: ${agg} needs a measure; a ${kind} field takes count or count_distinct`);
+    }
+    return { i, agg };
+  });
+  const keep = resolveFilters(table, view.filters);
+  const showAs = view.showAs ?? "value";
+  if (!SHOW_AS.includes(showAs)) throw new Error(`unknown showAs ${JSON.stringify(showAs)}; choose from ${SHOW_AS.join(", ")}`);
+
+  const accs = () => values.map(v => accumulator(v.agg));
+  const add = (target, row) => { for (let k = 0; k < values.length; k++) target[k].add(row[values[k].i]); };
+  const node = (key, depth) => ({ key, depth, children: new Map(), cells: new Map(), total: accs() });
+
+  const root = node([], -1); // its cells are the column totals and its total the grand total
+  const columns = new Map();
+  let rowsUsed = 0;
+  for (const row of table.rows) {
+    if (!keep.every(f => f(row))) continue;
+    rowsUsed++;
+    let cparts = colAxis.map(a => a.key(row[a.i]));
+    let ckey = cparts.join(SEP);
+    if (fold && !fold.keep.has(ckey)) { cparts = [OTHER]; ckey = OTHER; }
+    if (colAxis.length && !columns.has(ckey)) columns.set(ckey, cparts);
+    let n = root;
+    for (let d = -1; d < rowAxis.length; d++) {
+      if (d >= 0) {
+        const part = rowAxis[d].key(row[rowAxis[d].i]);
+        let child = n.children.get(part);
+        if (!child) { child = node([...n.key, part], d); n.children.set(part, child); }
+        n = child;
+      }
+      add(n.total, row);
+      if (colAxis.length) {
+        let cell = n.cells.get(ckey);
+        if (!cell) { cell = accs(); n.cells.set(ckey, cell); }
+        add(cell, row);
+      }
+    }
+  }
+
+  const colList = [...columns.values()].sort(compareKeys);
+  const colKeys = colList.map(parts => parts.join(SEP));
+  const read = list => (list ? list.map(a => a.value()) : values.map(() => null));
+  const grand = read(root.total);
+  const colTotals = colKeys.map(k => read(root.cells.get(k)));
+
+  const share = (x, whole) => (x == null || whole == null || whole === 0 ? null : x / whole);
+  const shape = (cells, total) => {
+    switch (showAs) {
+      case "share_of_total": return [cells.map(c => c.map((x, k) => share(x, grand[k]))), total.map((x, k) => share(x, grand[k]))];
+      case "share_of_row": return [cells.map(c => c.map((x, k) => share(x, total[k]))), total.map((x, k) => share(x, total[k]))];
+      case "share_of_column": return [cells.map((c, j) => c.map((x, k) => share(x, colTotals[j][k]))), total.map((x, k) => share(x, grand[k]))];
+      default: return [cells, total];
+    }
+  };
+
+  const sort = view.sort ?? { by: "label" };
+  const dir = sort.dir === "desc" ? -1 : 1;
+  const sortCol = sort.by === "column" ? (sort.key ?? []).join(SEP) : null;
+  const metric = n => {
+    if (sort.by === "value") return n.total[0]?.value() ?? null;
+    if (sort.by === "column") return n.cells.get(sortCol)?.[0]?.value() ?? null;
+    return undefined;
+  };
+  const order = list => {
+    if (sort.by !== "value" && sort.by !== "column") {
+      return list.sort((a, b) => dir * compareParts(a.key.at(-1), b.key.at(-1)));
+    }
+    const m = new Map(list.map(n => [n, metric(n)]));
+    return list.sort((a, b) => {
+      const x = m.get(a), y = m.get(b);
+      if (x == null || y == null) return (x == null) - (y == null) || compareParts(a.key.at(-1), b.key.at(-1));
+      return dir * (x - y) || compareParts(a.key.at(-1), b.key.at(-1));
+    });
+  };
+
+  const rows = [];
+  const leafDepth = rowAxis.length - 1;
+  const emit = n => {
+    const isGroup = n.depth < leafDepth;
+    if (!isGroup || view.subtotals) {
+      const [cells, total] = shape(colKeys.map(k => read(n.cells.get(k))), read(n.total));
+      rows.push({ key: n.key, depth: n.depth, group: isGroup, cells, total });
+    }
+    if (isGroup) for (const c of order([...n.children.values()])) emit(c);
+  };
+  for (const c of order([...root.children.values()])) emit(c);
+
+  const [columnCells, grandShaped] = shape(colTotals, grand);
+  return {
+    columns: colList.map(key => ({ key })),
+    rows,
+    totals: { columns: columnCells, grand: grandShaped },
+    stats: {
+      rowsIn: table.rows.length,
+      rowsUsed,
+      groups: rows.filter(r => !r.group).length,
+      folded: fold ? fold.count : 0,
+      ms: Math.round((now() - t0) * 10) / 10,
+    },
+  };
+}
+
+// How a key part reads: a missing value is "(blank)", the folded column "Other".
+export const partLabel = part => (part === OTHER ? "Other" : part == null ? "(blank)" : String(part));
+
+// One CSV cell: quoted when needed, and a text that a spreadsheet would read as a
+// formula (=, +, -, @ first) is prefixed with ' so opening the file runs nothing.
+function csvCell(v) {
+  if (v == null) return "";
+  if (typeof v === "number") return String(v);
+  let s = String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+  return /[",\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
+}
+
+/**
+ * The result as CSV: one column per row field, then one per column and value,
+ * then the row totals; the last line holds the column totals. Numbers are raw
+ * (shares as fractions); a blank cell is empty. ``labels`` gives the row field
+ * labels and the value labels.
+ */
+export function toCsv(result, { rowFields = [], values = [] }) {
+  const valueHead = (prefix, k) => (values.length > 1 || !prefix ? [prefix, values[k]].filter(Boolean).join(" · ") : prefix);
+  const head = [...rowFields];
+  for (const c of result.columns) values.forEach((_, k) => head.push(valueHead(c.key.map(partLabel).join(" / "), k)));
+  values.forEach((_, k) => head.push(valueHead("Total", k)));
+  const lines = [head];
+  for (const r of result.rows) {
+    const labels = rowFields.map((_, d) => (d < r.key.length ? partLabel(r.key[d]) : d === r.key.length ? "Subtotal" : ""));
+    lines.push([...labels, ...r.cells.flat(), ...r.total]);
+  }
+  const totalLabels = rowFields.map((_, d) => (d === 0 ? "Total" : ""));
+  lines.push([...(rowFields.length ? totalLabels : []), ...result.totals.columns.flat(), ...result.totals.grand]);
+  return lines.map(l => l.map(csvCell).join(",")).join("\r\n") + "\r\n";
+}
