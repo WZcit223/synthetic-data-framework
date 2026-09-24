@@ -96,8 +96,8 @@ starts.
 |---|---|---|---|
 | 1 | [`01-effect-study.md`](01-effect-study.md) | `EffectStudy`: replicated interventions with paired effects and intervals; `POST /api/v1/effects`; `sdf effects` | MINOR 1.5.0 → 1.6.0 |
 | 2 | [`02-effects-page.md`](02-effects-page.md) | The Effects page: choose, run, and read effects with their intervals; open them in Explore | none (UI only) |
-| 3 | [`03-plugin-loader.md`](03-plugin-loader.md) | One entry-point loader in `sdf.foundation.plugins`, used by synthesizers and datasets | PATCH 1.6.0 → 1.6.1 |
-| 4 | [`04-estimators-and-benchmark.md`](04-estimators-and-benchmark.md) | Estimator plug-ins (`sdf.estimators`), the promotion benchmark, `GET /api/v1/estimators`, `POST /api/v1/causal/estimates`, `sdf estimate` | MINOR 1.6.1 → 1.7.0 |
+| 3 | [`03-plugin-loader.md`](03-plugin-loader.md) | One entry-point loader in `sdf.foundation.plugins`, used by synthesizers and datasets | MINOR 1.6.0 → 1.7.0 |
+| 4 | [`04-estimators-and-benchmark.md`](04-estimators-and-benchmark.md) | Estimator plug-ins (`sdf.estimators`), the promotion benchmark, `GET /api/v1/estimators`, `POST /api/v1/causal/estimates`, `sdf estimate` | MINOR 1.7.0 → 1.8.0 |
 | 5 | [`05-estimation-page.md`](05-estimation-page.md) | The Effects page's estimation view (estimators against the truth), and estimators in the plug-in guide | none (UI and documentation) |
 
 ## Non-goals

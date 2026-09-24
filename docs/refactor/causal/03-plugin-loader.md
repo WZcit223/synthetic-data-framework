@@ -41,5 +41,6 @@ and estimators (PR 4) use it instead of adding a third copy.
 
 ## Version
 
-`Version: PATCH 1.6.0 → 1.6.1` — a contained internal change: one reason text
-changes, nothing else a user or plug-in author can see.
+`Version: MINOR 1.6.0 → 1.7.0` — a new import path, `sdf.foundation.plugins`
+(`PluginRegistry`, `Origin`), which plug-in registries build on; the behaviour
+of the existing registries is unchanged apart from one reason text.

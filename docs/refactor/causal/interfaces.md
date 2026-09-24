@@ -353,14 +353,19 @@ class Estimator(Protocol):
   These are request problems (422 through the API).
 - **What can still fail inside an estimator** is data the checks above cannot
   rule out: a covariate that perfectly separates treated from control (no
-  overlap, for `ipw`), a constant outcome (a zero standard error), or a library
-  error. The registry turns every such case into an error, never a number:
+  overlap, for `ipw`), a computation that divides zero by zero, or a library
+  error. The rule is one test on the result, applied the same way to every
+  estimator:
   - an estimator that raises is handled as `score` handles it, as an error row;
-  - an `Estimate` with a non-finite effect or interval bound is replaced by an
-    error row naming the estimator and the value.
+  - an `Estimate` whose effect or interval bound is not a finite number (NaN,
+    infinite) is replaced by an error row naming the estimator and the value;
+  - every finite result stays.
 
-  So no table ever holds an infinite or undefined estimate. A zero-width
-  interval on a constant outcome is finite and stays.
+  So a constant outcome is not an error in itself. When treated and control
+  share one constant value, the effect is 0 with a finite zero-width interval,
+  and that row stays. If an estimator's own formula divides 0 by 0 on such
+  data, the NaN it returns becomes an error row. No table ever holds an
+  infinite or undefined estimate, and the tests cover both cases.
 - **Covariates.** Dimension covariates are one-hot encoded, dropping the first
   level. Measure covariates are used as they are.
 - **Seeds.** `seed` is used only by estimators that resample (the `ipw`
@@ -562,8 +567,15 @@ POST /api/v1/causal/estimates
   same `Param.check` the synthesizer runs use, so the form and the server agree.
 - **Limits.** Estimation runs synchronously, so its size is bounded like an
   effect study's:
-  - at most `MAX_ESTIMATE_ROWS` rows after the missing-value rule; a larger
-    dataset answers 422 naming the limit and its row count;
+  - at most `MAX_ESTIMATE_ROWS` rows. A catalogue dataset is read through a
+    bounded stream: the handler takes rows from the provider's `rows(world)`
+    iterator and stops at `MAX_ESTIMATE_ROWS + 1`, without reading or counting
+    the rest. The `+ 1` is only there to detect overflow. A dataset that
+    reaches it answers 422: "more than MAX_ESTIMATE_ROWS rows". Memory and
+    time are therefore bounded by that many rows of the provider, the same
+    rows `GET /datasets/{name}?limit=` already reads. The missing-value rule
+    applies to those rows. A provider that is slow per row is as slow here as
+    on `GET /datasets`, and no slower;
   - at most 6 estimators per request.
 
   `ipw`'s 200 bootstrap fits dominate. On the largest built-in dataset

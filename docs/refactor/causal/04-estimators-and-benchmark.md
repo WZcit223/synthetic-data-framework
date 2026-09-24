@@ -59,8 +59,11 @@ on data where the truth is known.
     fields are empty; with a zero truth `relative_bias` is empty;
   - the API's 422 and 500 cases, a failing estimator answered as a row in a
     200, and the benchmark's `params` and `question` in `GET /estimators`;
-  - the row limit's 422 and a request at the limits with six estimators that
-    finishes under 30 s;
+  - the row limit's 422, reached without reading past `MAX_ESTIMATE_ROWS + 1`
+    rows of a provider that yields endlessly, and a request at the limits with
+    six estimators that finishes under 30 s;
+  - a constant outcome giving a finite zero-width row, and an estimator
+    returning NaN giving an error row;
   - the CLI output;
   - the contract examples in §3 run as written.
 - **Hook markers.** The built-in estimators and the benchmark are stand-ins, so
@@ -105,5 +108,5 @@ on data where the truth is known.
 
 ## Version
 
-`Version: MINOR 1.6.1 → 1.7.0` — a new capability: estimator plug-ins, the
+`Version: MINOR 1.7.0 → 1.8.0` — a new capability: estimator plug-ins, the
 promotion benchmark, two endpoints and `sdf estimate`.
