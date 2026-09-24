@@ -57,6 +57,13 @@ instead of passing it on. Swapping the
 in-memory backing store for SQL / object storage / a feature store does not
 change the interface the upper layers use.
 
+`sdf.foundation.plugins` is the one plug-in loader every catalogue builds on:
+`PluginRegistry` mounts classes with an `info` class attribute from an
+entry-point group, records each one's origin (built-in, plug-in or registered
+at runtime), keeps the built-ins' names reserved, and lists what a declared
+plug-in could not mount with the reason. The synthesizer registry and the
+dataset catalogue are its subclasses, adding only their own checks and methods.
+
 ### Synthesis / Prediction Layer
 Turns a declarative `GenerationSpec` (the *reference dataset + generation
 requirements*) into a full dataset. In the framework this is a seeded stdlib sampler.

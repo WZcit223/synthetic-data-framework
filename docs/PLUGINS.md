@@ -222,7 +222,8 @@ The usual reasons:
 
 - a module in `requires` is not installed ("needs …");
 - the entry-point name differs from `info.name`;
-- the name is already taken, for example by a built-in;
+- the name is already taken, for example by a built-in (the reason names the
+  holder: "name already provided by a builtin dataset (…)");
 - a constructor argument has no default;
 - `rows` does not take the world;
 - the parameter bounds are malformed, or a default breaks its own bounds.
