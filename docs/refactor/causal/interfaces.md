@@ -684,7 +684,14 @@ from sdf.analytics.causal import score
 draw = PromotionBenchmark(confounding=1.0).draw(world)
 scores = score(draw.table, draw.question, reg,
                names=["difference-in-means", "regression-adjustment", "ipw"], true_effect=draw.true_effect)
-# spike means over 50 draws, confounding 1: truth 7.2; difference-in-means 38.1, regression-adjustment 7.7, ipw 8.1
+# scores: one row per estimator for this one draw. Its numbers vary from draw to draw; for scale, the
+# plan's spike (§ Decisions of the overview) averaged 50 seeds at confounding 1: truth 7.2,
+# difference-in-means 38.1, regression-adjustment 7.7, ipw 8.1. The 50-seed average is what PR 4's
+# acceptance measures:
+#
+#   draws = [PromotionBenchmark(confounding=1.0, seed=s).draw(world) for s in range(50)]
+#   rows = [score(d.table, d.question, reg, names=[...], true_effect=d.true_effect) for d in draws]
+#   # then the mean of each estimator's effect over the 50 tables
 ```
 
 The `estimator-scores` table, one row per estimator in `names` order, with
