@@ -255,6 +255,8 @@ test("the view's address keeps its request, and tells the effects view's apart",
   const r = defaultEstimateRequest(ESTIMATORS);
   assert.deepEqual(readEstimateHash(estimateHash(r)), { request: r });
   assert.deepEqual(readEstimateHash("#estimate"), {});
+  assert.deepEqual(readEstimateHash("#estimate="), {}); // an empty request is still this view
+  assert.equal(readEstimateHash("#estimates"), null);
   assert.equal(readEstimateHash("#request=%7B%7D"), null);
   assert.equal(readEstimateHash(""), null);
   assert.deepEqual(readEstimateHash("#estimate=%7B"), { error: "the request in this link is not valid JSON" });

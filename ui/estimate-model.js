@@ -82,9 +82,9 @@ export const estimateHash = request => "#estimate=" + encodeURIComponent(JSON.st
 
 // The request an address holds, {error} when it cannot be read, {} for the bare view, or null for another view.
 export function readEstimateHash(hash) {
-  if (hash === "#estimate") return {};
-  const m = /^#estimate=(.+)$/.exec(hash);
+  const m = /^#estimate(?:=(.*))?$/.exec(hash);
   if (!m) return null;
+  if (!m[1]) return {}; // the bare view: "#estimate" or "#estimate="
   try {
     const v = JSON.parse(decodeURIComponent(m[1]));
     return v && typeof v === "object" && !Array.isArray(v) ? { request: v } : { error: "the link holds no request" };

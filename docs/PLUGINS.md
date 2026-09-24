@@ -1,6 +1,6 @@
 # Plug-ins: your own synthesizer, dataset or estimator
 
-The framework has three plug-in points. Both are found through Python entry
+The framework has three plug-in points. All three are found through Python entry
 points, so a plug-in is an ordinary installed package; nothing in this
 repository changes when you add one.
 
