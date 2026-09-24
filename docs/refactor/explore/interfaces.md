@@ -56,7 +56,16 @@ class Table:
 ```
 
 `Field` rejects an unknown kind, a unit or aggregate on a non-measure, and a name
-that is not `lower_snake_case`. A measure without an aggregate gets `"sum"`, so
+that is not `lower_snake_case`.
+
+Every value in a row is `None` or a plain JSON scalar that matches its field's
+kind: a dimension holds a `str`; a time field holds an ISO date string
+`'YYYY-MM-DD'`; a measure holds a finite `int` or `float` (not a `bool`). A
+provider normalises its values to these (a date becomes its ISO string, an enum
+its name). `Table` checks every value when it is built and raises `ValueError`
+naming the dataset, the row index and the field, so a plug-in that returns a
+`datetime`, an object or a string in a measure fails at `build` with a clear
+message instead of breaking the JSON response or the pivot. A measure without an aggregate gets `"sum"`, so
 `Field("channel", "Channel", "dimension")` and `Field("lines", "Lines",
 "measure")` are both valid and the second one's `aggregate` is `"sum"`. `DatasetInfo` rejects duplicate field names.
 `Table` checks that every row has exactly one value per field.
@@ -330,7 +339,10 @@ the run reports every parameter it used in `run.params` and `run.repeatable`
 (`True` exactly when the synthesizer has a `seed` parameter). For a repeatable
 run, repeating it with those parameters gives the same table; a synthesizer
 without a seed parameter gives `repeatable: False`, and a client must not offer
-to reproduce its run. Every built-in has a seed parameter. A synthesizer may narrow its parameters with a
+to reproduce its run. Every built-in series and table synthesizer has a seed
+parameter. `warehouse-spec` is not evaluated (it produces a warehouse); its
+seed is `GenerationSpec.seed`, part of the world request, and the same spec
+always generates the same world. A synthesizer may narrow its parameters with a
 class attribute `param_bounds: ClassVar[dict[str, tuple[float | None, float |
 None]]]`, for example `{"jitter": (0.0, 1.0)}`; without it they are unbounded. A
 `produces="warehouse"` synthesizer takes `spec: GenerationSpec | None = None`.
@@ -420,7 +432,12 @@ curl -s -X POST localhost:8000/api/v1/synthesis/runs -H 'content-type: applicati
 
 curl -s -X POST localhost:8000/api/v1/world -H 'content-type: application/json' \
      -d '{"synthesizer": "warehouse-spec", "n_skus": 80}'
-# as today; a synthesizer that does not produce a warehouse answers 422
+# as today, plus "synthesizer": "warehouse-spec" (the generator that built the world);
+# a synthesizer that does not produce a warehouse answers 422
+
+curl -s localhost:8000/api/v1/world
+# as today, plus "synthesizer": "warehouse-spec", so a client can show and preselect
+# the generator of the current world
 ```
 
 A run answers 422 for an unknown synthesizer, a parameter it does not take or
