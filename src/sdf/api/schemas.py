@@ -498,3 +498,79 @@ class SynthesisRunResult(Model):
     metrics: dict[str, float | int | str | None]
     fields: list[FieldModel]
     rows: list[list[Any]]
+
+
+# -- causal estimates -------------------------------------------------------------------------
+
+MAX_ESTIMATORS = 6  # estimators per request
+
+
+class EstimatorEntry(Model):
+    name: str
+    description: str
+    origin: Literal["builtin", "plugin", "runtime"]
+    requires: list[str]  # modules it needs; already importable, since it is mounted
+    uses_covariates: bool
+
+
+class EstimateLimits(Model):
+    max_rows: int  # MAX_ESTIMATE_ROWS: rows read from a dataset, before the missing-value rule
+    max_estimators: int
+    max_seconds: float  # MAX_ESTIMATE_SECONDS: estimators not started by then are "not run" rows
+
+
+class QuestionModel(BaseModel):
+    """A causal question: the treatment and outcome fields, the adjustment set, the treated value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    treatment: str
+    outcome: str
+    covariates: list[str] = []
+    treated_value: str | int = 1  # text for a dimension treatment; 0 or 1 for a 0/1 measure
+
+
+class BenchmarkSpec(Model):
+    params: list[ParamModel]  # uplift, confounding, noise, seed, with the bounds PromotionBenchmark checks
+    question: QuestionModel  # the benchmark's question; a request may only drop covariates from it
+
+
+class EstimatorList(Model):
+    estimators: list[EstimatorEntry]
+    unavailable: dict[str, str]
+    limits: EstimateLimits
+    benchmark: BenchmarkSpec
+
+
+class BenchmarkRequest(BaseModel):
+    """The promotion benchmark's parameters. Their bounds are checked by PromotionBenchmark itself (422)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    uplift: float = 0.3
+    confounding: float = 1.0
+    noise: float = 0.25
+    seed: int = 7
+
+
+class EstimatesRequest(BaseModel):
+    """Estimators on the promotion benchmark, or on a catalogue dataset over the current world."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    estimators: list[str] = Field(min_length=1, max_length=MAX_ESTIMATORS)
+    benchmark: BenchmarkRequest | None = None
+    dataset: str | None = None
+    question: QuestionModel | None = None  # required with a dataset; with the benchmark, may drop covariates
+    confidence: float = 0.95  # above 0.5, below 1: checked as the estimators check it (422)
+
+
+class EstimatesResult(Model):
+    fields: list[FieldModel]
+    rows: list[list[Any]]
+    question: QuestionModel
+    true_effect: float | None  # the benchmark's exact effect; null for a dataset
+    data: TableModel | None = None  # the benchmark's observed rows, for Explore; null for a dataset
+    source: str  # "promotion-benchmark" or the dataset's name
+    world: str  # the label of the world the rows came from
+    elapsed_ms: int

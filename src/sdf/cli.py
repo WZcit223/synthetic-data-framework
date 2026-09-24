@@ -12,6 +12,7 @@ import os
 import click
 
 from . import __version__, hooks
+from .analytics.causal import CausalQuestion, default_estimators, score
 from .analytics.forecast import build_series, compare_models, models_for
 from .application.agent import WarehouseAgent
 from .application.economics import financial_impact
@@ -20,7 +21,9 @@ from .application.scenarios import run_scenarios
 from .application.snapshot import render_markdown, replace_doc_block, snapshot
 from .foundation.adapters.retail_csv import load_online_retail_csv
 from .simulation import catalog
+from .simulation.benchmark import PromotionBenchmark
 from .simulation.effects import EffectStudy
+from .simulation.world import World
 from .synthesis.materialise import build_registry
 from .synthesis.registry import default_registry
 from .synthesis.spec import GenerationSpec
@@ -356,6 +359,67 @@ def cmd_effects(
     return 0
 
 
+BUILT_IN_ESTIMATORS = ("difference-in-means", "regression-adjustment", "ipw")
+
+
+def cmd_estimate(
+    estimators: list[str],
+    *,
+    uplift: float = 0.3,
+    confounding: float = 1.0,
+    noise: float = 0.25,
+    seed: int = 7,
+    drop: list[str] | None = None,
+    confidence: float = 0.95,
+    csv_path: str | None = None,
+) -> int:
+    """Estimators scored on the promotion benchmark over the default world, against its known effect."""
+    try:
+        bench = PromotionBenchmark(uplift=uplift, confounding=confounding, noise=noise, seed=seed)
+        draw = bench.draw(World.generate(GenerationSpec()))
+        q = draw.question
+        unknown = [c for c in drop or () if c not in q.covariates]
+        if unknown:
+            raise ValueError(f"--drop {unknown[0]}: the benchmark's covariates are {list(q.covariates)}")
+        question = CausalQuestion(q.treatment, q.outcome, tuple(c for c in q.covariates if c not in (drop or ())))
+        table = score(
+            draw.table,
+            question,
+            default_estimators(),
+            names=estimators,
+            true_effect=draw.true_effect,
+            confidence=confidence,
+        )
+    except (KeyError, ValueError) as exc:
+        click.echo(f"sdf estimate: {exc.args[0] if isinstance(exc, KeyError) else exc}", err=True)
+        return 1
+    adjusted = ", ".join(question.covariates) or "nothing"
+    print(
+        f"promotion benchmark: {len(draw.table.rows)} SKUs, uplift {uplift * 100:g} %, confounding {confounding:g},"
+        f" seed {seed}; true effect {_amount(draw.true_effect, signed=True)} units/week; adjusting for {adjusted}"
+    )
+    width = max(len("estimator"), *(len(r[0]) for r in table.rows))
+    intervals = [
+        f"{_amount(r[2], signed=True)} … {_amount(r[3], signed=True)}" if r[2] is not None else "" for r in table.rows
+    ]
+    iw = max(len(f"{confidence * 100:g} % interval"), *(len(i) for i in intervals))
+    print(f"{'estimator':<{width}}{'effect':>10}   {f'{confidence * 100:g} % interval':<{iw}}{'bias':>10}   covers")
+    for r, interval in zip(table.rows, intervals):
+        if r[1] is None:
+            print(f"{r[0]:<{width}}   error: {r[11]}")
+            continue
+        print(
+            f"{r[0]:<{width}}{_amount(r[1], signed=True):>10}   {interval:<{iw}}{_amount(r[5], signed=True):>10}   {r[7] or ''}"
+        )
+    if csv_path:
+        with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh)
+            writer.writerow([f.name for f in table.info.fields])
+            writer.writerows(table.rows)
+        print(f"\nwrote {csv_path}")
+    return 0
+
+
 def _grouped(rows: list[tuple]) -> list[tuple[tuple[str, str], list[tuple]]]:
     groups: dict[tuple[str, str], list[tuple]] = {}
     for r in rows:
@@ -565,6 +629,68 @@ def effects(
     """Effects of interventions against the baseline, with intervals, over paired replicate worlds."""
     if cmd_effects(list(interventions), list(policies), list(outcomes), replicates, confidence, csv_path):
         raise click.exceptions.Exit(1)
+
+
+@main.command()
+@click.option(
+    "--estimator",
+    "estimators",
+    multiple=True,
+    default=BUILT_IN_ESTIMATORS,
+    show_default=True,
+    help="An estimator to score (repeatable); see GET /api/v1/estimators for what is mounted.",
+)
+@click.option("--uplift", default=0.3, show_default=True, type=float, help="The promotion's true uplift, -0.9 to 3.")
+@click.option(
+    "--confounding",
+    default=1.0,
+    show_default=True,
+    type=float,
+    help="How strongly high-demand SKUs are promoted, 0 (random) to 3.",
+)
+@click.option("--noise", default=0.25, show_default=True, type=float, help="Lognormal noise of weekly units, 0 to 1.")
+@click.option("--seed", default=7, show_default=True, type=int, help="The benchmark draw's seed.")
+@click.option(
+    "--drop",
+    multiple=True,
+    help="Leave this covariate out of the adjustment set (repeatable), to watch the bias return.",
+)
+@click.option(
+    "--confidence",
+    default=0.95,
+    show_default=True,
+    type=float,
+    help="The intervals' confidence, above 0.5 and below 1.",
+)
+@click.option(
+    "--csv",
+    "csv_path",
+    type=click.Path(dir_okay=False, writable=True),
+    help="Also write the scores table to this CSV file.",
+)
+def estimate(
+    estimators: tuple[str, ...],
+    uplift: float,
+    confounding: float,
+    noise: float,
+    seed: int,
+    drop: tuple[str, ...],
+    confidence: float,
+    csv_path: str | None,
+) -> None:
+    """Causal estimators scored against the known effect of the promotion benchmark."""
+    code = cmd_estimate(
+        list(estimators),
+        uplift=uplift,
+        confounding=confounding,
+        noise=noise,
+        seed=seed,
+        drop=list(drop),
+        confidence=confidence,
+        csv_path=csv_path,
+    )
+    if code:
+        raise click.exceptions.Exit(code)
 
 
 @main.command()

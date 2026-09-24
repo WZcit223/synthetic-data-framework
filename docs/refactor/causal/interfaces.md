@@ -496,7 +496,8 @@ class Estimator(Protocol):
     therefore refused for a dimension, with the values seen listed: "priority
     has values ['express', 'standard']; set treated_value to one of them".
     The question is never silently all-control;
-  - an outcome that is not a measure, or a covariate that is a time field;
+  - an outcome that is not a measure, or the treatment itself as the outcome;
+  - a covariate that is a time field;
   - a covariate that is the treatment or the outcome itself, or a duplicate
     covariate name. Adjusting for the outcome would leak it into the
     estimate. Whether a covariate is measured before the treatment cannot be
@@ -520,8 +521,9 @@ class Estimator(Protocol):
     message names the encoded columns of a dependency, for example
     "log_price equals log_price_copy", or "log_demand is 2 × log_units"
     for any exact linear combination. The first level dropped by the
-    encoding is the first level present among the kept rows, so a level
-    absent from them never produces a column.
+    encoding is the first level present among the kept rows, in the order
+    the rows present them (not sort order), so a level absent from them
+    never produces a column.
 
   Every refusal above except the last concerns the question itself, whatever
   the estimator. It is a request problem: `design` raises `ValueError`, and
@@ -542,6 +544,8 @@ class Estimator(Protocol):
   - an estimator that raises is handled as `score` handles it, as an error row;
   - an `Estimate` whose effect or interval bound is not a finite number (NaN,
     infinite) is replaced by an error row naming the estimator and the value;
+  - so is one whose `estimator` is not the name it was run under, since
+    `score` gives one row per requested name;
   - every finite result stays.
 
   So a constant outcome is not an error in itself. When treated and control
@@ -677,6 +681,7 @@ class PromotionBenchmark:
         "uplift": (-0.9, 3.0),
         "confounding": (0.0, 3.0),
         "noise": (0.0, 1.0),
+        "seed": (0, None),       # numpy's generator takes a non-negative integer
     }
 
     @classmethod
@@ -849,6 +854,9 @@ POST /api/v1/causal/estimates
   `benchmark` and `dataset`, or a benchmark value outside
   the bounds `GET /estimators` publishes. The server checks each value with the
   same `Param.check` the synthesizer runs use, so the form and the server agree.
+  The question's field checks (`check_question`: names and kinds) run against
+  the dataset's fields before any row is read; the checks that need rows run
+  after the bounded read.
 - **One world per request.** The handler reads `store.current` once, at the
   start, and uses that snapshot's world for the whole request. The benchmark
   draw, the catalogue dataset's rows, and the response's metadata all come
@@ -869,7 +877,13 @@ POST /api/v1/causal/estimates
 
     So memory holds at most `MAX_ESTIMATE_ROWS` rows, the same rows
     `GET /datasets/{name}?limit=` already reads. The provider is asked for at
-    most `MAX_ESTIMATE_ROWS + 1` rows. It does not bound time. A
+    most `MAX_ESTIMATE_ROWS + 1` rows. It does not bound time. Both bounds
+    hold for a provider that yields its rows, as the built-ins do. One that
+    returns a built list has built it whole before the first check, so for
+    it only what is kept and checked is bounded. The deadline is checked as
+    soon as `rows(world)` returns, between rows, and once more when the read
+    ends, so a provider that stalls before or after its rows is refused too
+    (§5, plug-in code is best effort). A
     provider can be slow per row, so the stream also checks the request's
     deadline between rows (§5). The missing-value rule then drops rows from
     those read, and the at-least-two-treated-and-control check applies to

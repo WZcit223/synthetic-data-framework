@@ -14,7 +14,7 @@ from sdf.foundation.tables import DatasetInfo, Field
 from sdf.simulation.world import World
 from sdf.synthesis.registry import DISTRIBUTION
 from sdf.synthesis.spec import GenerationSpec
-from .datasets import DatasetCatalog, default_datasets
+from .datasets import DatasetCatalog, ReadDeadline, default_datasets
 
 
 @pytest.fixture(scope="module")
@@ -250,3 +250,19 @@ def test_plug_ins_mount_and_a_broken_or_clashing_one_is_listed_not_raised(monkey
     assert "needs a rows(world) method" in problems["rows-without-world"]
     # loading again, an entry point with extras included, changes nothing
     assert cat.load_entry_points() == [] and cat.unavailable() == problems
+
+
+def test_read_keeps_the_limit_and_asks_for_one_probe_row_only(world):
+    cat = DatasetCatalog()
+    cat.register(Counter)
+    Counter.yielded = 0
+    table, more = cat.read("counter", world, limit=5)
+    assert [r[0] for r in table.rows] == [0, 1, 2, 3, 4] and more
+    assert Counter.yielded == 6  # five kept, one probe, nothing further
+    small = default_datasets()
+    table, more = small.read("skus", world, limit=10_000)
+    assert not more and len(table.rows) == len(world.stream("SKU"))
+    with pytest.raises(ReadDeadline, match="dataset skus did not deliver its rows in time"):
+        small.read("skus", world, limit=10_000, deadline=0.0)
+    with pytest.raises(ValueError, match="limit must be at least 1"):
+        small.read("skus", world, limit=0)

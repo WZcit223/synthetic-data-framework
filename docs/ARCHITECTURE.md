@@ -133,6 +133,19 @@ world for the same spec, and that custom interventions are deterministic and
 leave their input alone. It compares copies of the rows taken before the next
 call.
 
+The simulator knows the true effect of what it simulates; observational data
+does not. `sdf.analytics.causal` estimates an average treatment effect from
+rows: a `CausalQuestion` names the treatment, the outcome and the adjustment
+set (the user's claim, never discovered), `design` prepares the rows once with
+every refusal named, and estimators are plug-ins in the `sdf.estimators` group
+(the built-ins `difference-in-means`, `regression-adjustment` and `ipw`; with
+the `causal` extra, `dowhy-backdoor` and `econml-dml`). `score` runs several on
+the same rows and turns a failing one into a row of its own. The promotion
+benchmark (`sdf.simulation.benchmark`) puts a declared promotion mechanism on
+the world's SKUs, favouring high demand, so the true effect is exact and each
+estimator can be scored against it. The contract is in
+[`refactor/causal/interfaces.md`](refactor/causal/interfaces.md) §3.
+
 Its size is bounded twice:
 - a work budget, fixed before any world is generated;
 - a cooperative 30 s deadline, checked before every generation and
@@ -149,7 +162,10 @@ immutable snapshot that `POST /api/v1/world` swaps in one step, and
 `POST /api/v1/experiments` exposes the simulation layer by name.
 `POST /api/v1/effects` runs an effect study on the current world's spec and
 generator, with the held world as replicate 0. With `check_only`, it answers
-the work budget without generating anything.
+the work budget without generating anything. `GET /api/v1/estimators` lists
+the estimators, the request limits and the benchmark's parameters, and
+`POST /api/v1/causal/estimates` scores estimators on the benchmark or on a
+catalogue dataset over the current world.
 
 **Tables.** Data leaves the backend as tables: typed fields
 (`sdf.foundation.tables.Field`: a dimension to group by, a time as an ISO date,
