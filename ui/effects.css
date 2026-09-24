@@ -1,0 +1,55 @@
+/* The Effects page. Colours come from the tokens in style.css, chart colours from palette.js;
+   the form reuses the experiment form of explore.css. */
+.lead-text{color:var(--muted);max-width:980px;margin:0 0 16px}
+@media(min-width:1100px){.studygrid{grid-template-columns:minmax(180px,1fr) minmax(400px,2fr) minmax(180px,1fr) minmax(180px,1fr)}}
+.expform .hint{font-size:11px;color:var(--muted);min-height:15px;margin-top:4px}
+.expform .ctrl{margin-bottom:8px}
+.expform #replicates{width:96px}
+.expform #confidence{width:96px}
+.expform input[aria-invalid=true]{border-color:var(--bad)}
+.exprun{flex-wrap:wrap}
+.budget{flex:1;min-width:260px;max-width:720px}
+.budget .meter{height:6px;border-radius:3px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
+.budget .meter span{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.budget.over .meter span{background:var(--bad)}
+.budget .btext{font-size:12px;margin-top:5px}
+.budget.over .btext,.budget.error .btext{color:var(--bad)}
+
+.result{margin-top:16px}
+.result.busy>*{opacity:.45;transition:opacity .15s}
+.notice{padding:14px 16px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);margin:12px 0}
+.notice.bad{border-color:var(--bad)}
+.runline{font-size:12.5px;color:var(--muted);margin:0 0 4px}
+.runline b{color:var(--ink);font-weight:600}
+.headline{font-size:15px;margin:8px 0 2px}
+.headline b{font-weight:650}
+
+.legend.effects{padding:10px 0 2px}
+.legend svg{display:block}
+.metrics{display:grid;grid-template-columns:minmax(0,1fr);gap:4px 22px;margin-top:6px}
+.metrics.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.metric{padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.metric h3,.section h3{font-size:13px;margin:0 0 6px;font-weight:600}
+.metric h3 .muted{font-weight:500}
+svg.chart .band:focus .hit{stroke:var(--accent);stroke-width:1}
+svg.chart .band:hover .hit{fill:rgba(255,255,255,.03)}
+svg.chart .zero{stroke:#8b98a9;stroke-width:1;shape-rendering:crispEdges}
+svg.chart .covers{fill:var(--muted);font-size:10px}
+svg.chart .label{fill:var(--ink)}
+
+details.tableview{margin-top:4px;font-size:12.5px}
+details.tableview summary{color:var(--muted);cursor:pointer;width:max-content}
+details.tableview summary:hover{color:var(--ink)}
+.tablewrap{overflow-x:auto;margin-top:6px}
+table.effects{border-collapse:collapse;width:100%;font-size:12.5px}
+table.effects th,table.effects td{padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:left}
+table.effects th{color:var(--muted);font-weight:600;background:var(--panel2)}
+table.effects .num{text-align:right;font-variant-numeric:tabular-nums}
+table.effects tr.covers td{color:var(--muted)}
+table.effects tr.covers td.reading{font-style:italic}
+
+.section{margin-top:18px;padding-top:12px;border-top:1px solid var(--line)}
+.section .pick{display:flex;gap:10px;align-items:center;margin:0 0 6px;font-size:12.5px;flex-wrap:wrap}
+.section .note{margin:2px 0 8px}
+.actions{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap}
+.actions .muted{font-size:12.5px}

@@ -37,7 +37,8 @@ FastAPI; works offline):
 ```bash
 uv sync --extra api
 SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app --reload
-# open http://127.0.0.1:8000 (dashboard), http://127.0.0.1:8000/explore.html (Explore)
+# open http://127.0.0.1:8000 (dashboard), http://127.0.0.1:8000/explore.html (Explore),
+# http://127.0.0.1:8000/effects.html (Effects)
 # or http://127.0.0.1:8000/api/v1/docs (API)
 ```
 
@@ -58,6 +59,14 @@ The **Synthesizers** page lists them, runs any series or table synthesizer on
 the sample data with the parameters you choose, and shows its scores with real
 and synthetic data charted together; "Open in Explore" pivots the same run. The
 dashboard's **Generator** choice picks the synthesizer that builds the world.
+
+The **Effects** page answers "what happens if we take this action": it runs an
+effect study (`POST /api/v1/effects`) on the dashboard's current world, with the
+interventions, policies, outcomes and replicates you choose, and draws each
+effect with its confidence interval, one chart per metric. An interval that
+covers 0 is greyed and labelled "not distinguishable from 0". The work budget is
+the server's answer while you edit, the page address keeps the study, and "Open
+in Explore" pivots the effects or every replicate's paired difference.
 Writing your own synthesizer or dataset is described in
 [`docs/PLUGINS.md`](docs/PLUGINS.md).
 

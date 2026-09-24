@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Effects — Synthetic Data Framework</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="explore.css" />
+<link rel="stylesheet" href="effects.css" />
+</head>
+<body>
+<header>
+  <h1>🧩 Synthetic Data Framework</h1>
+  <nav class="nav" aria-label="Pages">
+    <a href="index.html">Dashboard</a>
+    <a href="explore.html">Explore</a>
+    <a href="synthesizers.html">Synthesizers</a>
+    <a href="effects.html" aria-current="page">Effects</a>
+  </nav>
+  <div class="layers">
+    <span class="badge" style="border-color:var(--warn);color:var(--warn)">synthetic demo data</span>
+  </div>
+</header>
+
+<main class="wide">
+  <p class="lead-text">What happens if we take an action? Each intervention is compared with the baseline on
+    paired replicate worlds of the dashboard's current world: every pair shares a seed, and the effect is the
+    mean of the paired differences, with a confidence interval. An interval that covers 0 means the
+    simulation cannot tell the effect apart from no effect.</p>
+
+  <section class="card expform" aria-label="Effect study request">
+    <form id="study" novalidate>
+      <div class="expgrid studygrid">
+        <fieldset>
+          <legend>Interventions</legend>
+          <div id="interventions" class="checks"></div>
+          <div class="hint">each compared with the baseline</div>
+        </fieldset>
+        <fieldset class="policyset">
+          <legend>Policies</legend>
+          <div id="policies"></div>
+          <button type="button" id="addPolicy">+ Add policy</button>
+        </fieldset>
+        <fieldset>
+          <legend>Outcomes</legend>
+          <div id="outcomes" class="checks"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Replicates and interval</legend>
+          <div class="ctrl"><label for="replicates">Replicates</label>
+            <input id="replicates" type="number" min="2" step="1" value="10" />
+            <div class="hint" id="replicatesHint"></div></div>
+          <div class="ctrl"><label for="confidence">Confidence</label>
+            <select id="confidence"></select></div>
+        </fieldset>
+      </div>
+      <div class="exprun">
+        <button type="submit" class="primary" id="run" disabled>Run study</button>
+        <div class="budget" id="budget" aria-live="polite">
+          <div class="meter" aria-hidden="true"><span></span></div>
+          <div class="btext muted">Checking the work budget…</div>
+        </div>
+      </div>
+    </form>
+  </section>
+
+  <section class="result" id="result" aria-live="polite">
+    <div class="notice">Choose the interventions and what to measure, then run the study.</div>
+  </section>
+</main>
+
+<div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+
+<script type="module" src="effects.js"></script>
+</body>
+</html>

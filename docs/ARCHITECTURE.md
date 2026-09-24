@@ -170,13 +170,17 @@ helper whose base URL is configurable, so it can be served by `create_app(ui_dir
 during development or hosted anywhere else. The contract is in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §4.
 
-The pages are ES modules. `ui/common.js` holds what both pages share (`api()`,
+The pages are ES modules. `ui/common.js` holds what every page shares (`api()`,
 escaping, number formatting); the dashboard is `index.html` with `app.js`, the
 Explore page `explore.html` with `explore.js`. The pivot engine (`pivot.js`),
 the chart drawing (`chart.js`) and the chart colours (`palette.js`) are
 separate modules; the Synthesizers page is `synthesizers.html` with
 `synthesizers.js`, its pure helpers (parameter input, distribution comparison)
-in `synthesis.js`; the engine, the colours and the formatting touch no DOM and
+in `synthesis.js`; the Effects page is `effects.html` with `effects.js`, its pure
+helpers (reading an interval, each chart's axis, the request and its link) in
+`effects-model.js`; the sources an Explore link may name are checked by
+`sources.js`, shared by the pages that build links and the Explore page that
+opens them. The engine, the colours and the formatting touch no DOM and
 are tested with `node --test ui/*.test.js`. No page has an inline event
 handler; each script registers its own. The pivot contract is in
 [`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §3.

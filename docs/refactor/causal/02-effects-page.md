@@ -1,6 +1,24 @@
 # PR 2 — The Effects page
 
-> Status: planned (causal modelling sequence PR 2).
+> Status: implemented (causal modelling sequence PR 2). In Chromium the study
+> of PR 1's acceptance shows the numbers `sdf effects` prints: `holding_cost`
+> +79 790 (+72 247 to +87 333) above 0, `unmet_units` −0.263 (−1.39 to +0.866)
+> not distinguishable from 0. It reads without horizontal scrolling from 700 to
+> 1440 px, with no failed request and no console error.
+>
+> What the page adds beyond the list below:
+> - Numbers print as `sdf effects` prints them (grouped from 100 up, else three
+>   significant digits), not with Explore's two decimals, so a small effect such
+>   as `fill_rate`'s +6.79e−6 never reads as 0.00.
+> - The source check moved out of `explore.js` into `ui/sources.js`, so the
+>   link round-trip test runs the Explore page's own validator.
+> - A link naming what the installation does not offer fills the form without
+>   it, names what was left out, and waits for the user instead of running.
+> - The two chart colours are the first series hue and the neutral grey of
+>   the folded tail. On the dark surface they separate by ΔE 15.4 for normal
+>   and colour-blind vision and both clear 3:1 contrast. The validator's
+>   chroma floor flags the grey, which is the intent: a muted mark for "not
+>   distinguishable from 0", always also labelled in text.
 
 Contract: [`interfaces.md`](interfaces.md) §1.3 to §1.5; tables per
 [`../explore/interfaces.md`](../explore/interfaces.md) §1.
