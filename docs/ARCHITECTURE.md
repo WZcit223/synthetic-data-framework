@@ -49,7 +49,11 @@ algorithm team works independently against a stable interface.
 Defines the canonical entities (`SKU`, `Location`, `InventorySnapshot`,
 `InboundOrder`, `OutboundOrder`, `SensorReading`) and a `DataSourceRegistry`.
 The registry is the **multi-source overlay** seam: synthetic and real feeds are
-interchangeable because both must satisfy the same schema. Swapping the
+interchangeable because both must satisfy the same schema. Each entity checks
+its fields when it is built (identifiers non-empty, amounts finite and not
+negative, enumerated fields within the sets `schema.py` defines), so an adapter
+counts a source row it cannot turn into a valid record as `invalid_record`
+instead of passing it on. Swapping the
 in-memory backing store for SQL / object storage / a feature store does not
 change the interface the upper layers use.
 

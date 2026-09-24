@@ -88,12 +88,14 @@ def load_online_retail_csv(
 ) -> tuple[list[SKU], list[OutboundOrder], LoadReport]:
     """Read the CSV and return canonical ``(skus, outbound_orders, report)``.
 
-    Rows that cannot be used are skipped and counted by reason in ``report``.
+    Rows that cannot be used are skipped and counted by reason in ``report``;
+    a row whose values fail the entity checks (such as a negative price) is
+    counted as ``invalid_record``.
 
     Negative quantities (returns) become ``status="cancelled"`` orders so demand
     logic that already filters cancelled lines stays correct.
     """
-    skus: dict = {}
+    skus: dict[str, SKU] = {}
     orders: list[OutboundOrder] = []
     report = LoadReport(path=path)
     with open(path, newline="", encoding="utf-8-sig") as fh:
@@ -107,7 +109,7 @@ def load_online_retail_csv(
             try:
                 qty = int(float(row.get("Quantity")))  # None (truncated row) -> TypeError
                 price = float(row.get("Price", row.get("UnitPrice", "0")) or 0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):  # int(float("inf")) overflows
                 report.skip("non-numeric Quantity or Price")
                 continue
             if qty == 0:
@@ -118,10 +120,8 @@ def load_online_retail_csv(
             except ValueError:
                 report.skip("unparseable InvoiceDate")
                 continue
-            report.rows_kept += 1
-
-            if code not in skus:
-                skus[code] = SKU(
+            try:
+                sku = skus.get(code) or SKU(
                     sku_id=code,
                     name=(row.get("Description") or code).strip()[:60],
                     category="retail",
@@ -129,10 +129,9 @@ def load_online_retail_csv(
                     unit_price=price,
                     weight_kg=0.1,
                     volume_m3=0.001,
-                    abc_class="?",  # assigned downstream if needed
+                    abc_class="?",  # unclassified: the source carries no velocity class
                 )
-            orders.append(
-                OutboundOrder(
+                order = OutboundOrder(
                     order_id=f"{row.get('Invoice', 'INV')}-{i}",
                     ts=ts,
                     sku_id=code,
@@ -141,7 +140,12 @@ def load_online_retail_csv(
                     priority="standard",
                     status="shipped" if qty > 0 else "cancelled",
                 )
-            )
+            except ValueError:
+                report.skip("invalid_record")
+                continue
+            report.rows_kept += 1
+            skus[code] = sku
+            orders.append(order)
     report.skus, report.orders = len(skus), len(orders)
     return list(skus.values()), orders, report
 

@@ -6,7 +6,7 @@ import pytest
 
 from sdf.synthesis.spec import GenerationSpec
 from . import warehouse_pipeline
-from .pipeline import Step
+from .pipeline import RUN_KEY, Pipeline, Step, WarehouseRun
 
 
 def test_pipeline_dag():
@@ -42,3 +42,21 @@ def test_real_csv_run_keeps_load_report_and_skip_reason(sample_csv):
 def test_synthetic_run_reports_the_saving():
     res = warehouse_pipeline(GenerationSpec(n_skus=60, horizon_days=45)).run()
     assert "annual_saving" in res["artifacts"]["report"]["economics"]
+
+
+def test_initial_context_may_not_shadow_a_step_output():
+    pipe = Pipeline([Step("load", lambda ctx: 1)])
+    assert pipe.run({"seed": 7})["artifacts"] == {"load": 1}
+    with pytest.raises(ValueError, match=r"\['load'\]"):
+        pipe.run({"load": 0})
+
+
+def test_steps_share_a_typed_run_state():
+    seen = {}
+    pipe = warehouse_pipeline(GenerationSpec(n_skus=60, horizon_days=45))
+    pipe.steps["report"].run = lambda ctx: seen.setdefault("run", ctx[RUN_KEY])
+    pipe.run()
+    run = seen["run"]
+    assert isinstance(run, WarehouseRun)
+    assert run.warehouse is not None and run.intel is not None
+    assert run.intel.reg is run.registry
