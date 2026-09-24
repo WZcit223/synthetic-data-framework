@@ -42,7 +42,10 @@ uv run sdf privacy [csv]        # DCR / NNDR / clone-risk
 uv run sdf hooks                # where each checklist item plugs into the code
 ```
 
-`[csv]` defaults to `data/sample_online_retail_ii.csv`.
+`[csv]` defaults to `data/sample_online_retail_ii.csv`. `agent` and `pipeline`
+take `--audit-log PATH`, which appends the run's full log to a JSONL file: every
+input and output whole, then a summary line. The trace they print is shortened
+for reading.
 
 ## 4. The API + dashboard
 

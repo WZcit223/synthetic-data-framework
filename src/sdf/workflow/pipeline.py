@@ -78,15 +78,15 @@ class Pipeline:
         clash = sorted(set(ctx) & set(self.steps))
         if clash:
             raise ValueError(f"initial context keys {clash} collide with step names; step outputs use those keys")
-        log = RunLogger(self.name, sink_path=sink_path)
         artifacts: dict[str, Any] = {}
-        for name in self._order:
-            step = self.steps[name]
-            with log.step("step", name, inputs={"depends_on": step.depends_on}) as box:
-                art = step.run(ctx)
-                artifacts[name] = art
-                ctx[name] = art
-                box["output"] = art
+        with RunLogger(self.name, sink_path=sink_path) as log:
+            for name in self._order:
+                step = self.steps[name]
+                with log.step("step", name, inputs={"depends_on": step.depends_on}) as box:
+                    art = step.run(ctx)
+                    artifacts[name] = art
+                    ctx[name] = art
+                    box["output"] = art
         return {
             "pipeline": self.name,
             "order": self._order,
