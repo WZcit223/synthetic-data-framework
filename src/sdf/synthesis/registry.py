@@ -25,7 +25,7 @@ from .api import Produces, Synthesizer, SynthesizerInfo
 
 ENTRY_POINT_GROUP = "sdf.synthesizers"
 DISTRIBUTION = "synthetic-data-framework"  # entry points declared by this package are the built-ins
-_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+_NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
 Origin = Literal["builtin", "plugin", "runtime"]
 
@@ -50,7 +50,7 @@ class SynthesizerRegistry:
         info = getattr(cls, "info", None)
         if not isinstance(info, SynthesizerInfo):
             raise TypeError(f"{getattr(cls, '__name__', cls)!r} has no SynthesizerInfo `info` class attribute")
-        if not _NAME.match(info.name):
+        if not _NAME.fullmatch(info.name):
             raise ValueError(f"synthesizer name {info.name!r} must be lower-case words joined by dashes")
         if info.produces not in get_args(Produces):
             raise ValueError(f"{info.name}: produces must be one of {list(get_args(Produces))}, got {info.produces!r}")

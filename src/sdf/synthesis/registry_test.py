@@ -208,7 +208,11 @@ def test_duplicate_name_needs_replace():
 
 @pytest.mark.parametrize(
     ("name", "produces", "message"),
-    [("Bad Name", "series", "lower-case words joined by dashes"), ("ok-name", "image", "produces must be one of")],
+    [
+        ("Bad Name", "series", "lower-case words joined by dashes"),
+        ("ok-name\n", "series", "lower-case words joined by dashes"),
+        ("ok-name", "image", "produces must be one of"),
+    ],
 )
 def test_metadata_is_validated(name, produces, message):
     bad = type("Bad", (ShuffleSeries,), {"info": SynthesizerInfo(name, produces, True, "x")})  # type: ignore[arg-type]

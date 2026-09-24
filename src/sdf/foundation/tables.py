@@ -17,8 +17,8 @@ from typing import Any, Literal, get_args
 Kind = Literal["dimension", "time", "measure"]
 Aggregate = Literal["sum", "mean", "min", "max"]
 
-_FIELD_NAME = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
-_DATASET_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+_FIELD_NAME = re.compile(r"[a-z][a-z0-9]*(_[a-z0-9]+)*")
+_DATASET_NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ class Field:
     aggregate: Aggregate | None = None  # measures only: the aggregation a pivot selects first
 
     def __post_init__(self) -> None:
-        if not _FIELD_NAME.match(self.name):
+        if not _FIELD_NAME.fullmatch(self.name):
             raise ValueError(f"field name {self.name!r} must be lower_snake_case")
         if self.kind not in get_args(Kind):
             raise ValueError(f"field {self.name}: kind must be one of {list(get_args(Kind))}, got {self.kind!r}")
@@ -81,7 +81,7 @@ class DatasetInfo:
     fields: tuple[Field, ...]
 
     def __post_init__(self) -> None:
-        if not _DATASET_NAME.match(self.name):
+        if not _DATASET_NAME.fullmatch(self.name):
             raise ValueError(f"dataset name {self.name!r} must be lower-case words joined by dashes")
         if not isinstance(self.fields, tuple) or not all(isinstance(f, Field) for f in self.fields):
             raise TypeError(f"dataset {self.name}: fields must be a tuple of Field")

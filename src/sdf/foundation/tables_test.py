@@ -32,6 +32,7 @@ def test_a_measure_defaults_to_sum_and_a_dimension_has_no_aggregate():
     ("kwargs", "message"),
     [
         ({"name": "Channel", "label": "x", "kind": "dimension"}, "lower_snake_case"),
+        ({"name": "channel\n", "label": "x", "kind": "dimension"}, "lower_snake_case"),
         ({"name": "channel", "label": "x", "kind": "category"}, "kind must be one of"),
         ({"name": "channel", "label": "x", "kind": "dimension", "unit": "units"}, "only a measure"),
         ({"name": "day", "label": "x", "kind": "time", "aggregate": "sum"}, "only a measure"),
@@ -46,6 +47,8 @@ def test_field_rejects_what_it_cannot_describe(kwargs, message):
 def test_dataset_info_rejects_a_bad_name_and_duplicate_fields():
     with pytest.raises(ValueError, match="dashes"):
         DatasetInfo(name="Order_Lines", label="x", description="x", fields=())
+    with pytest.raises(ValueError, match="dashes"):
+        DatasetInfo(name="order-lines\n", label="x", description="x", fields=())
     with pytest.raises(ValueError, match=r"duplicate field names \['qty'\]"):
         _info(Field("qty", "Qty", "measure"), Field("qty", "Qty again", "measure"))
     with pytest.raises(TypeError, match="tuple of Field"):
