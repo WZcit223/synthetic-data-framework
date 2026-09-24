@@ -71,9 +71,11 @@ def test_a_row_that_fails_the_entity_checks_is_an_invalid_record(tmp_path):
         "1,A1,ok,2,2010-01-04 10:00:00,1.5,1,UK\n"
         "2,A2,bad debt,1,2010-01-04 10:00:00,-11062.06,1,UK\n"
         "3,A3,no price,1,2010-01-04 10:00:00,nan,1,UK\n"
+        "5,A5,infinite price,1,2010-01-04 10:00:00,inf,1,UK\n"
+        "6,A6,infinite qty,inf,2010-01-04 10:00:00,1.5,1,UK\n"
         "4,A1,later row of a kept SKU,3,2010-01-04 11:00:00,-1,1,UK\n",
     )
     skus, orders, report = load_online_retail_csv(path)
     assert [s.sku_id for s in skus] == ["A1"]
     assert [o.quantity for o in orders] == [2, 3]  # only a new SKU's own values are checked against its price
-    assert report.skipped == {"invalid_record": 2}
+    assert report.skipped == {"invalid_record": 3, "non-numeric Quantity or Price": 1}

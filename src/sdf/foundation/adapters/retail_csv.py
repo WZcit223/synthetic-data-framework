@@ -109,7 +109,7 @@ def load_online_retail_csv(
             try:
                 qty = int(float(row.get("Quantity")))  # None (truncated row) -> TypeError
                 price = float(row.get("Price", row.get("UnitPrice", "0")) or 0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):  # int(float("inf")) overflows
                 report.skip("non-numeric Quantity or Price")
                 continue
             if qty == 0:
