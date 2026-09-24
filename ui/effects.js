@@ -25,7 +25,9 @@ const state = {
   timer: 0,
   budget: { pending: true }, // the budget line's last state
   budgetKey: "", // the form's request the latest budget answer is for
-  running: false, // a study is in flight: Run stays disabled whatever the budget says
+  running: false,
+  policyRows: 0, // policy rows made so far, for their label ids
+  loadSeq: 0, // the latest address loaded; a slower earlier one never runs // a study is in flight: Run stays disabled whatever the budget says
   drawnWidth: 0,
   written: "", // the last #request= this page wrote
 };
@@ -54,16 +56,18 @@ function addPolicyRow(p = {}) {
   const kind = cat.policies.some(c => c.kind === p.kind) ? p.kind : cat.policies[0].kind;
   const row = document.createElement("div");
   row.className = "policy";
+  row.dataset.n = String(++state.policyRows); // a unique id for each row's labels
   const drawParams = k => {
     const spec = cat.policies.find(c => c.kind === k);
     row.querySelector(".params").innerHTML = spec.params.map(pr => {
       const val = p.kind === k && p[pr.name] != null ? p[pr.name] : pr.default;
       const bounds = pr.exclusive ? "" : `${pr.min != null ? ` min="${esc(pr.min)}"` : ""}${pr.max != null ? ` max="${esc(pr.max)}"` : ""}`;
-      return `<div class="ctrl"><label>${esc(pr.name.replaceAll("_", " "))}</label>`
-        + `<input type="number" data-param="${esc(pr.name)}" value="${esc(val)}" step="${pr.type === "int" ? 1 : 0.005}"${bounds}/></div>`;
+      const id = `policy-${row.dataset.n}-${pr.name}`;
+      return `<div class="ctrl"><label for="${esc(id)}">${esc(pr.name.replaceAll("_", " "))}</label>`
+        + `<input id="${esc(id)}" type="number" data-param="${esc(pr.name)}" value="${esc(val)}" step="${pr.type === "int" ? 1 : 0.005}"${bounds}/></div>`;
     }).join("");
   };
-  row.innerHTML = `<div class="ctrl"><label>Policy</label><select class="kind-select">${cat.policies.map(c => `<option ${c.kind === kind ? "selected" : ""}>${esc(c.kind)}</option>`).join("")}</select></div>`
+  row.innerHTML = `<div class="ctrl"><label for="policy-${row.dataset.n}">Policy</label><select id="policy-${row.dataset.n}" class="kind-select">${cat.policies.map(c => `<option ${c.kind === kind ? "selected" : ""}>${esc(c.kind)}</option>`).join("")}</select></div>`
     + `<span class="params" style="display:contents"></span><button type="button" class="remove-policy" aria-label="Remove this policy">×</button>`;
   $("#policies").append(row);
   drawParams(kind);
@@ -385,6 +389,7 @@ function dotTip(r, color) {
 
 async function loadFromAddress() {
   // a new address is a new study: the previous result, and any run still in flight, no longer apply
+  const load = ++state.loadSeq;
   state.runSeq++;
   state.running = false;
   state.result = null;
@@ -407,6 +412,7 @@ async function loadFromAddress() {
   if (!link?.request) return;
   // a link reproduces its study, once the server says it is within budget; else the budget line says why not
   const answer = await budget;
+  if (load !== state.loadSeq) return; // another address was opened meanwhile
   if (answer?.within_budget && state.budgetKey === asked) run(readForm()); // unless the user edited meanwhile
   else if (answer && !answer.within_budget) {
     $("#result").innerHTML = `<div class="notice bad"><b>This link's study is over the work budget,</b> so it was not run. Lower the replicates or the lists, then run it.</div>`;
