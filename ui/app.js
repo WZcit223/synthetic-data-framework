@@ -275,26 +275,43 @@ async function loadLimits(){
   }
 }
 
+// The warehouse generators this server offers; the current world's is preselected and named.
+async function loadGenerators(){
+  let catalogue, world;
+  try { [catalogue, world] = await Promise.all([api("/synthesizers"), api("/world")]); }
+  catch (err) { console.warn("generators unavailable:", err.message); $("#gen").closest(".ctrl").hidden = true; return; }
+  const generators = catalogue.synthesizers.filter(s => s.produces === "warehouse");
+  $("#gen").innerHTML = generators.map(g => `<option value="${esc(g.name)}" title="${esc(g.description)}">${esc(g.name)}</option>`).join("");
+  $("#gen").value = world.synthesizer;
+  showGenerator(world.synthesizer);
+}
+
+function showGenerator(name){
+  $("#genNote").innerHTML = `World built by <b>${esc(name)}</b> (<a href="synthesizers.html">synthesizers</a>).`;
+}
+
 async function regen(){
   $("#status").textContent="regenerating…";
   const body={n_skus:+$("#skus").value,horizon_days:+$("#days").value,
-    daily_orders_per_a_sku:+$("#dem").value,stockout_pressure:+$("#stk").value,seed:+$("#seed").value};
+    daily_orders_per_a_sku:+$("#dem").value,stockout_pressure:+$("#stk").value,seed:+$("#seed").value,
+    synthesizer:$("#gen").value || undefined};
   let g;
   try {
     g = await api("/world",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
   } catch (err) {
     const why = err.status===409 ? "another generation is running — try again in a moment"
-                                 : `rejected (${err.status ?? err.message})`;
+                                 : `rejected: ${err.detail ?? err.status ?? err.message}`;
     $("#status").textContent="✗ "+why;
     return;
   }
+  showGenerator(g.synthesizer); // the world is replaced now, whether or not every panel refreshes
   try {
     await refreshAll();
   } catch (err) {
     $("#status").textContent=`✓ generated (${g.generated_ms} ms), but a panel failed to refresh: ${err.message}`;
     return;
   }
-  $("#status").textContent=`✓ updated (${g.generated_ms} ms)`;
+  $("#status").textContent=`✓ updated with ${g.synthesizer} (${g.generated_ms} ms)`;
   setTimeout(()=>$("#status").textContent="",1500);
 }
 
@@ -313,4 +330,5 @@ $("#aq").addEventListener("keydown", e => { if (e.key === "Enter") agentAsk(); }
 
 for (const a of document.querySelectorAll("a[data-export]")) a.href = API + "/export?entity=" + a.dataset.export;
 loadLimits();
+loadGenerators();
 refreshAll().catch(err => { $("#status").textContent = "✗ could not load: " + err.message; });

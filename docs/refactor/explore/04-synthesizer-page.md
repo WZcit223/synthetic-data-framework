@@ -1,5 +1,14 @@
 # PR 4 — The Synthesizers page, the world-generator choice and the plug-in guide
 
+> Status: implemented (exploration sequence PR 4). The page's pure helpers
+> (reading a parameter's input with the server's checks, the shared-bin
+> distribution comparison, the Explore link) are in `ui/synthesis.js` and
+> tested by `ui/synthesis.test.js`; `src/sdf/plugins_guide_test.py` runs the
+> guide's two examples as written. A series run charts its first 240 steps
+> (the whole run is in Explore); a table run compares each column's
+> distribution on bins spanning the real data's 1st to 99th percentile, one bin
+> per value for a whole-numbered column with few values (hour, weekday).
+
 Contract: [`interfaces.md`](interfaces.md) §4.2 (the endpoints it uses) and §3
 (the pivot page it links to).
 
