@@ -211,7 +211,7 @@ observability       ← application.agent, workflow.pipeline
 |---|---|---|
 | S1 | `sdv_synth.py:64-65` | `except Exception: pass` 吞掉 CorrelationSimilarity 失败 |
 | S2 | `retail_csv.py:56-63` | 坏行静默 `continue`，无计数 |
-| I3 | `schema.py` | dataclass 零校验；适配器写入 `abc_class="?"`，而生成器 `_gen_inventory` 用 `{"A":..}[abc]` 索引，真实 SKU 若回流到生成器会 `KeyError` |
+| I3 | `schema.py` | dataclass 零校验；适配器写入 `abc_class="?"`，而生成器 `_gen_inventory` 用 `{"A":..}[abc]` 索引，真实 SKU 若回流到生成器会 `KeyError`。**已处理**（清理 PR 2）：实体构造时校验字段，`?` 为合法的"未分类" |
 | I5 | `retail_csv.py:28-31`, `sdv_synth.py:31` | `%m/%d/%Y` 先于 `%d/%m/%Y`，DD/MM 数据静默错解（对 UCI 导出成立，对其他来源是隐患） |
 | E1/E2/E5 | `registry.stream`、`privacy._two_nearest`、`economics._simulate` | O(n) 全扫 / O(n²) 暴力 / O(T²)。默认世界（28,897 行）下单端点均 <0.1 s，`/scenarios` 0.94 s、`/workflow/run` 0.22 s（各自**重新生成**整个世界）。演示规模无痛，放大前再处理 |
 | R1/R2 | 多处 `seed=7`、`sdv_synth` 未设种子；KS 与 KSComplement 极性相反 | 属度量方法论，随 Stage C 处理 |

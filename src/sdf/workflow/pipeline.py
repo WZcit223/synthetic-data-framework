@@ -7,7 +7,8 @@ without pulling in Airflow/Dagster/Prefect.
 
 Each `Step` names its dependencies; the pipeline runs them in topological order,
 passing a shared context dict, timing and logging each via `RunLogger`, and
-storing each step's artifact under its name.
+storing each step's artifact under its name. Anything else the steps share goes
+in one typed object (the warehouse workflow's `WarehouseRun`), not in loose keys.
 
 ALGORITHM-HOOK[D2]: swap the in-process runner for Airflow/Dagster/Prefect; the Step
 contract (name, deps, run(ctx)->artifact) is intentionally the same shape.
@@ -27,6 +28,7 @@ from sdf.observability import RunLogger
 from sdf.simulation.world import World
 from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.spec import GenerationSpec
+from sdf.synthesis.warehouse import SyntheticWarehouse
 from sdf.validation.quality import structural_quality_check
 
 
@@ -73,6 +75,9 @@ class Pipeline:
 
     def run(self, ctx: dict[str, Any] | None = None, sink_path: str | None = None) -> dict[str, Any]:
         ctx = dict(ctx or {})
+        clash = sorted(set(ctx) & set(self.steps))
+        if clash:
+            raise ValueError(f"initial context keys {clash} collide with step names; step outputs use those keys")
         log = RunLogger(self.name, sink_path=sink_path)
         artifacts: dict[str, Any] = {}
         for name in self._order:
@@ -89,6 +94,22 @@ class Pipeline:
             "trace": [e.to_dict() for e in log.entries],
             "artifacts": artifacts,
         }
+
+
+@dataclass
+class WarehouseRun:
+    """What the warehouse workflow's steps share besides their outputs.
+
+    ``ingest`` fills ``registry`` and, for a synthetic world, ``warehouse``;
+    ``application`` adds the analysis facade ``intel``.
+    """
+
+    registry: DataSourceRegistry
+    warehouse: SyntheticWarehouse | None = None
+    intel: WarehouseIntelligence | None = None
+
+
+RUN_KEY = "warehouse_run"  # the context key that holds the WarehouseRun
 
 
 def _economics_summary(economics: dict) -> dict:
@@ -117,8 +138,7 @@ def warehouse_pipeline(
         if real_csv:
             reg = DataSourceRegistry()
             load = register_online_retail(reg, real_csv, date_format=date_format)
-            ctx["registry"] = reg
-            ctx["_warehouse"] = None
+            ctx[RUN_KEY] = WarehouseRun(registry=reg)
             return {
                 "origin": "real",
                 "source": real_csv,
@@ -127,23 +147,21 @@ def warehouse_pipeline(
                 "load": load.to_dict(),
             }
         if world is not None:
-            ctx["registry"] = world.registry
-            ctx["_warehouse"] = world.warehouse
+            ctx[RUN_KEY] = WarehouseRun(registry=world.registry, warehouse=world.warehouse)
             return {"origin": "synthetic" if world.warehouse is not None else "world", **world.registry.summary()}
         wh, reg = build_registry(spec or GenerationSpec())
-        ctx["registry"] = reg
-        ctx["_warehouse"] = wh
+        ctx[RUN_KEY] = WarehouseRun(registry=reg, warehouse=wh)
         return {"origin": "synthetic", **reg.summary()}
 
     def validate(ctx):
-        wh = ctx.get("_warehouse")
-        if wh is None:
+        run: WarehouseRun = ctx[RUN_KEY]
+        if run.warehouse is None:
             return {"skipped": "structural checks apply to the synthetic world only"}
-        return structural_quality_check(wh).to_dict()
+        return structural_quality_check(run.warehouse).to_dict()
 
     def application(ctx):
-        intel = WarehouseIntelligence(ctx["registry"])
-        ctx["_intel"] = intel
+        run: WarehouseRun = ctx[RUN_KEY]
+        run.intel = intel = WarehouseIntelligence(run.registry)
         return {
             "kpis": intel.kpis().__dict__,
             "replenishment_flagged": intel.replenishment_ss_policy(service_level=0.95, top_n=0)["skus_needing_order"],
@@ -151,10 +169,10 @@ def warehouse_pipeline(
         }
 
     def economics(ctx):
-        intel = ctx.get("_intel")
-        if intel is None or ctx.get("_warehouse") is None:
+        run: WarehouseRun = ctx[RUN_KEY]
+        if run.intel is None or run.warehouse is None:
             return {"skipped": "economics runs on the synthetic world in this demo"}
-        return financial_impact(intel)
+        return financial_impact(run.intel)
 
     def report(ctx):
         return {
