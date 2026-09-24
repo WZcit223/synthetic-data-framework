@@ -229,10 +229,21 @@ export function pivot(table, view = {}, options = {}) {
   const sort = view.sort ?? { by: "label" };
   const dir = sort.dir === "desc" ? -1 : 1;
   const sortCol = sort.by === "column" ? keyId(sort.key ?? []) : null;
+  // Rows sort by the number shown: under showAs, the share, not the raw value.
+  const sortColIndex = colKeys.indexOf(sortCol);
   const metric = n => {
-    if (sort.by === "value") return n.total[0]?.value() ?? null;
-    if (sort.by === "column") return n.cells.get(sortCol)?.[0]?.value() ?? null;
-    return undefined;
+    const total = n.total[0]?.value() ?? null;
+    if (sort.by === "value") {
+      return showAs === "value" ? total : showAs === "share_of_row" ? share(total, total) : share(total, grand[0]);
+    }
+    if (sort.by !== "column") return undefined;
+    const x = n.cells.get(sortCol)?.[0]?.value() ?? null;
+    switch (showAs) {
+      case "share_of_total": return share(x, grand[0]);
+      case "share_of_row": return share(x, total);
+      case "share_of_column": return share(x, sortColIndex < 0 ? null : colTotals[sortColIndex][0]);
+      default: return x;
+    }
   };
   const order = list => {
     if (sort.by !== "value" && sort.by !== "column") {
@@ -348,4 +359,14 @@ export function viewError(view) {
   }
   if ("subtotals" in view && typeof view.subtotals !== "boolean") return "subtotals must be true or false";
   return null;
+}
+
+// How many of a field's distinct values a filter keeps (values it names that the data lacks do not count).
+export function keptCount(values, filter) {
+  if (filter?.include) {
+    const s = new Set(filter.include);
+    return values.filter(x => s.has(x.value)).length;
+  }
+  const s = new Set(filter?.exclude ?? []);
+  return values.filter(x => !s.has(x.value)).length;
 }

@@ -5,7 +5,7 @@
 import { $, api, compactFormatter, esc, valueFormatter } from "./common.js";
 import { barChart, bindBars, bindLine, lineChart } from "./chart.js";
 import { HEAT, colorBook, heat, inkOn } from "./palette.js";
-import { AGGREGATIONS, GRAINS, OTHER, distinctValues, keyId, partLabel, pivot, toCsv, toTable, viewError } from "./pivot.js";
+import { AGGREGATIONS, GRAINS, OTHER, distinctValues, keptCount, keyId, partLabel, pivot, toCsv, toTable, viewError } from "./pivot.js";
 
 const AGG_LABEL = { sum: "Sum", count: "Count", count_distinct: "Distinct", mean: "Mean", median: "Median", min: "Min", max: "Max" };
 const GRAIN_LABEL = { day: "Day", week: "Week", month: "Month", quarter: "Quarter", year: "Year", weekday: "Weekday" };
@@ -94,10 +94,16 @@ function valueLabel(v) {
 }
 
 function filterSummary(name, f) {
-  const total = distinctValues(state.table, name).length;
-  if (f.include) return f.include.length <= 2 ? f.include.map(partLabel).join(", ") : `${f.include.length} of ${total}`;
-  if (!f.exclude?.length) return "all";
-  return f.exclude.length <= 2 ? `all but ${f.exclude.map(partLabel).join(", ")}` : `${total - f.exclude.length} of ${total}`;
+  const values = distinctValues(state.table, name);
+  const kept = keptCount(values, f);
+  if (kept === values.length) return "all";
+  const held = new Set(values.map(x => x.value));
+  if (f.include) {
+    const shown = f.include.filter(x => held.has(x));
+    return shown.length && shown.length <= 2 ? shown.map(partLabel).join(", ") : `${kept} of ${values.length}`;
+  }
+  const dropped = f.exclude.filter(x => held.has(x));
+  return dropped.length <= 2 ? `all but ${dropped.map(partLabel).join(", ")}` : `${kept} of ${values.length}`;
 }
 
 // A time field's first grain: days for a month of data, weeks up to about half a year, then months.
@@ -908,6 +914,11 @@ async function showExperimentForm() {
       state.catalog = await api("/experiments/catalog");
     } catch (err) {
       $("#expNote").textContent = `Could not load the experiment catalogue: ${err.detail ?? err.message}`;
+      return;
+    }
+    // the user may have picked a dataset while the catalogue loaded: then the form stays away
+    if ($("#source").value !== "experiment") {
+      $("#expForm").hidden = true;
       return;
     }
   }

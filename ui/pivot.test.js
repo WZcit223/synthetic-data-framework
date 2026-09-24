@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { compareParts, distinctValues, OTHER, partLabel, pivot, timeKey, toCsv, toTable, viewError } from "./pivot.js";
+import { compareParts, distinctValues, keptCount, OTHER, partLabel, pivot, timeKey, toCsv, toTable, viewError } from "./pivot.js";
 
 const FIELDS = [
   { name: "day", label: "Day", kind: "time", unit: null, aggregate: null },
@@ -269,4 +269,23 @@ test("no label can merge two columns or pass for the folded Other column", () =>
   assert.deepEqual(folded.columns.map(c => c.key[0]), ["null", null, OTHER]); // the two largest kept, blank last; "\u0002other" folds like any value
   assert.equal(folded.totals.columns[2][0], 7);
   assert.equal(partLabel("\u0002other"), "\u0002other");
+});
+
+test("rows sort by the share shown, not the raw value underneath", () => {
+  const base = { rows: [{ field: "region" }], columns: [{ field: "channel" }], values: [{ field: "qty", agg: "sum" }] };
+  // web: north 6 of 20 (30 %), south 3 of 6 (50 %); by raw value north comes first, by share of row south does
+  const raw = pivot(TABLE, { ...base, sort: { by: "column", key: ["web"], dir: "desc" } });
+  assert.deepEqual(raw.rows.map(r => r.key[0]), ["north", "south"]);
+  const shares = pivot(TABLE, { ...base, showAs: "share_of_row", sort: { by: "column", key: ["web"], dir: "desc" } });
+  assert.deepEqual(shares.rows.map(r => r.key[0]), ["south", "north"]);
+  assert.deepEqual(shares.rows.map(r => cell(shares, r.key, ["web"])), [0.5, 0.3]);
+  const col = pivot(TABLE, { ...base, showAs: "share_of_column", sort: { by: "column", key: ["web"], dir: "asc" } });
+  assert.deepEqual(col.rows.map(r => r.key[0]), ["south", "north"]);
+});
+
+test("a filter's kept count ignores values the data does not hold", () => {
+  const values = distinctValues(TABLE, "channel"); // store, web, (blank)
+  assert.equal(keptCount(values, { exclude: ["gone", "web"] }), 2);
+  assert.equal(keptCount(values, { include: ["gone", "web"] }), 1);
+  assert.equal(keptCount(values, { exclude: [] }), 3);
 });
