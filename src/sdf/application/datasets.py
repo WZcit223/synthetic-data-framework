@@ -18,15 +18,17 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Iterable
-from dataclasses import dataclass
-from importlib.metadata import EntryPoint, entry_points
 from itertools import islice
 from typing import Any, ClassVar, Protocol
 
+from sdf.foundation.plugins import (
+    Origin as Origin,  # re-exported: the names this module always had
+    PluginRegistry,
+    Registration as Registration,
+)
 from sdf.foundation.tables import DatasetInfo, Field, Table
 from sdf.simulation.policy import ServiceLevelPolicy, plan_orders
 from sdf.simulation.world import World
-from sdf.synthesis.registry import DISTRIBUTION, Origin
 
 ENTRY_POINT_GROUP = "sdf.datasets"
 PLAN_SERVICE_LEVEL = 0.95  # the replenishment-plan dataset's policy, as on the dashboard
@@ -182,91 +184,22 @@ class ReplenishmentPlanDataset:
             )
 
 
-@dataclass(frozen=True)
-class Registration:
-    cls: type[DatasetProvider]
-    origin: Origin  # builtin: declared by this package; plugin: another package; runtime: register() call
-
-
-class DatasetCatalog:
+class DatasetCatalog(PluginRegistry[DatasetProvider]):
     """Dataset providers by name; built-ins and plug-ins are mounted from the ``sdf.datasets`` group."""
 
-    def __init__(self) -> None:
-        self._entries: dict[str, Registration] = {}
-        self._unavailable: dict[str, str] = {}
+    kind: ClassVar[str] = "dataset"
+    info_type: ClassVar[type] = DatasetInfo
+    group: ClassVar[str] = ENTRY_POINT_GROUP
+    made_by: ClassVar[str] = "build(name)"
 
-    def register(self, cls: type[DatasetProvider], *, replace: bool = False, origin: Origin = "runtime") -> None:
-        """Add ``cls`` under ``cls.info.name``; a duplicate name raises unless ``replace``."""
-        info = getattr(cls, "info", None)
-        if not isinstance(info, DatasetInfo):
-            raise TypeError(f"{getattr(cls, '__name__', cls)!r} has no DatasetInfo `info` class attribute")
+    def check(self, cls: type[DatasetProvider]) -> None:
+        """A ``rows(world)`` method and constructor defaults."""
         if not callable(getattr(cls, "rows", None)) or not _takes_world(cls):
-            raise TypeError(f"{info.name}: a dataset provider needs a rows(world) method")
-        required = [
-            p.name
-            for p in inspect.signature(cls).parameters.values()
-            if p.default is p.empty and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)
-        ]
-        if required:
-            raise TypeError(
-                f"{info.name}: every constructor argument needs a default so build(name) works; missing {required}"
-            )
-        if info.name in self._entries and not replace:
-            raise ValueError(f"dataset {info.name!r} is already registered; pass replace=True to override")
-        self._entries[info.name] = Registration(cls, origin)
-        self._unavailable.pop(info.name, None)
-
-    def load_entry_points(self, group: str = ENTRY_POINT_GROUP) -> list[str]:
-        """Mount every provider declared in ``group``; return the names mounted.
-
-        Built-ins mount first and keep their names; a plug-in that reuses one, or
-        fails to load, is listed by ``unavailable()`` instead of raising.
-        """
-        mounted: list[str] = []
-        declared = sorted(entry_points(group=group), key=lambda e: (_origin(e) != "builtin", _dist_name(e), e.name))
-        reserved = {e.name for e in declared if _origin(e) == "builtin"}
-        for ep in declared:
-            origin = _origin(ep)
-            if ep.name in self._entries and _class_path(self._entries[ep.name].cls) == f"{ep.module}:{ep.attr}":
-                continue  # mounted by an earlier call (ep.value may also carry extras)
-            if ep.name in self._entries or (origin != "builtin" and ep.name in reserved):
-                self._unavailable[f"{ep.name} ({_dist_name(ep)})"] = f"name already taken; {ep.value} not mounted"
-                continue
-            try:
-                problem = self._mount(ep, origin)
-            except Exception as exc:  # a broken third-party plug-in must not break the catalogue or the API
-                problem = f"failed to load {ep.value}: {exc}"
-            if problem:
-                self._unavailable[ep.name] = problem
-            else:
-                mounted.append(ep.name)
-        return mounted
-
-    def _mount(self, ep: EntryPoint, origin: Origin) -> str | None:
-        cls = ep.load()
-        info = getattr(cls, "info", None)
-        if not isinstance(info, DatasetInfo):
-            return f"{ep.value} has no DatasetInfo `info` class attribute"
-        if info.name != ep.name:
-            return f"entry point name differs from info.name {info.name!r}"
-        try:
-            self.register(cls, origin=origin)
-        except (TypeError, ValueError) as exc:
-            return str(exc)
-        return None
-
-    def names(self, *, origin: Origin | None = None) -> list[str]:
-        return sorted(n for n, e in self._entries.items() if origin is None or e.origin == origin)
+            raise TypeError(f"{cls.info.name}: a dataset provider needs a rows(world) method")
+        super().check(cls)
 
     def info(self, name: str) -> DatasetInfo:
         return self._entry(name).cls.info
-
-    def origin(self, name: str) -> Origin:
-        return self._entry(name).origin
-
-    def unavailable(self) -> dict[str, str]:
-        """Declared providers that could not be mounted, with the reason."""
-        return dict(self._unavailable)
 
     def build(self, name: str, world: World) -> Table:
         """The table ``name`` over ``world``; every value is checked against its field."""
@@ -288,12 +221,6 @@ class DatasetCatalog:
         total = len(kept) + sum(1 for _ in rows)
         return Table(cls.info, kept), total
 
-    def _entry(self, name: str) -> Registration:
-        if name not in self._entries:
-            hint = f" ({self._unavailable[name]})" if name in self._unavailable else ""
-            raise KeyError(f"unknown dataset {name!r}{hint}; choose from {self.names()}")
-        return self._entries[name]
-
 
 def _takes_world(cls: type) -> bool:
     """Whether ``cls().rows(world)`` binds: a plain method takes self and the world; a static or class method, the world."""
@@ -307,18 +234,6 @@ def _takes_world(cls: type) -> bool:
     except TypeError:
         return False
     return True
-
-
-def _class_path(cls: type) -> str:
-    return f"{cls.__module__}:{cls.__qualname__}"
-
-
-def _dist_name(ep: EntryPoint) -> str:
-    return ep.dist.name if ep.dist is not None else ""
-
-
-def _origin(ep: EntryPoint) -> Origin:
-    return "builtin" if _dist_name(ep) == DISTRIBUTION else "plugin"
 
 
 def default_datasets() -> DatasetCatalog:

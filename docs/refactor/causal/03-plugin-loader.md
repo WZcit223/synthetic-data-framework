@@ -1,6 +1,16 @@
 # PR 3 — One plug-in loader for every catalogue
 
-> Status: planned (causal modelling sequence PR 3).
+> Status: implemented (causal modelling sequence PR 3). `sdf.foundation.plugins`
+> holds `PluginRegistry`, `Origin`, `Registration` and `DISTRIBUTION`; the
+> synthesizer registry and the dataset catalogue are subclasses, and the old
+> module names (`Origin`, `Registration`, `DISTRIBUTION`) stay importable where
+> they were. Each catalogue keeps its checks in their old order, so every
+> message is unchanged apart from the dataset clash reason, which now names the
+> holder. One kind of test line moved with the code: tests that replace the
+> entry-point lookup now patch `sdf.foundation.plugins.entry_points`, where the
+> lookup lives, instead of the registry's own module; their assertions are
+> unchanged. A subclass also sets `made_by` ("create(name)", "build(name)"),
+> the wording of the constructor-defaults message.
 
 Contract: [`interfaces.md`](interfaces.md) §2.
 

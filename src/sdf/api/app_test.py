@@ -775,14 +775,14 @@ def test_a_run_that_cannot_happen_is_a_422_with_the_reason(client, body, message
 def test_an_unavailable_synthesizer_is_a_422_that_says_why(monkeypatch):
     from importlib.metadata import EntryPoint
 
-    from sdf.synthesis import registry as registry_module
+    from sdf.foundation import plugins as plugins_module
     from sdf.synthesis.registry import default_registry
 
-    real_entry_points = registry_module.entry_points
+    real_entry_points = plugins_module.entry_points
     extra = EntryPoint(
         name="needs-absent-child", value="sdf.synthesis.registry_test:NeedsAbsentChild", group="sdf.synthesizers"
     )
-    monkeypatch.setattr(registry_module, "entry_points", lambda group: [*real_entry_points(group=group), extra])
+    monkeypatch.setattr(plugins_module, "entry_points", lambda group: [*real_entry_points(group=group), extra])
     c = TestClient(create_app(synthesizers=default_registry()))
     assert "needs-absent-child" in get(c, "/synthesizers")["unavailable"]
     res = run(c, synthesizer="needs-absent-child", source="sample")

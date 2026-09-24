@@ -8,6 +8,7 @@ from typing import ClassVar
 
 import pytest
 
+from sdf.foundation import plugins as plugins_module
 from . import registry as registry_module
 from .api import Param, SeriesData, SynthesizerInfo, TableData
 from .registry import SynthesizerRegistry, default_registry
@@ -68,7 +69,7 @@ def _fake_entry_points(*specs):
 
 def test_a_packaged_plug_in_mounts_like_a_built_in(monkeypatch):
     monkeypatch.setattr(
-        registry_module, "entry_points", _fake_entry_points(("shuffle-series", f"{__name__}:ShuffleSeries [extra]"))
+        plugins_module, "entry_points", _fake_entry_points(("shuffle-series", f"{__name__}:ShuffleSeries [extra]"))
     )
     reg = default_registry()
     assert reg.names() == ["shuffle-series"] and reg.origin("shuffle-series") == "plugin"
@@ -84,7 +85,7 @@ class NeedsAbsentChild(ShuffleSeries):
 
 def test_a_missing_dotted_requirement_is_listed_not_raised(monkeypatch):
     monkeypatch.setattr(
-        registry_module, "entry_points", _fake_entry_points(("needs-absent-child", f"{__name__}:NeedsAbsentChild"))
+        plugins_module, "entry_points", _fake_entry_points(("needs-absent-child", f"{__name__}:NeedsAbsentChild"))
     )
     reg = default_registry()
     assert reg.names() == [] and reg.unavailable() == {"needs-absent-child": "needs no_such_parent_pkg.backend"}
@@ -107,7 +108,7 @@ class NeedsConfig(ShuffleSeries):
 
 def test_malformed_plug_in_metadata_is_listed_not_raised(monkeypatch):
     monkeypatch.setattr(
-        registry_module,
+        plugins_module,
         "entry_points",
         _fake_entry_points(
             ("info-is-none", f"{__name__}:InfoIsNone"),
@@ -139,7 +140,7 @@ def test_a_plug_in_cannot_take_a_built_in_name(monkeypatch):
     if plugin.dist is None:
         pytest.skip("EntryPoint cannot carry a distribution on this Python")
     for order in ([plugin, builtin], [builtin, plugin]):
-        monkeypatch.setattr(registry_module, "entry_points", lambda group, order=order: order)
+        monkeypatch.setattr(plugins_module, "entry_points", lambda group, order=order: order)
         reg = default_registry()
         assert reg.origin("seasonal-profile") == "builtin" and reg.info("seasonal-profile").name == "seasonal-profile"
         assert "seasonal-profile" not in reg.unavailable()
@@ -148,7 +149,7 @@ def test_a_plug_in_cannot_take_a_built_in_name(monkeypatch):
     # A built-in that cannot be mounted still reserves its name.
     unavailable_builtin = ep("needs-absent-child", f"{__name__}:NeedsAbsentChild", registry_module.DISTRIBUTION)
     squatter = ep("needs-absent-child", f"{__name__}:ShuffleSeries", "vendor-pkg")
-    monkeypatch.setattr(registry_module, "entry_points", lambda group: [squatter, unavailable_builtin])
+    monkeypatch.setattr(plugins_module, "entry_points", lambda group: [squatter, unavailable_builtin])
     reg = default_registry()
     assert reg.names() == []
     assert reg.unavailable()["needs-absent-child"] == "needs no_such_parent_pkg.backend"
@@ -157,7 +158,7 @@ def test_a_plug_in_cannot_take_a_built_in_name(monkeypatch):
 
 def test_a_broken_plug_in_is_listed_not_raised(monkeypatch):
     monkeypatch.setattr(
-        registry_module,
+        plugins_module,
         "entry_points",
         _fake_entry_points(
             ("missing-module", "no_such_package.synth:Nope"),

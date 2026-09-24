@@ -9,6 +9,7 @@ import pytest
 
 from sdf.application import datasets as datasets_module
 from sdf.application.kpi import kpis
+from sdf.foundation import plugins as plugins_module
 from sdf.foundation.tables import DatasetInfo, Field
 from sdf.simulation.world import World
 from sdf.synthesis.registry import DISTRIBUTION
@@ -235,12 +236,14 @@ def test_plug_ins_mount_and_a_broken_or_clashing_one_is_listed_not_raised(monkey
         _entry_point("rows-without-world", f"{__name__}:RowsWithoutWorld", "vendor-pkg"),
         _entry_point("static-rows", f"{__name__}:StaticRows [extra]", "vendor-pkg"),
     ]
-    monkeypatch.setattr(datasets_module, "entry_points", lambda group: eps)
+    monkeypatch.setattr(plugins_module, "entry_points", lambda group: eps)
     cat = default_datasets()
     assert cat.names() == ["channel-mix", "order-lines", "static-rows"]
     assert cat.origin("order-lines") == "builtin" and cat.origin("channel-mix") == "plugin"
     problems = cat.unavailable()
-    assert "name already taken" in problems["order-lines (vendor-pkg)"]
+    assert problems["order-lines (vendor-pkg)"] == (  # the reason names the holder, as the synthesizer one does
+        f"name already provided by a builtin dataset (sdf.application.datasets); {__name__}:ChannelMix not mounted"
+    )
     assert "failed to load" in problems["missing"]
     assert "differs from info.name" in problems["wrong-name"]
     assert "constructor argument needs a default" in problems["needs-argument"]
