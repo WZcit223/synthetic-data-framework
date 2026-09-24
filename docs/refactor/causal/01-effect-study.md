@@ -62,5 +62,5 @@ confidence interval, and the relative change.
 
 ## Version
 
-MINOR 1.5.0 → 1.6.0, a new capability: `sdf.simulation.effects`,
+`Version: MINOR 1.5.0 → 1.6.0` — a new capability: `sdf.simulation.effects`,
 `POST /api/v1/effects` and `sdf effects`.

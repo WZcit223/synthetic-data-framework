@@ -74,4 +74,5 @@ opens in Explore like any other table.
 
 ## Version
 
-none, UI only: the `ui/` directory is not part of the Python distribution.
+`Version: none` — UI only: the `ui/` directory is not part of the Python
+distribution.

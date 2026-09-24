@@ -41,5 +41,5 @@ and estimators (PR 4) use it instead of adding a third copy.
 
 ## Version
 
-PATCH 1.6.0 → 1.6.1, a contained internal change: one reason text changes,
-nothing else a user or plug-in author can see.
+`Version: PATCH 1.6.0 → 1.6.1` — a contained internal change: one reason text
+changes, nothing else a user or plug-in author can see.

@@ -416,7 +416,14 @@ scores = score(draw.table, draw.question, reg,
 
 ```text
 GET /api/v1/estimators
-→ {"estimators": [{"name", "description", "origin", "requires"}], "unavailable": {"name": "reason"}}
+→ {
+    "estimators": [{"name", "description", "origin", "requires"}],
+    "unavailable": {"name": "reason"},
+    "benchmark": {
+      "params": [Param, ...],        // uplift, confounding, noise, seed: the synthesizer Param shape (name, type, default, min, max, exclusive, nullable)
+      "question": {...}              // the benchmark's CausalQuestion: treatment, outcome, the covariates a client may drop
+    }
+  }
 
 POST /api/v1/causal/estimates
 {
@@ -437,9 +444,18 @@ POST /api/v1/causal/estimates
 ```
 
 - **422** for an unknown estimator, dataset or field, an invalid question,
-  neither or both of `benchmark` and `dataset`, or a value out of range.
-- **500**, naming the estimator, when an estimator raises. A single estimator
-  that fails inside `score` is a row, as in §3.3.
+  neither or both of `benchmark` and `dataset`, or a benchmark value outside
+  the bounds `GET /estimators` publishes. The server checks each value with the
+  same `Param.check` the synthesizer runs use, so the form and the server agree.
+- With `benchmark`, `question` is optional. When it is given, it may only drop
+  covariates from the benchmark's own question, so a user can watch the bias
+  return.
+- **An estimator that raises** does not fail the request. The endpoint answers
+  with the `score` table, and that estimator's row carries the error in
+  `method` with empty numbers, as in §3.3, so the other estimators' results
+  still arrive.
+- **500** only when the rows cannot be built: the benchmark draw or the
+  catalogue dataset fails, with the message naming which.
 
 ```text
 $ uv run sdf estimate --confounding 1 --estimator difference-in-means --estimator regression-adjustment --estimator ipw

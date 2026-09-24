@@ -27,7 +27,7 @@ on data where the truth is known.
 - **New `sdf.simulation.benchmark`**: `PromotionBenchmark`, `BenchmarkDraw`,
   and the `promotion-benchmark` table info.
 - **API:**
-  - `GET /api/v1/estimators`;
+  - `GET /api/v1/estimators`, with the benchmark's parameters and question;
   - `POST /api/v1/causal/estimates`, on the benchmark or on a catalogue
     dataset over the current world;
   - `create_app(estimators=…)`, like `synthesizers` and `datasets`;
@@ -46,7 +46,8 @@ on data where the truth is known.
     parameter bounds;
   - `score`: a failing estimator becomes a row, and without a truth the truth
     fields are empty;
-  - the API's 422 and 500 cases;
+  - the API's 422 and 500 cases, a failing estimator answered as a row in a
+    200, and the benchmark's `params` and `question` in `GET /estimators`;
   - the CLI output;
   - the contract examples in §3 run as written.
 - **Docs:** `ARCHITECTURE.md` (analytics gains causal estimation; simulation
@@ -77,5 +78,5 @@ on data where the truth is known.
 
 ## Version
 
-MINOR 1.6.1 → 1.7.0, a new capability: estimator plug-ins, the promotion
-benchmark, two endpoints and `sdf estimate`.
+`Version: MINOR 1.6.1 → 1.7.0` — a new capability: estimator plug-ins, the
+promotion benchmark, two endpoints and `sdf estimate`.

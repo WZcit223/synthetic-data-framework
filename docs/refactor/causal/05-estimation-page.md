@@ -14,12 +14,15 @@ finds in the plug-in guide how to write, mount and score their own estimator.
 
 - **An "Estimate from data" view on the Effects page**, with pure helpers and
   Node tests in `ui/effects-model.js`.
-- **The form** is built from `GET /api/v1/estimators`:
+- **The form** is built from `GET /api/v1/estimators` (contract §3.4):
   - the mounted estimators, with the unavailable ones listed and their reason;
-  - the benchmark's uplift, confounding, noise and seed;
+  - the benchmark's uplift, confounding, noise and seed, from its `benchmark.params`,
+    with the bounds and defaults the server checks (the same `readParam` helper
+    as the Synthesizers page);
   - the confidence;
-  - the adjustment set shown as a list of the benchmark's covariates. The user
-    can remove covariates to watch the bias return.
+  - the adjustment set, from `benchmark.question`'s covariates. The user can
+    remove covariates to watch the bias return; the request sends the reduced
+    `question`.
 - **The result:**
   - **An interval chart.** One row per estimator: its estimate and interval,
     a reference line at the true effect, and a zero line. An interval that
@@ -56,5 +59,5 @@ finds in the plug-in guide how to write, mount and score their own estimator.
 
 ## Version
 
-none, UI and documentation: neither `ui/` nor the guide is part of the Python
-distribution.
+`Version: none` — UI and documentation: neither `ui/` nor the guide is part of
+the Python distribution.
