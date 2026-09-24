@@ -120,7 +120,8 @@ Rules the implementation keeps:
 | `replicates` | Replicates | measure | | min |
 | `method` | Method | dimension | | |
 
-`method` is `"paired t, 95 %"` (the confidence as a percentage). Metrics keep
+`method` is `f"paired t, {confidence * 100:g} %"`, built from the study's own
+`confidence`: `"paired t, 95 %"` at the default, `"paired t, 80 %"` at 0.8. Metrics keep
 their own units, so a table mixes units across rows. That is why every measure
 aggregates with `mean`, and why the Effects page draws one chart per metric
 (PR 2).
@@ -187,11 +188,26 @@ POST /api/v1/effects
 - **422** for an unknown name, `baseline` among the interventions, a duplicate,
   or a value out of range. **422** when the work is over budget (see next
   bullet), naming the limit and the request's size.
-- **The budget.** Work is `replicates × (1 + len(interventions)) × n_skus ×
-  horizon_days`, and must not exceed `MAX_EFFECT_WORK = 2_000_000`. That is
-  about 20 s of generation on the default world (0.2 s per arm and replicate,
-  measured). PR 1 re-measures and sets the constant so that a request at the
-  limit stays under 30 s.
+- **The budget** counts both the world generations and the measurements, since
+  every arm measures every policy × outcome pair:
+
+  ```text
+  work = replicates × (1 + len(interventions)) × (1 + MEASURE_WEIGHT × len(policies) × len(outcomes)) × n_skus × horizon_days
+  ```
+
+  `work` must not exceed `MAX_EFFECT_WORK`. Spike on the default world:
+  - generating a world takes 110 ms;
+  - one measurement takes 0 ms (`active_stockouts`), 2 to 3 ms
+    (`replenishment_need`) or 11 to 24 ms (`simulated_cost`, the heaviest).
+
+  So `MEASURE_WEIGHT = 0.25` charges each pair at the cost of the heaviest
+  measurement. PR 1 re-measures both costs, sets `MEASURE_WEIGHT` and
+  `MAX_EFFECT_WORK` so that a request at the limit stays under 30 s whatever
+  its mix (6 policies × 6 outcomes of `simulated_cost` included), and tests
+  that case.
+- **The limits are published.** `GET /api/v1/experiments/catalog` gains
+  `"effects": {"max_replicates": 20, "measure_weight": 0.25, "max_work": …}`,
+  so a client checks a request with the server's own numbers.
 - The response models follow the existing rule: declared fields plus
   pass-through.
 
@@ -350,6 +366,29 @@ rule and the encoding above), so no estimator re-implements it.
 
 The five are declared in the `sdf.estimators` group of `pyproject.toml`.
 
+The registry is a `PluginRegistry` (§2.2) with `kind = "estimator"`,
+`info_type = EstimatorInfo` and `group = "sdf.estimators"`, plus one method:
+
+```python
+class EstimatorRegistry(PluginRegistry[Estimator]):
+    def estimate(self, name: str, table: Table, question: CausalQuestion, *,
+                 confidence: float = 0.95, seed: int = 7) -> Estimate:
+        """Check the question against the table, then run ``name`` on it.
+
+        Raises KeyError for an unknown or unavailable estimator, ValueError for a
+        question the table cannot answer (§3.1), and lets the estimator's own
+        exception through (``score`` turns that into a row).
+        """
+
+
+def default_estimators() -> EstimatorRegistry:
+    """A registry with the ``sdf.estimators`` group mounted, like default_registry()."""
+```
+
+`check` (the kind-specific hook of §2.2) refuses a class without a callable
+`estimate`. An estimator is created with no argument, so, as for datasets,
+every constructor argument needs a default.
+
 ```python
 from sdf.analytics.causal import default_estimators
 
@@ -411,6 +450,9 @@ scores = score(draw.table, draw.question, reg,
   and empty numbers, so one broken plug-in does not hide the others.
 - **Without a truth** (`true_effect=None`), `true_effect`, `bias`,
   `relative_bias` and `covers` are empty.
+- **With a zero truth** (`uplift=0`, which the benchmark allows), `bias` and
+  `covers` are filled and `relative_bias` is empty: a bias relative to 0 is not
+  defined. The tests cover it.
 
 ### 3.4 Target (after PR 4): HTTP and CLI
 

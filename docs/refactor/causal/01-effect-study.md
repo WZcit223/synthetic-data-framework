@@ -19,7 +19,9 @@ confidence interval, and the relative change.
 - API (`sdf.api`):
   - `POST /api/v1/effects` with `EffectsRequest` and `EffectsResult`, on the
     current world's spec and generator;
-  - the work budget `MAX_EFFECT_WORK`, re-measured and set in this PR;
+  - the work budget: `MEASURE_WEIGHT` and `MAX_EFFECT_WORK`, re-measured and
+    set in this PR, counting generations and policy × outcome measurements,
+    and published in `GET /api/v1/experiments/catalog` under `effects`;
   - `PolicyChoice` reused from `POST /experiments`, and the same catalogue
     names;
   - the endpoint in the OpenAPI schema and the UI contract test's list of
@@ -34,7 +36,8 @@ confidence interval, and the relative change.
   - the relative effect with a zero baseline;
   - every refusal message;
   - the study leaves the API's current world unchanged;
-  - the budget's 422;
+  - the budget's 422, and a request at the limit with 6 policies × 6 outcomes
+    that finishes under 30 s;
   - the CLI output on a small spec.
 - Docs: `ARCHITECTURE.md` (the simulation layer gains effects), README's
   command list, and this plan's status note with the measured timing.

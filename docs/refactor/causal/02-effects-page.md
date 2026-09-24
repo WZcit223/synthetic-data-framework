@@ -23,7 +23,9 @@ opens in Explore like any other table.
     outcomes;
   - replicates (2 to 20) and confidence (80 %, 90 %, 95 %, 99 %);
   - the work budget checked before sending, with the size shown ("10
-    replicates × 3 arms × 200 SKUs × 90 days").
+    replicates × 3 arms × 2 policies × 1 outcome × 200 SKUs × 90 days"), with the
+    formula of the contract (§1.5) and the constants from the catalogue's
+    `effects` entry, so the page cannot drift from the server.
 - **The result:**
   - **An interval chart, one per metric.** Metrics have different units, so
     each gets its own horizontal axis (one axis per chart, small multiples).

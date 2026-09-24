@@ -513,12 +513,12 @@ where the two differ: simulated effects are `POST /api/v1/effects`, and
 estimates from observational rows are `POST /api/v1/causal/estimates`.
 
 - **Causal modelling.** Experiment rows (§2.1) are already the treatment and
-  outcome table: `intervention` is the treatment, each `metric` an outcome. An
-  effect estimator publishes its estimates as a table, for example
-  `POST /api/v1/effects` answering `{"fields": [treatment, outcome, estimate,
-  ci_low, ci_high, method], "rows": [...]}`, which the pivot page opens like any
-  other table. New interventions keep implementing `Intervention` from the
-  structure contract.
+  outcome table: `intervention` is the treatment, each `metric` an outcome.
+  Effects and estimates are published as `{fields, rows}` tables, which the
+  pivot page opens like any other table; their fields are defined in
+  [`../causal/interfaces.md`](../causal/interfaces.md) §1.3 (effects) and §3.3
+  (estimator scores). New interventions keep implementing `Intervention` from
+  the structure contract.
 - **Algorithm phase.** A real algorithm's outputs are published as a dataset
   provider in the `sdf.datasets` group (for example `forecast-backtest`: date,
   model, actual, predicted, absolute error), and a real synthesizer is a plug-in

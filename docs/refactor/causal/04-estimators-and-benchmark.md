@@ -44,8 +44,8 @@ on data where the truth is known.
   - `design`: missing rows, the one-hot encoding, and every refusal;
   - the benchmark: exact truth, `confounding=0` is unconfounded, and the
     parameter bounds;
-  - `score`: a failing estimator becomes a row, and without a truth the truth
-    fields are empty;
+  - `score`: a failing estimator becomes a row; without a truth the truth
+    fields are empty; with a zero truth `relative_bias` is empty;
   - the API's 422 and 500 cases, a failing estimator answered as a row in a
     200, and the benchmark's `params` and `question` in `GET /estimators`;
   - the CLI output;
