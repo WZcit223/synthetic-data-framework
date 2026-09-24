@@ -69,3 +69,17 @@ def test_json_safe_converts_what_json_cannot_hold():
     safe = _json_safe({1: Row(datetime(2025, 1, 2, 3, 4), 5), "n": [math.nan, (1, 2)], "o": object})
     assert safe == {"1": {"when": "2025-01-02T03:04:00", "qty": 5}, "n": ["nan", [1, 2]], "o": str(object)}
     json.dumps(safe, allow_nan=False)
+
+
+def test_json_safe_keeps_keys_that_would_collide():
+    assert _json_safe({1: "a", "2": "b"}) == {"1": "a", "2": "b"}
+    assert _json_safe({1: "a", "1": "b"}) == [[1, "a"], ["1", "b"]]
+
+
+def test_a_closed_run_takes_no_more_entries(tmp_path):
+    sink = tmp_path / "audit.jsonl"
+    with RunLogger("test", sink_path=str(sink)) as log:
+        log.record("tool", "a", {}, 1)
+    with pytest.raises(RuntimeError, match="closed"):
+        log.record("tool", "late", {}, 2)
+    assert [line["record"] for line in _lines(sink)] == ["entry", "summary"]

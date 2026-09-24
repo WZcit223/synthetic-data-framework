@@ -48,7 +48,11 @@ def _summarise(value: Any, limit: int = 240) -> Any:
 
 def _json_safe(value: Any) -> Any:
     """``value`` in full as plain JSON: dataclasses as dicts, datetimes as ISO
-    strings, a non-finite number or anything else as its string form."""
+    strings, a non-finite number or anything else as its string form.
+
+    A dict whose keys are not all strings keeps string forms of its keys unless
+    two keys would share one (``1`` and ``"1"``); then it becomes a list of
+    ``[key, value]`` pairs, so no member is lost."""
     if value is None or isinstance(value, (bool, str)):
         return value
     if isinstance(value, numbers.Integral):
@@ -61,7 +65,10 @@ def _json_safe(value: Any) -> Any:
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return {f.name: _json_safe(getattr(value, f.name)) for f in dataclasses.fields(value)}
     if isinstance(value, dict):
-        return {k if isinstance(k, str) else str(k): _json_safe(v) for k, v in value.items()}
+        keys = [k if isinstance(k, str) else str(k) for k in value]
+        if len(set(keys)) < len(keys):
+            return [[_json_safe(k), _json_safe(v)] for k, v in value.items()]
+        return {key: _json_safe(v) for key, v in zip(keys, value.values(), strict=True)}
     if isinstance(value, (list, tuple, set, frozenset)):
         return [_json_safe(v) for v in value]
     return str(value)
@@ -129,15 +136,18 @@ class RunLogger:
             output=_summarise(output),
             note=note,
         )
+        if self._closed:
+            raise RuntimeError(f"run {self.run_id} is closed; its summary is already written")
         self.entries.append(e)
-        full = {**e.to_dict(), "inputs": _json_safe(inputs), "output": _json_safe(output)}
-        self._write({"record": "entry", "run_id": self.run_id, **full})
+        if self._sink_path:  # the full conversion is only for the sink
+            full = {**e.to_dict(), "inputs": _json_safe(inputs), "output": _json_safe(output)}
+            self._write({"record": "entry", "run_id": self.run_id, **full})
         return e
 
     def _write(self, line: dict[str, Any]) -> None:
         if self._sink_path:
             with open(self._sink_path, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(line, ensure_ascii=False) + "\n")
+                fh.write(json.dumps(line, ensure_ascii=False, allow_nan=False) + "\n")
 
     def close(self) -> None:
         """End the run: append its summary record to the sink (once)."""
