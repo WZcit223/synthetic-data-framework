@@ -289,3 +289,13 @@ test("a filter's kept count ignores values the data does not hold", () => {
   assert.equal(keptCount(values, { include: ["gone", "web"] }), 1);
   assert.equal(keptCount(values, { exclude: [] }), 3);
 });
+
+test("the fold keeps the columns largest in size, a large negative one included", () => {
+  const t = toTable({
+    fields: FIELDS,
+    rows: [["2025-01-01", "r", "loss", -100], ["2025-01-01", "r", "gain", 10], ["2025-01-01", "r", "tiny", 1], ["2025-01-01", "r", "small", -2]],
+  });
+  const r = pivot(t, { columns: [{ field: "channel" }], values: [{ field: "qty", agg: "sum" }] }, { maxColumns: 3 });
+  assert.deepEqual(r.columns.map(c => c.key[0]), ["gain", "loss", OTHER]);
+  assert.equal(r.totals.columns[2][0], -1); // tiny and small, aggregated from their rows
+});

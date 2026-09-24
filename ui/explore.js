@@ -14,6 +14,7 @@ const KIND_GROUP = [["dimension", "Dimensions"], ["time", "Time"], ["measure", "
 const SHELVES = ["rows", "columns", "values", "filters"];
 const MAX_TABLE_ROWS = 1000; // rows drawn before "Show all"
 const MAX_TABLE_CELLS = 30_000; // and fewer rows when they are wide, so a wide cross-tab draws quickly
+const MAX_TABLE_COLUMNS = 400; // value cells across; wider results are cut, and the CSV export has them all
 const MAX_BARS = 50; // categories a bar chart draws; the table view has the rest
 const MAX_SERIES = 8; // series a chart colours; the rest fold into "Other"
 const DEFAULT_DISPLAY = { as: "table", heatmap: false, totals: true, stacked: false };
@@ -227,11 +228,14 @@ function describeSource(source) {
 function readLink() {
   const m = location.hash.match(/^#view=(.+)$/);
   if (!m) return null;
+  let link;
   try {
-    return JSON.parse(decodeURIComponent(m[1]));
+    link = JSON.parse(decodeURIComponent(m[1]));
   } catch {
     return { error: "the view in this link is not valid JSON" };
   }
+  // any JSON parses, null and arrays included: only an object can hold a source and a view
+  return link && typeof link === "object" && !Array.isArray(link) ? link : { error: "the link holds no source and view" };
 }
 
 function writeLink() {
@@ -404,8 +408,19 @@ function renderStatus(result) {
 
 const LABEL_CHAR = 7.2;
 
-function renderTable(result) {
+function renderTable(full) {
   const v = state.view, d = state.display;
+  // A very wide result draws its first columns only, so the cell budget below holds for any shape.
+  const colLimit = Math.max(1, Math.floor(MAX_TABLE_COLUMNS / Math.max(1, v.values.length)));
+  const cut = full.columns.length > colLimit;
+  const result = cut
+    ? {
+        ...full,
+        columns: full.columns.slice(0, colLimit),
+        rows: full.rows.map(r => ({ ...r, cells: r.cells.slice(0, colLimit) })),
+        totals: { ...full.totals, columns: full.totals.columns.slice(0, colLimit) },
+      }
+    : full;
   const rowFields = v.rows.map(a => ({ a, f: field(a.field) }));
   const nR = Math.max(1, rowFields.length);
   const nV = v.values.length;
@@ -507,7 +522,7 @@ function renderTable(result) {
   };
   const visible = result.rows.filter(r => !collapsedUnder(r.key));
   const perRow = (L ? result.columns.length : 0) * nV + nV;
-  const limit = Math.min(MAX_TABLE_ROWS, Math.max(50, Math.floor(MAX_TABLE_CELLS / perRow)));
+  const limit = Math.min(MAX_TABLE_ROWS, Math.max(10, Math.floor(MAX_TABLE_CELLS / perRow)));
   const drawn = state.showAll ? visible : visible.slice(0, limit);
   let prev = [];
   for (const r of drawn) {
@@ -546,6 +561,9 @@ function renderTable(result) {
   h += `</table></div>`;
   if (visible.length > drawn.length) {
     h += `<div class="more">Showing ${drawn.length.toLocaleString()} of ${visible.length.toLocaleString()} rows. <button type="button" id="showAll">Show all</button></div>`;
+  }
+  if (cut) {
+    h += `<div class="more">Showing the first ${colLimit.toLocaleString()} of ${full.columns.length.toLocaleString()} columns; the totals cover all of them, and Export CSV has every column.</div>`;
   }
   if (d.heatmap && scales.some(Boolean)) {
     const k = scales.findIndex(Boolean);
@@ -932,7 +950,7 @@ async function showExperimentForm() {
   const cat = state.catalog;
   const body = state.source?.experiment ?? {
     interventions: cat.interventions.slice(0, 2),
-    policies: [{ kind: "naive" }, { kind: "service-level", service_level: 0.95 }].filter(p => cat.policies.some(c => c.kind === p.kind)),
+    policies: cat.policies.slice(0, 2).map(c => ({ kind: c.kind })), // each parameter starts at the catalogue's default
     outcomes: [...cat.outcomes],
   };
   const checks = (list, chosen, name) => list.map(x => `<label><input type="checkbox" name="${name}" value="${esc(x)}" ${chosen.includes(x) ? "checked" : ""}/>${esc(x.replaceAll("_", " "))}</label>`).join("");

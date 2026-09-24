@@ -311,8 +311,9 @@ Rules the engine keeps:
   same value.
 
 `pivot(table, view, { maxColumns })` is the form a chart uses: past
-`maxColumns` columns it keeps the `maxColumns - 1` with the largest first-value
-total and folds the rest into one column keyed `[OTHER]`, aggregated from their
+`maxColumns` columns it keeps the `maxColumns - 1` whose first-value total is
+largest in absolute value (a large negative series weighs on a chart as much
+as a large positive one) and folds the rest into one column keyed `[OTHER]`, aggregated from their
 rows like any other column (never summed from cells, so a folded median is a
 median). The module also exports `timeKey(iso, grain)`,
 `distinctValues(table, field)` (a filter's value list with counts),

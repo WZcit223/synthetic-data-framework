@@ -148,8 +148,10 @@ const now = () => (globalThis.performance ?? Date).now();
  * Every total is aggregated from the underlying rows, never from the cells it spans.
  *
  * ``options.maxColumns`` (for a chart's series) keeps the ``maxColumns - 1``
- * columns with the largest first-value total and folds the rest into one column
- * keyed ``[OTHER]``, aggregated from their rows like any other column.
+ * columns whose first-value total is largest in size (absolute value: a large
+ * negative series weighs on a chart as much as a large positive one) and folds
+ * the rest into one column keyed ``[OTHER]``, aggregated from their rows like
+ * any other column.
  */
 export function pivot(table, view = {}, options = {}) {
   const t0 = now();
