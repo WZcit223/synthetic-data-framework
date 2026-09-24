@@ -56,8 +56,11 @@ not from cells.
   surface the dashboard uses.
 - *Status line.* Rows read, rows after filters, groups, and time taken; a
   truncated dataset says so.
-- *State in the address.* The source and the view are encoded in
-  `explore.html#view=…`; opening that link rebuilds the view.
+- *State in the address.* The source (a dataset or an experiment request) and
+  the view are encoded in `explore.html#view=…` as `interfaces.md` §3 defines;
+  opening that link repeats the request and rebuilds the view. The `synthesis`
+  source shape is read by this page but only produced once PR 3's endpoint
+  exists.
 - *Empty, loading and error states.* No field chosen, a request in flight, a
   422 or 404 from the API: each has its own message.
 
@@ -67,7 +70,8 @@ navigation bar (Dashboard, Explore) is added to both pages.
 
 **Tests and CI.**
 
-- `ui/pivot.test.mjs` runs under `node --test ui/`. It covers each aggregation,
+- `ui/package.json` (`{"type": "module"}` only) makes Node load `ui/*.js` as
+  ES modules. `ui/pivot.test.js` runs under `node --test ui/`. It covers each aggregation,
   each grain, filters, shares, sorting, subtotals, totals from rows,
   `null`-not-`0`, and both row forms of `toTable`.
 - CI gains a step that runs `node --test ui/` (Node is preinstalled on the

@@ -29,9 +29,10 @@ write and mount their own synthesizer or dataset.
 
     Below the tiles, a real-against-synthetic chart: overlaid lines for a
     series, per-column distribution comparison for a table. An "Open in
-    Explore" link opens the run's table in the pivot page (the link carries the
-    run request, and the Explore page repeats it; runs are seeded, so the same
-    request gives the same table).
+    Explore" link opens the run's table in the pivot page. The link carries the
+    run request with the parameters the run reported (`params`, seed included)
+    as a `synthesis` source (`interfaces.md` §3), and the Explore page repeats
+    it, so it shows the same table.
 - **Dashboard.** The generation controls gain a "Generator" choice listing the
   synthesizers that produce a warehouse; the regenerate request sends it, and
   the page shows which generator built the current world.

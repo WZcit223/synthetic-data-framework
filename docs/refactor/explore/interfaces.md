@@ -213,9 +213,11 @@ curl -s localhost:8000/api/v1/experiments/catalog
 ```
 
 A parameter is always described by this one JSON shape, here and for
-synthesizers (§4): `{"name", "type", "default", "min", "max", "exclusive"}`, where
-`type` is `int`, `float`, `str` or `bool`, `min` and `max` are `null` when
-unbounded, and `exclusive: true` means the bounds themselves are not allowed.
+synthesizers (§4): `{"name", "type", "default", "min", "max", "exclusive",
+"nullable"}`, where `type` is `int`, `float`, `str` or `bool`, `min` and `max`
+are `null` when unbounded, `exclusive: true` means the bounds themselves are not
+allowed, and `nullable: true` means `null` is also accepted (the default may
+then be `null`).
 The catalogue's bounds are the ones `POST /experiments` enforces, so a form built
 from it cannot send a request the endpoint rejects.
 
@@ -242,7 +244,9 @@ See §4.2.
 ### 3.1 Target (after PR 2)
 
 A pure ES module with no DOM access, so Node's test runner covers it
-(`node --test ui/`).
+(`node --test ui/`). `ui/package.json` holds only `{"type": "module"}`, so Node
+loads every `ui/*.js` file as an ES module, as the browser does with
+`<script type="module">`; it declares no dependency and no script.
 
 ```javascript
 import { pivot, toTable } from "./pivot.js";
@@ -282,8 +286,20 @@ Rules the engine keeps:
 - `showAs` shares are fractions (0–1) of the grand, row or column total of the
   same value.
 
-The page keeps the whole view in its address (`explore.html#view=…`, a compact
-JSON of the dataset or source and the view above), so a link reproduces it.
+The page keeps the whole view in its address, so a link reproduces it:
+`explore.html#view=` followed by the URL-encoded JSON `{"source": …, "view": …}`,
+where `view` is the object passed to `pivot` above and `source` is exactly one
+of:
+
+```javascript
+{ dataset: "order-lines" }                                   // GET /datasets/order-lines
+{ experiment: { interventions: [...], policies: [...], outcomes: [...] } }   // POST /experiments with this body
+{ synthesis: { synthesizer: "seasonal-profile", source: "sample", params: { seed: 7 } } }  // POST /synthesis/runs (after PR 3)
+```
+
+Opening a link repeats that one request against the current world and applies
+the view. A source of an unknown shape, or a request the API rejects, shows the
+error and an empty view; it never falls back to another source.
 
 ---
 
@@ -296,15 +312,22 @@ from sdf.synthesis.registry import default_registry
 
 reg = default_registry()
 reg.params("bootstrap-table")
-# (Param(name='seed', type='int', default=7, min=None, max=None, exclusive=False),
-#  Param(name='jitter', type='float', default=0.05, min=None, max=None, exclusive=False))
+# (Param(name='seed', type='int', default=7, min=None, max=None, exclusive=False, nullable=False),
+#  Param(name='jitter', type='float', default=0.05, min=None, max=None, exclusive=False, nullable=False))
 reg.params("warehouse-spec")   # () : its GenerationSpec comes from the world request, not from a form
 ```
 
 `Param` (in `sdf.synthesis.api`) is the parameter shape of §2.1:
-`Param(name, type, default, min=None, max=None, exclusive=False)`. It covers each
-keyword argument whose type is `int`, `float`, `str` or `bool`; other arguments
-are supplied by the framework. A synthesizer may narrow its parameters with a
+`Param(name, type, default, min=None, max=None, exclusive=False, nullable=False)`.
+It covers each keyword argument whose type is `int`, `float`, `str` or `bool`,
+or one of those or `None` (`seed: int | None = None` becomes
+`Param(name='seed', type='int', default=None, nullable=True)`); other arguments
+are supplied by the framework.
+
+**Runs are repeatable.** When a synthesizer has a `seed` parameter and a run
+leaves it out or sets it to `None`, `evaluate` uses `EVALUATION_SEED = 7`; the
+run reports every parameter it used in `run.params`, so repeating a run with
+those parameters gives the same table. A synthesizer may narrow its parameters with a
 class attribute `param_bounds: ClassVar[dict[str, tuple[float | None, float |
 None]]]`, for example `{"jitter": (0.0, 1.0)}`; without it they are unbounded. A
 `produces="warehouse"` synthesizer takes `spec: GenerationSpec | None = None`.
@@ -318,6 +341,7 @@ sources()          # {'sample': 'data/sample_online_retail_ii.csv', 'retail-10k'
                    # (only files that exist under the data directory, default ./data or $SDF_DATA_DIR)
 run = evaluate("seasonal-profile", source="sample", params={"seed": 7})   # a source ID, or a CSV path
 run.kind           # 'series'
+run.params         # {'seed': 7}: every parameter actually used, defaults included
 run.metrics        # {'ks_statistic': …, 'profile_corr': …, 'mean_delta_pct': …, 'std_delta_pct': …, 'fidelity_score': …}
                    # the same numbers `sdf synth data/sample_online_retail_ii.csv` prints
 run.table          # Table: fields (step: dimension, origin: dimension real|synthetic, value: measure)
@@ -373,7 +397,8 @@ its equality or its printed form.
 curl -s localhost:8000/api/v1/synthesizers
 # {"synthesizers": [{"name": "bootstrap-table", "produces": "table", "needs_fit": true, "origin": "builtin",
 #                    "description": "…", "requires": [],
-#                    "params": [{"name": "seed", "type": "int", "default": 7, "min": null, "max": null, "exclusive": false}, …]},
+#                    "params": [{"name": "seed", "type": "int", "default": 7, "min": null, "max": null,
+#                                "exclusive": false, "nullable": false}, …]},
 #                   …],
 #  "unavailable": {"gaussian-copula": "needs copulas, pandas"}}
 
@@ -382,7 +407,7 @@ curl -s localhost:8000/api/v1/synthesis/sources
 
 curl -s -X POST localhost:8000/api/v1/synthesis/runs -H 'content-type: application/json' \
      -d '{"synthesizer": "seasonal-profile", "source": "sample", "params": {"seed": 7}}'
-# {"synthesizer": "seasonal-profile", "source": "sample", "kind": "series",
+# {"synthesizer": "seasonal-profile", "source": "sample", "kind": "series", "params": {"seed": 7},
 #  "metrics": {"fidelity_score": …, …}, "fields": [...], "rows": [...]}
 
 curl -s -X POST localhost:8000/api/v1/world -H 'content-type: application/json' \

@@ -13,14 +13,16 @@ produces a warehouse.
 ## Scope
 
 - `sdf.synthesis.api`: `Param(name, type, default, min=None, max=None,
-  exclusive=False)`. `sdf.synthesis.registry`: `SynthesizerRegistry.params(name)`
+  exclusive=False, nullable=False)`; an `int | None` style annotation becomes a
+  nullable parameter. `sdf.synthesis.registry`: `SynthesizerRegistry.params(name)`
   reads the keyword arguments of the synthesizer's constructor (resolving string
   annotations) and an optional `param_bounds` class attribute.
   `bootstrap-table` declares `jitter` bounds.
 - New `sdf.validation.evaluation`: `sources()`, which lists the bundled CSVs
   present under `$SDF_DATA_DIR` (default `./data`), and `evaluate(synthesizer, *,
   source, params=None, date_format=None, registry=None) -> SynthesisRun(synthesizer,
-  source, kind, metrics, table)`, where `source` is a source ID or a CSV path
+  source, kind, params, metrics, table)`, which fills a missing or `None` seed
+  with `EVALUATION_SEED` and reports every parameter it used, where `source` is a source ID or a CSV path
   (the CLI passes its path and `--date-format`; the API passes IDs only). A series synthesizer is fitted on the source's hourly demand and
   scored with `fidelity_report`; a table synthesizer on its feature table and
   scored with `privacy_report`. Both scorers keep their `ALGORITHM-HOOK`
@@ -42,7 +44,9 @@ produces a warehouse.
   types and bounds before creating the synthesizer and answers 422 otherwise.
   Only the bundled source IDs are accepted; a client never sends a path.
 - Tests:
-  - `params` for each built-in and for a plug-in with bounds;
+  - `params` for each built-in (`gaussian-copula`'s nullable seed included) and
+    for a plug-in with bounds;
+  - two runs of each built-in with the seed left out give the same table;
   - `evaluate` for series and table against the numbers `sdf synth` and
     `sdf privacy` print today, and each rejection;
   - a runtime warehouse synthesizer registered on the registry passed to
