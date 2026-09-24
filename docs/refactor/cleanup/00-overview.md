@@ -74,6 +74,8 @@ refactor and so comes last.
 - PR 1: MINOR (new `sdf hooks` command).
 - PR 2: MINOR (records reject invalid values; workflow context changes shape).
 - PR 3: MINOR (the audit log's content and two new CLI options).
-- PR 4: PATCH (development dependency, favicon and documentation).
+- PR 4: PATCH (the `sdf validate` snapshot gains each backtest series' mean and
+  held-out window, so `docs/VALIDATION.md` prose can refer to them; plus a
+  development dependency, favicon and documentation).
 
 The plan PR itself: `Version: none, documentation and plans only`.

@@ -64,5 +64,7 @@ uv run sdf validate --update-doc docs/VALIDATION.md && git diff --exit-code docs
 
 ## Version
 
-`Version: PATCH 1.3.0 → 1.3.1` — development dependency, a UI asset and
-documentation.
+`Version: PATCH 1.3.0 → 1.3.1` — shipped code changes only additively: the
+`sdf validate` snapshot (`src/sdf/application/snapshot.py`) gains each backtest
+series' mean and held-out window; the rest is a development dependency, a UI
+asset and documentation.

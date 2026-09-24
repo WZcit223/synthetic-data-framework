@@ -27,6 +27,9 @@ by a test.
 - The checklist gains a "Where it plugs in" section holding that block: one row
   per checklist ID with its markers' locations, or "—" when no code carries it yet.
 - `sdf hooks` prints the index; `sdf hooks --update-doc PATH` rewrites the block.
+- `REFACTOR_PREP.md` §4's constraint on markers is corrected to this contract:
+  the bracket holds a row ID of `docs/ALGORITHM_AND_DATA_CHECKLIST.md` (not a
+  line number), and a marker may sit in a comment or a docstring.
 - `hooks_test.py`: every marker has an ID and every ID exists in the checklist;
   no bare `ALGORITHM-HOOK:` / `DATA-HOOK:` remains; the checklist's block equals
   the rendered index. `layering_test.py` ranks `hooks` with the other root
