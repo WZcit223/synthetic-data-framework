@@ -187,6 +187,15 @@ def test_hooks_prints_the_index_and_updates_a_doc(tmp_path, monkeypatch):
     assert "already up to date" in run("hooks", "--update-doc", str(doc)).output
 
 
+def test_hooks_update_doc_needs_the_generated_block(tmp_path, monkeypatch):
+    monkeypatch.chdir(ROOT)
+    doc = tmp_path / "plain.md"
+    doc.write_text("no generated block here\n", encoding="utf-8")
+    result = run("hooks", "--update-doc", str(doc))
+    assert result.exit_code == 1 and "sdf-hooks:begin" in result.output
+    assert doc.read_text(encoding="utf-8") == "no generated block here\n"
+
+
 def test_hooks_fails_on_an_unknown_row(tmp_path):
     doc = tmp_path / "checklist.md"
     doc.write_text("| # | Item |\n|---|---|\n| C1 | Demand forecast |\n", encoding="utf-8")

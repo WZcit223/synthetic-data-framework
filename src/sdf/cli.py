@@ -501,7 +501,10 @@ def hooks_command(checklist: str, doc_path: str | None) -> None:
     if doc_path:
         with open(doc_path, encoding="utf-8") as fh:
             text = fh.read()
-        updated = hooks.replace_doc_block(text, index)
+        try:
+            updated = hooks.replace_doc_block(text, index)
+        except ValueError as exc:
+            raise click.ClickException(f"{doc_path}: {exc}") from exc
         if updated != text:
             with open(doc_path, "w", encoding="utf-8") as fh:
                 fh.write(updated)
