@@ -696,3 +696,30 @@ def test_the_world_reports_and_keeps_its_generator():
 def test_the_world_refuses_a_generator_that_is_not_a_warehouse(client, name, message):
     res = post_world(client, synthesizer=name)
     assert res.status_code == 422 and message in res.json()["detail"]
+
+
+def test_a_generator_that_returns_something_else_is_a_422_and_the_world_is_kept():
+    from typing import ClassVar
+
+    from sdf.synthesis.api import SynthesizerInfo
+    from sdf.synthesis.registry import default_registry
+
+    class NotAWarehouse:
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("not-a-warehouse", "warehouse", False, "claims a warehouse")
+
+        def __init__(self, *, spec=None) -> None:
+            self.spec = spec
+
+        def fit(self, data=None):
+            return self
+
+        def sample(self, n=None, *, seed=None):
+            return []
+
+    synthesizers = default_registry()
+    synthesizers.register(NotAWarehouse)
+    c = TestClient(create_app(synthesizers=synthesizers))
+    before = get(c, "/world")
+    res = post_world(c, synthesizer="not-a-warehouse", n_skus=30)
+    assert res.status_code == 422 and "returned list, not a SyntheticWarehouse" in res.json()["detail"]
+    assert get(c, "/world") == before

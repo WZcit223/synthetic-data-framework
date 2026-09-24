@@ -16,6 +16,10 @@ from .warehouse import SyntheticWarehouse
 DEFAULT_WAREHOUSE_SYNTHESIZER = "warehouse-spec"
 
 
+class WarehouseRefused(ValueError):
+    """The chosen synthesizer does not produce a ``SyntheticWarehouse``: by its info, or by what it returned."""
+
+
 def build_registry(
     spec: GenerationSpec,
     *,
@@ -30,10 +34,12 @@ def build_registry(
     reg = synthesizers if synthesizers is not None else default_registry()
     info = reg.info(synthesizer)
     if info.produces != "warehouse":
-        raise ValueError(f"{synthesizer} produces a {info.produces}, not a warehouse; choose a warehouse synthesizer")
+        raise WarehouseRefused(
+            f"{synthesizer} produces a {info.produces}, not a warehouse; choose a warehouse synthesizer"
+        )
     wh = reg.create(synthesizer, spec=spec).sample()
     if not isinstance(wh, SyntheticWarehouse):
-        raise ValueError(f"{synthesizer} returned {type(wh).__name__}, not a SyntheticWarehouse")
+        raise WarehouseRefused(f"{synthesizer} returned {type(wh).__name__}, not a SyntheticWarehouse")
     reg = DataSourceRegistry()
     reg.register("syn_skus", "SKU", wh.skus)
     reg.register("syn_locations", "Location", wh.locations)

@@ -363,6 +363,7 @@ def test_params_of_a_plug_in_with_bounds_and_string_annotations():
         ({"scale": (0,)}, "must be a (min, max) pair"),
         ({"scale": ("0", 1)}, "must be a (min, max) pair"),
         ({"scale": (1.0, 0.0)}, "has min 1.0 above max 0.0"),
+        ({"scale": (2.0, 3.0)}, "the default of scale breaks its own declaration: must be from 2.0 to 3.0, got 1.0"),
         ([("scale", (0, 1))], "must be a dict"),
     ],
 )
@@ -372,6 +373,18 @@ def test_register_refuses_malformed_bounds(bounds, message):
     )
     with pytest.raises(TypeError, match=message.replace("(", r"\(").replace(")", r"\)")):
         SynthesizerRegistry().register(bad)
+
+
+def test_a_default_of_none_admits_none():
+    class LooseSeed(ShuffleSeries):
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("loose-seed", "series", True, "x")
+
+        def __init__(self, *, seed: int = None) -> None:  # type: ignore[assignment]
+            super().__init__(seed=seed or 0)
+
+    reg = SynthesizerRegistry()
+    reg.register(LooseSeed)
+    assert reg.params("loose-seed") == (Param("seed", "int", None, nullable=True),)
 
 
 def test_a_positional_only_argument_is_not_a_parameter():

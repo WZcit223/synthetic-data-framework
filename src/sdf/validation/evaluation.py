@@ -108,6 +108,10 @@ def evaluate(
     repeatable = "seed" in declared
     if repeatable and used["seed"] is None:
         used["seed"] = EVALUATION_SEED
+    for name, value in used.items():  # the values the synthesizer gets, defaults included
+        problem = declared[name].check(value)
+        if problem:
+            raise ValueError(f"{synthesizer}: {name} {problem}")
     path = _resolve(source)
     model = reg.create(synthesizer, **used)
 

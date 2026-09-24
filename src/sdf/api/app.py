@@ -38,6 +38,7 @@ from sdf.application.knowledge import KnowledgeQA
 from sdf.application.scenarios import run_scenarios
 from sdf.simulation import catalog
 from sdf.simulation.experiment import OUTCOME_FIELDS, Experiment
+from sdf.synthesis.materialise import WarehouseRefused
 from sdf.synthesis.registry import SynthesizerRegistry, default_registry
 from sdf.synthesis.spec import GenerationSpec
 from sdf.validation.evaluation import evaluate, sources
@@ -145,6 +146,8 @@ def create_app(
             snap = store.regenerate(spec, synthesizer=name)
         except GenerationBusy as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except WarehouseRefused as exc:  # it claims a warehouse but returned something else; the world is unchanged
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"ok": True, "spec": values, "generated_ms": snap.generated_ms, "synthesizer": snap.world.synthesizer}
 
     def _warehouse_synthesizer(name: str) -> None:

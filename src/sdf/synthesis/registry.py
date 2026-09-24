@@ -188,7 +188,12 @@ def synthesizer_params(cls: type) -> tuple[Param, ...]:
         if kind is None:
             continue
         lo, hi = bounds.get(p.name, (None, None))
-        params.append(Param(p.name, kind, p.default, min=lo, max=hi, nullable=nullable))
+        # a default of None admits None, however the annotation is written (``seed: int = None``)
+        param = Param(p.name, kind, p.default, min=lo, max=hi, nullable=nullable or p.default is None)
+        problem = param.check(p.default)
+        if problem:
+            raise TypeError(f"{name}: the default of {p.name} breaks its own declaration: {problem}")
+        params.append(param)
     numeric = {p.name for p in params if p.type in ("int", "float")}
     for key in bounds:
         if key not in numeric:
