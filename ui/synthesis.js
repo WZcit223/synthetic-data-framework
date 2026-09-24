@@ -25,6 +25,8 @@ export function readParam(param, raw) {
   const value = Number(text);
   if (!Number.isFinite(value)) return { error: `${param.name}: enter a number` };
   if (param.type === "int" && !Number.isInteger(value)) return { error: `${param.name}: enter a whole number` };
+  // beyond 2^53 a JSON number no longer holds the digits typed, so the run would use another value
+  if (param.type === "int" && !Number.isSafeInteger(value)) return { error: `${param.name}: between -9007199254740991 and 9007199254740991` };
   const below = param.min != null && (param.exclusive ? value <= param.min : value < param.min);
   const above = param.max != null && (param.exclusive ? value >= param.max : value > param.max);
   if (below || above) return { error: `${param.name}: ${boundsText(param)}` };

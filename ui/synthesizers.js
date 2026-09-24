@@ -111,7 +111,10 @@ function readForm(s) {
   for (const p of s.params) {
     const input = document.querySelector(`[data-param="${CSS.escape(p.name)}"]`);
     const none = document.querySelector(`[data-none="${CSS.escape(p.name)}"]`);
-    const read = readParam(p, input.type === "checkbox" ? input.checked : none?.checked ? null : input.value);
+    // a number field reports text it cannot parse as "", which a nullable parameter would take as none
+    const read = input.validity?.badInput
+      ? { error: `${p.name}: enter a number` }
+      : readParam(p, input.type === "checkbox" ? input.checked : none?.checked ? null : input.value);
     document.querySelector(`[data-err="${CSS.escape(p.name)}"]`).textContent = read.error ?? "";
     input.setAttribute("aria-invalid", read.error ? "true" : "false");
     if (read.error) ok = false;

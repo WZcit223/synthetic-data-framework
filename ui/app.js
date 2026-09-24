@@ -304,13 +304,13 @@ async function regen(){
     $("#status").textContent="✗ "+why;
     return;
   }
+  showGenerator(g.synthesizer); // the world is replaced now, whether or not every panel refreshes
   try {
     await refreshAll();
   } catch (err) {
     $("#status").textContent=`✓ generated (${g.generated_ms} ms), but a panel failed to refresh: ${err.message}`;
     return;
   }
-  showGenerator(g.synthesizer);
   $("#status").textContent=`✓ updated with ${g.synthesizer} (${g.generated_ms} ms)`;
   setTimeout(()=>$("#status").textContent="",1500);
 }
