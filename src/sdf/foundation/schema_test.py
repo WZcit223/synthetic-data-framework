@@ -38,6 +38,7 @@ INVALID = [
     ("sku", "abc_class", "D"),
     ("sku", "shelf_life_days", 0),
     ("location", "location_id", ""),
+    ("location", "level", -1),
     ("location", "capacity_units", -1),
     ("inventory", "sku_id", ""),
     ("inventory", "location_id", None),
@@ -47,6 +48,7 @@ INVALID = [
     ("inbound", "order_id", ""),
     ("inbound", "supplier_id", ""),
     ("inbound", "quantity", 0),
+    ("inbound", "lead_time_days", -1),
     ("inbound", "status", "lost"),
     ("outbound", "order_id", ""),
     ("outbound", "quantity", 0),
@@ -71,6 +73,8 @@ def test_valid_records_and_the_allowed_edges_build():
     assert replace(VALID["sku"], abc_class="?", shelf_life_days=None, unit_cost=0.0).abc_class == "?"
     assert replace(VALID["outbound"], status="cancelled").status == "cancelled"
     assert replace(VALID["sensor"], value=-3.5).value == -3.5  # a temperature may be negative
+    assert replace(VALID["location"], level=0).level == 0  # ground level
+    assert replace(VALID["inbound"], lead_time_days=0).lead_time_days == 0  # same-day delivery
 
 
 def test_every_record_of_the_default_world_validates(default_world):

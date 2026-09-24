@@ -98,7 +98,7 @@ class Location(Entity):
 
     def __post_init__(self) -> None:
         self._identifier("location_id")
-        self._not_negative("capacity_units")
+        self._not_negative("level", "capacity_units")
 
 
 @dataclass
@@ -136,6 +136,7 @@ class InboundOrder(Entity):
     def __post_init__(self) -> None:
         self._identifier("order_id", "sku_id", "supplier_id")
         self._positive("quantity")
+        self._not_negative("lead_time_days")
         self._one_of("status", INBOUND_STATUSES)
 
 
