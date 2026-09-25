@@ -46,8 +46,8 @@ class ForecasterRegistry(PluginRegistry[Forecaster]):
         """The parameters a client may set on ``name``: its typed constructor keywords."""
         return constructor_params(self._entry(name).cls)
 
-    def create(self, name: str, **params: Any) -> Forecaster:
-        """A new instance of ``name`` with ``params``, each checked against its published bounds first."""
+    def check_params(self, name: str, params: dict[str, Any]) -> None:
+        """``ValueError`` naming the first parameter ``name`` does not take or whose value it refuses."""
         declared = {p.name: p for p in self.params(name)}
         unknown = sorted(set(params) - set(declared))
         if unknown:
@@ -56,6 +56,10 @@ class ForecasterRegistry(PluginRegistry[Forecaster]):
             problem = declared[key].check(value)
             if problem:
                 raise ValueError(f"{name}: {key} {problem}")
+
+    def create(self, name: str, **params: Any) -> Forecaster:
+        """A new instance of ``name`` with ``params``, each checked against its published bounds first."""
+        self.check_params(name, params)
         return self._entry(name).cls(**params)
 
     def forecast(

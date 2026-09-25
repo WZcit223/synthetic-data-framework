@@ -303,10 +303,13 @@ def test_a_failing_forecaster_is_an_error_row_and_the_others_still_run():
 
 
 def test_a_constructor_that_fails_is_an_error_row_not_a_failed_request():
+    built: list[str] = []
+
     class Fragile(MeanForecaster):
         info: ClassVar[ForecasterInfo] = ForecasterInfo("fragile", "cannot be built")
 
         def __init__(self) -> None:
+            built.append("fragile")
             raise RuntimeError("no model file")
 
     reg = ForecasterRegistry()
@@ -314,6 +317,7 @@ def test_a_constructor_that_fails_is_an_error_row_not_a_failed_request():
     reg.register(MeanForecaster)
     result = backtest(["fragile", "mean"], table([1.0] * 60), horizon=5, origins=2, registry=reg)
     assert [r[12] for r in result.scores.rows] == ["RuntimeError: no model file", None]
+    assert built == ["fragile"]  # built once, to run it: checking the request builds nothing
 
 
 def test_the_deadline_turns_forecasters_not_started_into_not_run_rows():

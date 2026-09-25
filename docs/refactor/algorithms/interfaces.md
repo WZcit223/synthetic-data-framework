@@ -725,12 +725,12 @@ Each new endpoint is synchronous and bounded, as in the causal sequence:
 | `POST /forecasts/backtest` | forecasters, horizon, origins, quantiles | 6, 56, 12, 9 |
 | | SKUs read from the world or drawn by the benchmark | 400 |
 | | time, checked before each forecaster and each origin | 30 s (`MAX_BACKTEST_SECONDS`) |
+| `GET /anomalies` | SKUs × days in the frame | measured in PR 4 |
 
 Measured in PR 1: the five built-ins together, with the `true-distribution`
 row, take 4.7 s at 400 SKUs × 730 days (horizon 14, 4 origins) and 15.4 s at
 the largest request (horizon 56, 12 origins). The built-ins run for all SKUs at
 once; the exact quantiles are computed once per day shared by several origins.
-| `GET /anomalies` | SKUs × days in the frame | measured in PR 4 |
 
 The limits are published in `GET /forecasters` (and for detectors in
 `GET /detectors`), so the pages check them before sending.
