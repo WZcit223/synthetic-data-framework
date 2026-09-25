@@ -212,7 +212,12 @@ def _checked_request(reg, forecasters, horizon, origins, step, quantiles, params
     if stray:
         raise ValueError(f"params names forecasters not requested: {stray}")
     for name in names:
-        reg.create(name, **given.get(name, {}))  # a bad parameter is the request's problem: refused now
+        try:
+            reg.create(name, **given.get(name, {}))  # a bad parameter is the request's problem: refused now
+        except ValueError:
+            raise
+        except Exception:  # the plug-in's own constructor failed: its error row says so when it runs
+            pass
     return names, levels, given
 
 

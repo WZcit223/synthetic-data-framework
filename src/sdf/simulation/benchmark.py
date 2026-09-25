@@ -153,10 +153,14 @@ class TrueDemand:
     dispersion: float
 
     def _at(self, day: date) -> int:
-        try:
-            return self.days.index(day)
-        except ValueError:
-            raise ValueError(f"{day.isoformat()} is not a day of the benchmark") from None
+        j = (day - self.days[0]).days if self.days else -1  # the days are dense from the first
+        if not 0 <= j < len(self.days):
+            raise ValueError(f"{day.isoformat()} is not a day of the benchmark")
+        return j
+
+    def means(self) -> np.ndarray:
+        """The mean a forecaster can know, SKUs × days."""
+        return (1 - self.zero)[:, None] * self.component * (1 + self.promo_rate * self.promo_uplift)
 
     def mean(self, day: date) -> np.ndarray:
         c = self.component[:, self._at(day)]
@@ -189,11 +193,13 @@ class DemandDraw:
 
     def observed(self) -> Table:
         """The draw as a ``demand-benchmark`` table: every SKU and day, with the mean a forecaster can know."""
-        rows = []
-        for i, sku in enumerate(self.truth.sku_ids):
-            series = self.table.series[sku]
-            for j, d in enumerate(self.table.days):
-                rows.append((sku, d.isoformat(), series[j], round(float(self.truth.mean(d)[i]), 4)))
+        means = self.truth.means()
+        days = [d.isoformat() for d in self.table.days]
+        rows = [
+            (sku, day, units, round(float(means[i, j]), 4))
+            for i, sku in enumerate(self.truth.sku_ids)
+            for j, (day, units) in enumerate(zip(days, self.table.series[sku]))
+        ]
         return Table(DEMAND_BENCHMARK_INFO, rows)
 
 

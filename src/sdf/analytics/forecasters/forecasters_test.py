@@ -110,7 +110,7 @@ def good(history, horizon, levels, **change):
     n = len(history.series)
     fields = dict(
         forecaster="scripted",
-        origin=START,
+        origin=history.days[-1] + timedelta(days=1),
         sku_ids=tuple(history.series),
         mean=np.ones((n, horizon)),
         quantiles={q: np.full((n, horizon), q) for q in levels},
@@ -127,6 +127,7 @@ def good(history, horizon, levels, **change):
         ({"mean": np.ones((2, 2))}, r"mean of shape \(2, 2\), not \(2, 3\)"),
         ({"mean": np.full((2, 3), np.nan)}, "non-finite mean"),
         ({"quantiles": {0.5: np.ones((2, 3))}}, r"returned the levels \[0.5\]"),
+        ({"origin": START}, r"forecast from 2025-01-01, not 2025-01-31 \(the day after the history\)"),
     ],
 )
 def test_the_guard_refuses_what_cannot_be_scored(change, match):
@@ -299,6 +300,20 @@ def test_a_failing_forecaster_is_an_error_row_and_the_others_still_run():
     broken, fine = result.scores.rows
     assert broken[12] == "RuntimeError: boom" and broken[1] is None
     assert fine[12] is None and fine[1] == 0.0
+
+
+def test_a_constructor_that_fails_is_an_error_row_not_a_failed_request():
+    class Fragile(MeanForecaster):
+        info: ClassVar[ForecasterInfo] = ForecasterInfo("fragile", "cannot be built")
+
+        def __init__(self) -> None:
+            raise RuntimeError("no model file")
+
+    reg = ForecasterRegistry()
+    reg.register(Fragile)
+    reg.register(MeanForecaster)
+    result = backtest(["fragile", "mean"], table([1.0] * 60), horizon=5, origins=2, registry=reg)
+    assert [r[12] for r in result.scores.rows] == ["RuntimeError: no model file", None]
 
 
 def test_the_deadline_turns_forecasters_not_started_into_not_run_rows():

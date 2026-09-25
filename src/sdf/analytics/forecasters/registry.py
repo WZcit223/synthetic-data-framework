@@ -11,6 +11,7 @@ name is refused in one place. The contract is
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import timedelta
 from typing import Any, ClassVar
 
 import numpy as np
@@ -74,6 +75,9 @@ def _checked(name: str, fc: Any, history: DemandTable, horizon: int, levels: tup
         raise ValueError(f"{name} returned {type(fc).__name__}, not a Forecast")
     if fc.forecaster != name:
         raise ValueError(f"{name} returned a forecast labelled {fc.forecaster!r}")
+    expected = history.days[-1] + timedelta(days=1)
+    if fc.origin != expected:
+        raise ValueError(f"{name} returned a forecast from {fc.origin}, not {expected} (the day after the history)")
     skus = tuple(history.series)
     if tuple(fc.sku_ids) != skus:
         raise ValueError(f"{name} forecast other SKUs than the history's ({len(fc.sku_ids)} for {len(skus)})")

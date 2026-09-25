@@ -122,7 +122,11 @@ and every endpoint use; a forecaster is never called directly by them):
   (monotone rearrangement); both are counted and reported in the scores'
   `method` field, never silent;
 - a result labelled with another forecaster's name is refused, as for
-  estimators.
+  estimators, and so is an `origin` other than the day after the history's
+  last day;
+- a forecaster whose constructor fails with anything but a `ValueError` (a bad
+  parameter, the request's problem) becomes an error row when it runs, not a
+  failed request.
 
 ### 1.3 Target (after PR 1): the registry and the built-ins
 

@@ -294,7 +294,8 @@ Parameters are constructor keywords, published and checked like a
 synthesizer's (`int`, `float`, `str` or `bool`, bounded by `param_bounds`).
 
 The registry checks every forecast before it is scored: a wrong shape, other
-SKUs, a missing level, a non-finite value or another name is refused, and that
+SKUs, a missing level, a non-finite value, another name or an origin other
+than the day after the history is refused, and that
 forecaster becomes an error row while the others still run. Negative values are
 set to 0, and quantiles that cross are sorted; both are counted in the row's
 `method`, never silent.

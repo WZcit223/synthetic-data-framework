@@ -6,7 +6,7 @@ import importlib.util
 import math
 import statistics
 from dataclasses import replace
-from datetime import date
+from datetime import date, timedelta
 
 import numpy as np
 import pytest
@@ -264,3 +264,8 @@ def test_the_true_distribution_s_coverages_bracket_the_nominal_level():
     assert row[5] < snaive[5]  # the exact distribution's pinball loss is below seasonal naive's
     observed = d.observed()
     assert len(observed.rows) == 200 * 365 and observed.info.name == "demand-benchmark"
+    sku, day, units, mean = observed.rows[365 + 10]  # the second SKU, its eleventh day
+    assert (sku, day) == ("B-0001", d.table.days[10].isoformat()) and units == d.table.series["B-0001"][10]
+    assert mean == round(float(d.truth.mean(d.table.days[10])[1]), 4)
+    with pytest.raises(ValueError, match="is not a day of the benchmark"):
+        d.truth.mean(d.table.days[-1] + timedelta(days=1))
