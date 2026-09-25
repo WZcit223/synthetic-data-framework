@@ -17,7 +17,9 @@ to be implemented are written for the new stack.
 - `docs/ARCHITECTURE.md`: the UI section describes the components and the build.
 - The algorithm phase's PR 6 (`../algorithms/06-pages.md`): the Forecasts page
   and the dashboard's interval band are specified on `LineChart`'s `band`,
-  `DataTable` and the Playwright tests; its "Charts" section points to §2 here.
+  `DataTable` and the Playwright tests; its "Charts" section points to §2
+  here, and its scope lists the build and navigation changes of a fifth page
+  (§1.3), which that PR owns.
 - `docs/ROADMAP.md` and the README: "offline" stays true and says why (all
   assets are bundled).
 - A short "Adding a chart or a table" section in ARCHITECTURE, for the next

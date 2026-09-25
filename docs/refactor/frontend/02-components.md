@@ -13,7 +13,8 @@ is a Svelte page whose charts are Chart.js and whose tables are Tabulator.
 
 - **Charts:** `LineChart`, `BarChart`, `IntervalChart`, `StripChart`,
   `HeatGrid` (§2.2), registered once with only the Chart.js parts they use.
-- **Tables:** `DataTable` (§3.2).
+- **Tables:** `DataTable` (§3.2), and `lib/csv.js` with `csvCell` moved out of
+  `pivot.js` and the flat writer `tableCsv`.
 - **Theme:** `theme.css` with the light and dark sets; `palette.js` with a set
   per theme and its contrast tests on both surfaces.
 - **The dashboard** (`index.html`) as `pages/Dashboard.svelte` and its parts:
@@ -27,6 +28,10 @@ is a Svelte page whose charts are Chart.js and whose tables are Tabulator.
 
 - Each component in Vitest: datasets from props, colours by name, the summary
   text, updates when props change, destroyed on unmount.
+- `DataTable` takes an API `{fields, rows}` answer as it is: titles, alignment
+  and sort order follow each field's `label`, `unit` and `kind`.
+- `csv.test.js`: `tableCsv` on a flat table, and the formula-injection cases
+  of `pivot.test.js` through both writers; `pivot.test.js` passes unchanged.
 - The dashboard in Playwright: loads without console errors, choosing a SKU
   redraws its chart, the tables sort, 390 px has no horizontal overflow.
 

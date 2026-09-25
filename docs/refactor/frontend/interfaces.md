@@ -40,8 +40,9 @@ ui/
   index.html  explore.html  synthesizers.html  effects.html   entries; same file names, same URLs
   public/favicon.svg
   src/
-    lib/            pure modules, no DOM: api.js, format.js, palette.js, pivot.js, sources.js,
-                    synthesis.js, effects-model.js, estimate-model.js, and their *.test.js
+    lib/            pure modules, no DOM: api.js, format.js, csv.js, palette.js, pivot.js,
+                    sources.js, synthesis.js, effects-model.js, estimate-model.js, and their
+                    *.test.js; chart.js and chart.test.js too, from F1 until F5 deletes them
     components/     shared Svelte components (§2, §3)
     pages/          one folder per page: Dashboard.svelte, Explore.svelte, ... and their parts
     theme.css       the colour tokens (§4)
@@ -58,6 +59,16 @@ Scripts in `ui/package.json`:
 | `npm test` | Vitest: the pure modules and the components (jsdom) |
 | `npm run check` | `svelte-check`: types from JSDoc, and Svelte's own warnings, as errors |
 | `npm run e2e` | Playwright against `ui/dist` served by the API (§5.3) |
+
+### 1.3 Adding a page (the algorithm phase's PR 6)
+
+This sequence rebuilds the four pages that exist. The algorithm phase's PR 6
+adds a fifth, `forecasts.html` (`../algorithms/interfaces.md` §10), after F5,
+and owns every change it needs here: the HTML entry and its line in
+`vite.config.js`, a `pages/Forecasts.svelte`, the Forecasts link in the shared
+navigation component (one place, so every page gets it), the page's
+Playwright spec, and the new file in §1.2's layout. The contract needs
+no other change for it; F5 rewrites `06-pages.md` to say so.
 
 Serving the built UI: `SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app`.
 `create_app(ui_dir=…)` is unchanged: it still mounts a folder that has an
@@ -94,11 +105,11 @@ One Svelte component per kind of chart; each owns one Chart.js instance,
 updates it when its props change, and destroys it when it leaves the page.
 
 ```svelte
-<LineChart  {series} {labels} {yLabel} {format} {band}?      />  <!-- lines; gaps at null; optional filled band -->
-<BarChart   {series} {labels} {stacked}? {horizontal}? {format} />
-<IntervalChart {rows} {reference}? {format} />                 <!-- point + interval per row; optional reference line -->
-<StripChart {groups} {format} />                               <!-- jittered points per group, with the group mean -->
-<HeatGrid   {cells} {columns} {rows} {format} />               <!-- a value per cell on the sequential ramp -->
+<LineChart     {series} {labels} {yLabel} {format} {summary} {band}? />  <!-- lines; gaps at null; optional filled band -->
+<BarChart      {series} {labels} {format} {summary} {stacked}? {horizontal}? />
+<IntervalChart {rows} {format} {summary} {reference}? />         <!-- point + interval per row; optional reference line -->
+<StripChart    {groups} {format} {summary} />                    <!-- jittered points per group, with the group mean -->
+<HeatGrid      {cells} {columns} {rows} {format} {summary} />    <!-- a value per cell on the sequential ramp -->
 ```
 
 - **`series`** is `[{name, values, color?}]`. A colour is never chosen by
@@ -108,8 +119,9 @@ updates it when its props change, and destroys it when it leaves the page.
   `valueFormatter`), used by the ticks and the tooltip alike.
 - **`band`** is `{low, high, name}` for PR 6 of the algorithm phase (forecast
   intervals).
-- Every chart takes a `summary` string, rendered for screen readers
-  (`aria-label` on the canvas), and is followed by the page's table view of
+- **`summary`** is required on every chart: a sentence rendered for screen
+  readers (`aria-label` on the canvas, `role="img"`). A chart without one is a
+  `svelte-check` error (the prop has no default). Every chart is followed by the page's table view of
   the same numbers; no number is shown only in a chart.
 - Tooltips, legends and hover use Chart.js's own, styled by the theme (§4).
   Keyboard access to data points comes from the table view.
@@ -132,16 +144,30 @@ subtotal groups, a 1,000-row budget, heat shading).
 ### 3.2 Target (after F2 and F4): `ui/src/components/tables/`
 
 ```svelte
-<DataTable {columns} {rows} {sort}? {download}? {height}? />
+<DataTable {fields} {rows} {format}? {sort}? {download}? {height}? />
 <PivotTable {result} {view} {heat}? on:sort on:toggle />
 ```
 
-- **`DataTable`** wraps one Tabulator instance. `columns` is
-  `[{field, title, kind, format?}]`, where `kind` is the API's field kind
-  (`dimension`, `time`, `measure`), so measures align right and sort as
-  numbers; a table the API sends as `{fields, rows}` renders with no mapping
-  code. Sorting is on for every column; `download` adds a CSV button that
-  writes through `pivot.toCsv`, which guards against formula injection.
+- **`DataTable`** wraps one Tabulator instance and takes the API's own table
+  shape: `fields` is `[{name, label, kind, unit?, aggregate?}]` (the API's
+  `FieldModel`) and `rows` is a list of arrays in the order of `fields`, so a
+  `{fields, rows}` answer is passed as it is. The one mapping, from that shape
+  to Tabulator's column definitions and row objects, is inside `DataTable`:
+  `name` becomes the column's field, `label` (with `unit` in brackets) its
+  title, and `kind` its alignment and sorter (`measure` right-aligned and
+  numeric, `time` by date, `dimension` as text). A page that builds a table
+  itself (the dashboard's replenishment rows, the effect estimates) builds
+  it in the same shape. `format` is an optional `{[name]: (value) => string}`
+  for fields that need more than `lib/format.js`'s default for their kind.
+  Sorting is on for every column.
+- **CSV.** `download` adds a CSV button. `lib/csv.js` holds the cell rule
+  used today by `pivot.toCsv` (`csvCell`: quoting, and a leading `=`, `+`,
+  `-`, `@`, tab or carriage return prefixed with `'` so a spreadsheet runs
+  nothing), moved out of `pivot.js` unchanged, and a flat writer
+  `tableCsv(fields, rows)` (a header of labels, then one line per row).
+  `DataTable` writes through `tableCsv`; `PivotTable` through `pivot.toCsv`,
+  which keeps its pivot-specific layout and now imports `csvCell`. Both are
+  tested with the formula-injection cases of today's `pivot.test.js`.
 - **`PivotTable`** renders the result of `lib/pivot.js` `pivot()`, unchanged:
   column groups become Tabulator column groups; the row-label columns are
   frozen; subtotal groups are Tabulator row groups, collapsible; the totals
@@ -172,9 +198,11 @@ subtotal groups, a 1,000-row budget, heat shading).
 
 ### 5.1 Pure modules (F1)
 
-`ui/src/lib/*.test.js`, run by Vitest. The assertions of today's
-`ui/*.test.js` move unchanged; only the imports change (`node:test` to
-`vitest`, `node:assert` stays). `chart.test.js` goes in F5 with `chart.js`.
+`ui/src/lib/*.test.js`, run by Vitest. All seven of today's `ui/*.test.js`
+files move, `chart.test.js` included, with their assertions unchanged; only
+the imports change (`node:test` to `vitest`, `node:assert` stays).
+`chart.test.js` is deleted in F5 together with `chart.js`. `csv.test.js` is
+new in F2 (§3.2).
 
 ### 5.2 Components (F2 to F4)
 

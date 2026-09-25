@@ -17,9 +17,11 @@ every page looks and works exactly as before.
 - **The four pages are built unchanged.** Vite takes today's HTML pages and
   their module scripts as entries; no page is rewritten yet. The shared
   modules move to `ui/src/lib/` (`common.js` splits into `api.js` and
-  `format.js`), with the imports updated and no logic changed.
-- **Tests:** the seven `ui/*.test.js` files move next to their modules and run
-  on Vitest (§5.1), assertions unchanged; `npm run check` runs `svelte-check`.
+  `format.js`; `chart.js` moves too, until F5 deletes it), with the imports
+  updated and no logic changed.
+- **Tests:** all seven `ui/*.test.js` files (`chart`, `common`,
+  `effects-model`, `palette`, `pivot`, `sources`, `synthesis`) move next to
+  their modules and run on Vitest (§5.1), assertions unchanged; `npm run check` runs `svelte-check`.
 - **CI:** a `ui` job on Node 22: `npm ci`, `npm run check`, `npm test`,
   `npm run build`; it uploads `ui/dist` for the Python job, which runs the
   UI-reading tests against it (§5.4). The `node --test ui/*.test.js` step goes.
