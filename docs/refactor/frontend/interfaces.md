@@ -32,6 +32,8 @@ other by relative path. The API mounts the folder with
 
 ### 1.2 Target (after F1)
 
+F1 changes the tooling and moves files; it rewrites no page.
+
 ```
 ui/
   package.json  package-lock.json   pinned dependencies; scripts below
@@ -40,15 +42,29 @@ ui/
   index.html  explore.html  synthesizers.html  effects.html   entries; same file names, same URLs
   public/favicon.svg
   src/
-    lib/            pure modules, no DOM: api.js, format.js, csv.js, palette.js, pivot.js,
-                    sources.js, synthesis.js, effects-model.js, estimate-model.js, and their
-                    *.test.js; chart.js and chart.test.js too, from F1 until F5 deletes them
-    components/     shared Svelte components (§2, §3)
-    pages/          one folder per page: Dashboard.svelte, Explore.svelte, ... and their parts
-    theme.css       the colour tokens (§4)
-  e2e/              Playwright tests, one file per page
+    lib/            the pure modules, moved unchanged: api.js and format.js (split from
+                    common.js), chart.js, palette.js, pivot.js, sources.js, synthesis.js,
+                    effects-model.js, estimate-model.js, and all seven *.test.js
+    legacy/         today's page scripts and styles, moved unchanged: app.js, explore.js,
+                    synthesizers.js, effects.js, estimate.js, *.css
   dist/             built by `npm run build`; ignored by git
 ```
+
+### 1.3 Target (after F2 to F5)
+
+Each PR adds its part and empties `legacy/` of the page it rebuilds:
+
+```
+ui/src/
+  lib/csv.js  csv.test.js           F2 (§3.2)
+  components/charts/  tables/       F2 (§2.2, §3.2); PivotTable in F4
+  components/Nav.svelte             F2: the shared navigation, every page's links
+  pages/Dashboard.svelte ...        F2 the dashboard; F3 Synthesizers and Effects; F4 Explore
+  theme.css                         F2 (§4)
+ui/e2e/                             F2: the Playwright harness; one spec per page as it is rebuilt
+```
+
+F5 deletes `legacy/` (empty by then), `lib/chart.js` and `lib/chart.test.js`.
 
 Scripts in `ui/package.json`:
 
@@ -60,14 +76,14 @@ Scripts in `ui/package.json`:
 | `npm run check` | `svelte-check`: types from JSDoc, and Svelte's own warnings, as errors |
 | `npm run e2e` | Playwright against `ui/dist` served by the API (§5.3) |
 
-### 1.3 Adding a page (the algorithm phase's PR 6)
+### 1.4 Adding a page (the algorithm phase's PR 6)
 
 This sequence rebuilds the four pages that exist. The algorithm phase's PR 6
 adds a fifth, `forecasts.html` (`../algorithms/interfaces.md` §10), after F5,
 and owns every change it needs here: the HTML entry and its line in
 `vite.config.js`, a `pages/Forecasts.svelte`, the Forecasts link in the shared
-navigation component (one place, so every page gets it), the page's
-Playwright spec, and the new file in §1.2's layout. The contract needs
+navigation component (`Nav.svelte`, one place, so every page gets it), the page's
+Playwright spec, and the new files in §1.3's layout. The contract needs
 no other change for it; F5 rewrites `06-pages.md` to say so.
 
 Serving the built UI: `SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app`.
@@ -234,7 +250,7 @@ CI installs Chromium with `npx playwright install --with-deps chromium`.
 | every UI path is in the OpenAPI schema | `api("/…")` literals in `ui/*.js` | the same, in `ui/src/**/*.{js,svelte}` |
 | the UI reaches the backend only through `api()` | one `fetch(` in `common.js` | one `fetch(` in `ui/src/lib/api.js`, none elsewhere in `ui/src` |
 | no inline event handler | no `on…=` attribute in `ui/` | none in `ui/dist/*.html` and no inline `<script>` there |
-| every page links the others | in `ui/*.html` | in the page components' navigation |
+| every page links the others | in `ui/*.html` | the same after F1; from F2, in `components/Nav.svelte`, which every page uses |
 | the UI folder is mounted | `ui/` | `ui/dist/`, skipped with the reason when it was not built; CI builds it first |
 
 ## 6. Compatibility

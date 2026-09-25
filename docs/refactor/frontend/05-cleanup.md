@@ -11,15 +11,15 @@ to be implemented are written for the new stack.
 
 ## Scope
 
-- Delete `ui/chart.js` and `chart.test.js`, and any page code left from before
-  F2 to F4; `app.js`, `explore.js`, `synthesizers.js`, `effects.js`,
-  `estimate.js` are gone by then.
+- Delete `ui/src/lib/chart.js` and `chart.test.js`, and the `ui/src/legacy/`
+  folder (§1.3); `app.js`, `explore.js`, `synthesizers.js`, `effects.js`,
+  `estimate.js` and their styles have left it in F2 to F4.
 - `docs/ARCHITECTURE.md`: the UI section describes the components and the build.
 - The algorithm phase's PR 6 (`../algorithms/06-pages.md`): the Forecasts page
   and the dashboard's interval band are specified on `LineChart`'s `band`,
   `DataTable` and the Playwright tests; its "Charts" section points to §2
   here, and its scope lists the build and navigation changes of a fifth page
-  (§1.3), which that PR owns.
+  (§1.4), which that PR owns.
 - `docs/ROADMAP.md` and the README: "offline" stays true and says why (all
   assets are bundled).
 - A short "Adding a chart or a table" section in ARCHITECTURE, for the next
