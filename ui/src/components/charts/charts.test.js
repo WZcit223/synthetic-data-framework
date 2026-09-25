@@ -48,6 +48,17 @@ test("a chart is created from its props, updated when they change, destroyed on 
   assert.equal(chart.destroyed, true);
 });
 
+test("the arrays Chart.js receives are its own, not the caller's", async () => {
+  made.length = 0;
+  const values = [1, 2];
+  const labels = ["a", "b"];
+  render(LineChart, { labels, format: fmt, series: [{ name: "s", values }] });
+  flushSync();
+  assert.notEqual(made[0].data.datasets[0].data, values);
+  assert.notEqual(made[0].data.labels, labels);
+  assert.deepEqual(made[0].data.datasets[0].data, values);
+});
+
 test("a heat grid draws one cell per known value", () => {
   made.length = 0;
   render(HeatGrid, {

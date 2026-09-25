@@ -80,27 +80,32 @@ test("an interval chart puts one row per line, top to bottom, with its interval"
     { label: "price", estimate: -1, low: null, high: null },
   ];
   const c = intervalConfig({ rows, format: fmt, reference: 0 }, LOOK, book());
-  const points = c.data.datasets[0].data;
-  assert.deepEqual(points[0], { x: 2, y: 0, xMin: 1, xMax: 3, label: "promo" });
-  assert.deepEqual(points[1], { x: -1, y: 1, xMin: -1, xMax: -1, label: "price" }); // no interval: the point alone
+  assert.deepEqual(c.data.datasets[0].data[0], { x: 2, y: 0, xMin: 1, xMax: 3, label: "promo" });
+  assert.deepEqual(c.data.datasets[1].data[0], { x: -1, y: 1, xMin: -1, xMax: -1, label: "price" }); // no interval: the point alone
   assert.equal(c.options.scales.y.reverse, true);
   assert.equal(c.options.scales.y.ticks.callback(1), "price");
   const ref = c.data.datasets.at(-1);
   assert.equal(ref.label, "reference");
   assert.deepEqual(ref.data.map(p => p.x), [0, 0]);
   const none = intervalConfig({ rows, format: fmt }, LOOK, book());
-  assert.equal(none.data.datasets.length, 1); // no reference, no line
+  assert.equal(none.data.datasets.length, 2); // no reference, no line
+  const tip = c.options.plugins.tooltip.callbacks.label;
+  assert.equal(tip({ raw: c.data.datasets[0].data[0] }), "promo: 2 [1, 3]");
+  assert.equal(tip({ raw: c.data.datasets[1].data[0] }), "price: -1");
 });
 
-test("interval rows are coloured by their group", () => {
+test("an interval row takes its own colour, else its group's by name", () => {
   const rows = [
     { label: "a", estimate: 1, low: 0, high: 2, group: "dml" },
     { label: "b", estimate: 1, low: 0, high: 2, group: "ols" },
     { label: "c", estimate: 1, low: 0, high: 2, group: "dml" },
+    { label: "d", estimate: 1, low: 0, high: 2, color: "#123456" },
   ];
   const c = intervalConfig({ rows, format: fmt }, LOOK, book());
-  assert.deepEqual(c.data.datasets.map(d => [d.label, d.data.map(p => p.y)]), [["dml", [0, 2]], ["ols", [1]]]);
-  assert.notEqual(c.data.datasets[0].backgroundColor, c.data.datasets[1].backgroundColor);
+  const colors = c.data.datasets.map(d => d.backgroundColor);
+  assert.equal(colors[0], colors[2]);
+  assert.notEqual(colors[0], colors[1]);
+  assert.equal(colors[3], "#123456");
 });
 
 test("a strip chart jitters the same way on every draw and draws the mean as given", () => {

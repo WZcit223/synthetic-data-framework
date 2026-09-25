@@ -1,6 +1,8 @@
 // The Chart.js configuration of each chart component, built from its props and
 // the theme's colours. Pure (no DOM, no Chart.js import), so every chart's
-// datasets are tested without a canvas. Contract: docs/refactor/frontend/interfaces.md §2.2.
+// datasets are tested without a canvas. Every array handed to Chart.js is a fresh
+// copy: Chart.js defines properties on its data arrays, which a page's reactive
+// state (a Svelte $state proxy) does not allow. Contract: docs/refactor/frontend/interfaces.md §2.2.
 
 /**
  * The colours a chart draws with, read from the theme at render time.
@@ -44,7 +46,7 @@ export function lineConfig({ series, labels, yLabel, format, band }, look, book)
   const lines = colored(series, book).map(s => ({
     type: "line",
     label: s.name,
-    data: s.values,
+    data: [...s.values],
     borderColor: s.color,
     backgroundColor: s.color,
     borderWidth: 2,
@@ -56,8 +58,8 @@ export function lineConfig({ series, labels, yLabel, format, band }, look, book)
     const color = lines[0]?.borderColor ?? look.series[0];
     const edge = { type: "line", borderWidth: 0, pointRadius: 0, spanGaps: false };
     datasets.unshift(
-      { ...edge, label: `${band.name} (low)`, data: band.low, fill: false, borderColor: color },
-      { ...edge, label: band.name, data: band.high, fill: "-1", borderColor: color, backgroundColor: color + "33" },
+      { ...edge, label: `${band.name} (low)`, data: [...band.low], fill: false, borderColor: color },
+      { ...edge, label: band.name, data: [...band.high], fill: "-1", borderColor: color, backgroundColor: color + "33" },
     );
   }
   const options = base(look, format);
@@ -70,14 +72,14 @@ export function lineConfig({ series, labels, yLabel, format, band }, look, book)
       ticks: { color: look.muted, callback: v => format(v) },
     }),
   };
-  return { type: "line", data: { labels, datasets }, options };
+  return { type: "line", data: { labels: [...labels], datasets }, options };
 }
 
 /** Bars, grouped or stacked, vertical or horizontal; a null value draws no bar. */
 export function barConfig({ series, labels, format, stacked = false, horizontal = false }, look, book) {
   const datasets = colored(series, book).map(s => ({
     label: s.name,
-    data: s.values,
+    data: [...s.values],
     backgroundColor: s.color,
     borderRadius: 4,
     borderSkipped: "start",
@@ -88,49 +90,52 @@ export function barConfig({ series, labels, format, stacked = false, horizontal 
   options.indexAxis = horizontal ? "y" : "x";
   options.plugins.tooltip.callbacks.label = ctx => `${ctx.dataset.label}: ${format(horizontal ? ctx.parsed.x : ctx.parsed.y)}`;
   options.scales = horizontal ? { x: value, y: category } : { x: category, y: value };
-  return { type: "bar", data: { labels, datasets }, options };
+  return { type: "bar", data: { labels: [...labels], datasets }, options };
 }
 
 /**
  * One point with its interval per row, top to bottom in the given order (a
- * scatter with x error bars); a null low or high draws the point alone. The
- * optional reference is a vertical line.
+ * scatter with x error bars); a null low or high draws the point alone. A row's
+ * colour is its own `color`, else its `group`'s by name. The optional reference
+ * is a dashed vertical line (0 for effects, the true effect for estimators).
  */
 export function intervalConfig({ rows, format, reference }, look, book) {
-  const groups = [...new Set(rows.map(r => r.group ?? ""))];
-  const colors = book.assign(groups);
+  const colors = book.assign([...new Set(rows.filter(r => !r.color).map(r => r.group ?? ""))]);
   /** @type {any[]} */
-  const datasets = groups.map(g => ({
-    type: "scatterWithErrorBars",
-    label: g || "estimate",
-    data: rows.flatMap((r, i) =>
-      (r.group ?? "") === g
-        ? [{ x: r.estimate, y: i, xMin: r.low ?? r.estimate, xMax: r.high ?? r.estimate, label: r.label }]
-        : []),
-    backgroundColor: colors.get(g),
-    borderColor: colors.get(g),
-    errorBarColor: colors.get(g),
-    errorBarWhiskerColor: colors.get(g),
-    errorBarLineWidth: 2,
-    pointRadius: 4,
-  }));
+  const datasets = rows.map((r, i) => {
+    const color = r.color ?? colors.get(r.group ?? "");
+    return {
+      type: "scatterWithErrorBars",
+      label: r.label,
+      data: [{ x: r.estimate, y: i, xMin: r.low ?? r.estimate, xMax: r.high ?? r.estimate, label: r.label }],
+      backgroundColor: color,
+      borderColor: look.surface,
+      borderWidth: 2,
+      errorBarColor: color,
+      errorBarWhiskerColor: color,
+      errorBarLineWidth: 2,
+      errorBarWhiskerSize: 10,
+      pointRadius: 5,
+      radius: 5, // the error-bar point element reads `radius`
+      hoverRadius: 6,
+    };
+  });
   if (reference != null) {
     datasets.push({
       type: "line",
       label: "reference",
       data: [{ x: reference, y: -0.5 }, { x: reference, y: rows.length - 0.5 }],
-      borderColor: look.muted,
+      borderColor: look.ink,
       borderDash: [4, 3],
-      borderWidth: 1,
+      borderWidth: 1.5,
       pointRadius: 0,
     });
   }
-  const options = base(look, format, { legend: groups.length > 1 });
-  options.plugins.legend.labels.filter = item => item.text !== "reference";
+  const options = base(look, format, { legend: false });
   options.plugins.tooltip.filter = item => item.dataset.label !== "reference";
   options.plugins.tooltip.callbacks.label = ctx => {
     const p = ctx.raw;
-    return `${p.label}: ${format(p.x)} [${format(p.xMin)}, ${format(p.xMax)}]`;
+    return p.xMin === p.xMax && p.xMin === p.x ? `${p.label}: ${format(p.x)}` : `${p.label}: ${format(p.x)} [${format(p.xMin)}, ${format(p.xMax)}]`;
   };
   options.scales = {
     x: axis(look, { ticks: { color: look.muted, callback: v => format(v) } }),

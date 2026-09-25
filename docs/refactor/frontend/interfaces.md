@@ -183,10 +183,12 @@ line, no bar, an empty cell; never a zero):
 /** @typedef {{name: string, low: (number|null)[], high: (number|null)[]}} Band */
 // LineChart's band: low and high have labels.length entries; the fill is drawn
 // between them, and not where either is null. low > high is a caller error.
-/** @typedef {{label: string, estimate: number, low: number|null, high: number|null, group?: string}} IntervalRow */
+/** @typedef {{label: string, estimate: number, low: number|null, high: number|null, group?: string, color?: string}} IntervalRow */
 // IntervalChart: one row per line, top to bottom in the given order; a null
-// low or high draws the point with no interval; group picks the colour by name.
-// reference: number | null, a vertical line (0 for effects).
+// low or high draws the point with no interval. A row's colour is its own
+// `color` (an effect that covers 0 is grey, an estimator has its catalogue
+// colour), else its `group`'s by name. reference: number | null, a dashed
+// vertical line (0 for effects, the true effect for estimators).
 /** @typedef {{name: string, values: number[], mean: number}} StripGroup */
 // StripChart: one row of points per group; jitter is seeded by the group's
 // name, so a redraw does not move points. mean is required and is drawn as
