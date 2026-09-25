@@ -1,0 +1,60 @@
+/* The shared look of the rebuilt pages, on the theme's tokens (theme.css). The
+   pages not yet rebuilt keep src/legacy/style.css. */
+@import "tabulator-tables/dist/css/tabulator.min.css";
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+main { padding: 22px 28px; max-width: 1240px; margin: 0 auto; }
+@media (max-width: 600px) { main { padding: 16px; } }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-muted); margin: 30px 0 12px; font-weight: 600; }
+h3 { margin: 0 0 10px; font-size: 14px; }
+a { color: var(--accent); }
+code { font-size: 12px; }
+.grid { display: grid; gap: 14px; }
+.grid > * { min-width: 0; }
+.two { grid-template-columns: 1fr 1fr; }
+@media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 16px; min-width: 0; }
+.pill { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--surface-raised); border: 1px solid var(--rule); font-weight: 400; }
+.muted { color: var(--ink-muted); }
+.note { font-size: 11.5px; color: var(--ink-muted); margin-top: 8px; }
+.big { font-size: 30px; font-weight: 700; }
+.k { font-size: 12px; color: var(--ink-muted); }
+.good { color: var(--good); }
+.warn { color: var(--warn); }
+.bad { color: var(--bad); }
+.figures { display: flex; gap: 22px; align-items: flex-end; flex-wrap: wrap; }
+select, button, input, a.button {
+  background: var(--surface-raised); color: var(--ink); border: 1px solid var(--rule);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; font-family: inherit;
+}
+select, button, a.button { cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+button:active, a.button:active { transform: translateY(1px); }
+a.button { display: inline-block; text-decoration: none; }
+input[type=range] { width: 100%; accent-color: var(--accent); padding: 0; border: 0; background: none; }
+
+/* Tabulator on the theme's tokens */
+.tabulator {
+  background: transparent; border: 0; font-size: 12.5px; color: var(--ink);
+}
+.tabulator .tabulator-header {
+  background: transparent; color: var(--ink-muted); border-bottom: 1px solid var(--rule); font-weight: 600;
+}
+.tabulator .tabulator-header .tabulator-col { background: transparent; border-right: 0; }
+.tabulator .tabulator-header .tabulator-col.tabulator-sortable:hover { background: var(--surface-raised); }
+.tabulator .tabulator-tableholder .tabulator-table { background: transparent; color: var(--ink); }
+.tabulator-row, .tabulator-row.tabulator-row-even { background: transparent; border-bottom: 1px solid var(--rule); }
+.tabulator-row.tabulator-selectable:hover { background: var(--surface-raised); }
+.tabulator-row .tabulator-cell { border-right: 0; padding: 6px 8px; font-variant-numeric: tabular-nums; }
+.tabulator .tabulator-header .tabulator-col .tabulator-col-content { padding: 6px 8px; }
+.tabulator .tabulator-header .tabulator-col .tabulator-col-content .tabulator-col-sorter .tabulator-arrow { border-bottom-color: var(--ink-muted); }
+.tabulator .tabulator-tableholder .tabulator-placeholder .tabulator-placeholder-contents { color: var(--ink-muted); font-size: 12.5px; font-weight: 400; padding: 8px; }
+.tabulator-cell.tone-good { color: var(--good); }
+.tabulator-cell.tone-warn { color: var(--warn); }
+.tabulator-cell.tone-bad { color: var(--bad); }

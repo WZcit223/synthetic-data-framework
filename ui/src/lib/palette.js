@@ -18,6 +18,20 @@ export const HEAT = ["#104281", "#1c5cab", "#256abf", "#3987e5", "#6da7ec", "#86
 // The ramp step for t in [0, 1].
 export const heat = t => HEAT[Math.min(HEAT.length - 1, Math.max(0, Math.floor(t * HEAT.length)))];
 
+// The light theme's set, for pages on the new components (docs/refactor/frontend/interfaces.md §4):
+// the same hues in the same order, stepped darker so they read on a white surface, and the
+// heat ramp running from pale to deep blue.
+export const LIGHT = {
+  SURFACE: "#ffffff",
+  SERIES: ["#1f6fd1", "#c24e1f", "#13805a", "#9a6700", "#b83f6b", "#1a7f1a", "#6f63d6", "#c94f4f"],
+  OTHER: "#8c959f",
+  HEAT: ["#dbe9fb", "#b4d1f6", "#86b6ef", "#5596e8", "#2f78d6", "#1c5cab"],
+};
+export const DARK = { SURFACE, SERIES, OTHER, HEAT };
+
+// The set for a colour scheme ("light" or "dark").
+export const paletteFor = scheme => (scheme === "light" ? LIGHT : DARK);
+
 const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
 
 // WCAG relative luminance and contrast ratio.
@@ -44,7 +58,7 @@ export const inkOn = fill => (contrast(fill, INK_LIGHT) >= contrast(fill, INK_DA
 // series that comes back gets its own colour again. A new name takes the first
 // slot no name holds; when all are held it takes the slot of a name not on screen.
 // The folded tail (``other``) is always grey. Call reset() when the series field changes.
-export function colorBook() {
+export function colorBook(series = SERIES, otherColor = OTHER) {
   const slots = new Map();
   return {
     reset() { slots.clear(); },
@@ -53,15 +67,15 @@ export function colorBook() {
       for (const n of names) {
         if (n === other || slots.has(n)) continue;
         const held = new Set(slots.values());
-        let free = SERIES.findIndex((_, i) => !held.has(i));
+        let free = series.findIndex((_, i) => !held.has(i));
         if (free < 0) {
-          free = SERIES.findIndex((_, i) => !shown.has(i)); // at most eight names show, so one exists
+          free = series.findIndex((_, i) => !shown.has(i)); // at most eight names show, so one exists
           for (const [name, i] of slots) if (i === free) slots.delete(name);
         }
         slots.set(n, free);
         shown.add(free);
       }
-      return new Map(names.map(n => [n, n === other ? OTHER : SERIES[slots.get(n)]]));
+      return new Map(names.map(n => [n, n === other ? otherColor : series[slots.get(n)]]));
     },
   };
 }

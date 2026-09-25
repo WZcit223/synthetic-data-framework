@@ -217,11 +217,18 @@ chart colours (`palette.js`), the Synthesizers page's helpers (`synthesis.js`:
 parameter input, distribution comparison), the Effects page's (`effects-model.js`:
 reading an interval, each chart's axis, the request and its link) and its
 estimation view's (`estimate-model.js`), and `sources.js`, which checks the
-sources an Explore link may name. They are tested with Vitest (`npm test`). The
-page scripts and styles are in `ui/src/legacy/` (`app.js` for the dashboard,
-`explore.js`, `synthesizers.js`, `effects.js` with `estimate.js`) until the
-[frontend refactor](refactor/frontend/00-overview.md) rebuilds each page on
-Svelte, Chart.js and Tabulator. Every page has a Playwright test in `ui/e2e/`
+sources an Explore link may name, and `csv.js` (the CSV writers). They are
+tested with Vitest (`npm test`). The shared components are in
+`ui/src/components/`: one Svelte component per kind of chart on Chart.js
+(`charts/`), `DataTable` on Tabulator (`tables/`), and the navigation
+(`Nav.svelte`); each folder's `config.js` maps props to the library's options
+and is tested without a browser. Colours come from the tokens in
+`ui/src/theme.css`, a dark and a light set chosen by the system setting. The
+dashboard is rebuilt on them (`ui/src/pages/Dashboard.svelte`, mounted by
+`pages/dashboard.js`). The other pages' scripts and styles are in
+`ui/src/legacy/` (`explore.js`, `synthesizers.js`, `effects.js` with
+`estimate.js`) until the [frontend refactor](refactor/frontend/00-overview.md)
+rebuilds them. Every page has a Playwright test in `ui/e2e/`
 (`npm run e2e`). No page has an inline script or event handler; each script
 registers its own. The pivot contract is in
 [`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §3; the
