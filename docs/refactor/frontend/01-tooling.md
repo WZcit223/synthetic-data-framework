@@ -31,7 +31,8 @@ every page looks and works exactly as before.
   (`common.test.js` split in two, §1.2); `npm run check` runs `svelte-check`.
 - **CI:** a `ui` job on Node 22: `npm ci`, `npm run check`, `npm test`,
   `npm run build`; it uploads `ui/dist` for the Python job, which runs the
-  UI-reading tests against it (§5.4), then installs Chromium
+  UI-reading tests against it (§5.4). The same job then sets up Node 22,
+  runs `npm ci` in `ui/` (jobs share no `node_modules`), installs Chromium
   (`npx playwright install --with-deps chromium`), starts the API on
   `ui/dist` and runs `npm run e2e` (§5.3). The `node --test ui/*.test.js`
   step goes.

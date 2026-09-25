@@ -33,7 +33,9 @@ set of Svelte components around the unchanged `pivot.js`.
   pivot's column groups and totals match `pivot()`'s result.
 - Playwright: every preset renders; a pivot built by dragging fields; the chart
   view; a link from each source kind (dataset, synthesis run, effects,
-  estimates) restores its view; 10,000 rows scroll without the page freezing.
+  estimates) restores its view; 10,000 rows scroll without the page freezing,
+  and the table holds far fewer row elements than rows (the virtual
+  rendering of §3.2's bounded `maxHeight`).
 
 ## Non-goals
 

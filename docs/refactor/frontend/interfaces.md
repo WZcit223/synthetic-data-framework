@@ -62,22 +62,6 @@ Where each export of today's `common.js` goes, with its tests:
 `common.test.js` is split between the two new files with every assertion kept,
 so the seven test files of today become eight.
 
-### 1.3 Target (after F2 to F5)
-
-Each PR adds its part and empties `legacy/` of the page it rebuilds:
-
-```
-ui/src/
-  lib/csv.js  csv.test.js           F2 (§3.2)
-  components/charts/  tables/       F2 (§2.2, §3.2); PivotTable in F4
-  components/Nav.svelte             F2: the shared navigation, every page's links
-  pages/Dashboard.svelte ...        F2 the dashboard; F3 Synthesizers and Effects; F4 Explore
-  theme.css                         F2 (§4)
-ui/e2e/                             the behaviour specs of §5.3, one per page as it is rebuilt
-```
-
-F5 deletes `legacy/` (empty by then), `lib/chart.js` and `lib/chart.test.js`.
-
 Scripts in `ui/package.json`:
 
 | Script | Does |
@@ -87,16 +71,6 @@ Scripts in `ui/package.json`:
 | `npm test` | Vitest: the pure modules and the components (jsdom) |
 | `npm run check` | `svelte-check`: types from JSDoc, and Svelte's own warnings, as errors |
 | `npm run e2e` | Playwright against `ui/dist` served by the API (§5.3) |
-
-### 1.4 Adding a page (the algorithm phase's PR 6)
-
-This sequence rebuilds the four pages that exist. The algorithm phase's PR 6
-adds a fifth, `forecasts.html` (`../algorithms/interfaces.md` §10), after F5,
-and owns every change it needs here: the HTML entry and its line in
-`vite.config.js`, a `pages/Forecasts.svelte`, the Forecasts link in the shared
-navigation component (`Nav.svelte`, one place, so every page gets it), the page's
-Playwright spec, and the new files in §1.3's layout. The contract needs
-no other change for it; F5 rewrites `06-pages.md` to say so.
 
 Serving the built UI: `SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app`.
 `create_app(ui_dir=…)` is unchanged: it still mounts a folder that has an
@@ -115,6 +89,32 @@ Serving the built UI: `SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app`.
 | `vitest`, `@testing-library/svelte`, `jsdom`, `svelte-check`, `@playwright/test` | development only | MIT / Apache-2.0 |
 
 Nothing is loaded from the network at run time.
+
+### 1.3 Target (after F2 to F5)
+
+Each PR adds its part and empties `legacy/` of the page it rebuilds:
+
+```
+ui/src/
+  lib/csv.js  csv.test.js           F2 (§3.2)
+  components/charts/  tables/       F2 (§2.2, §3.2); PivotTable in F4
+  components/Nav.svelte             F2: the shared navigation, every page's links
+  pages/Dashboard.svelte ...        F2 the dashboard; F3 Synthesizers and Effects; F4 Explore
+  theme.css                         F2 (§4)
+ui/e2e/                             the behaviour specs of §5.3, one per page as it is rebuilt
+```
+
+F5 deletes `legacy/` (empty by then), `lib/chart.js` and `lib/chart.test.js`.
+
+### 1.4 Adding a page (the algorithm phase's PR 6)
+
+This sequence rebuilds the four pages that exist. The algorithm phase's PR 6
+adds a fifth, `forecasts.html` (`../algorithms/interfaces.md` §8), after F5,
+and owns every change it needs here: the HTML entry and its line in
+`vite.config.js`, a `pages/Forecasts.svelte`, the Forecasts link in the shared
+navigation component (`Nav.svelte`, one place, so every page gets it), the page's
+Playwright spec, and the new files in §1.3's layout. The contract needs
+no other change for it; F5 rewrites `06-pages.md` to say so.
 
 ---
 
@@ -182,7 +182,8 @@ null and interval cases included.
   a table view of the same numbers (a `DataTable`, folded under a "Show as
   table" disclosure where the page has none today); no number is shown only
   in a chart. The PR that rebuilds a page adds the views its charts lack: F2
-  the dashboard's ABC bars, SKU demand, policy comparison and shelf heatmap.
+  the dashboard's three charts: the ABC bars, the SKU demand and the shelf
+  heatmap (the policy comparison is already a table).
 - Tooltips, legends and hover use Chart.js's own, styled by the theme (§4).
   Keyboard access to data points comes from the table view.
 
@@ -205,11 +206,16 @@ subtotal groups, a 1,000-row budget, heat shading).
 
 ```svelte
 <DataTable  {fields} {rows} {format} {sort} {download} {height} />
-<PivotTable {result} {view} {heat} {collapsed} onsort={…} ontoggle={…} />
+<PivotTable {result} {view} {heat} {collapsed} {maxHeight} onsort={…} ontoggle={…} />
 ```
 
 Optional: `format`, `sort` (the initial sort), `download` (`false`), `height`
-(the rows' natural height) and `heat` (`false`). `collapsed` is the page's set
+(the rows' natural height), `heat` (`false`) and `maxHeight` (`"70vh"`).
+`PivotTable` always has a bounded height: `maxHeight` has a default and
+cannot be unset, because Tabulator renders only the visible rows of a table
+whose height is bounded, and the pivot's row budget goes on that promise
+(below). A `DataTable` without `height` renders every row, which suits the
+short tables it is used for. `collapsed` is the page's set
 of collapsed group keys; `onsort` and `ontoggle` are callback props (Svelte 5
 has no `on:` events on components) through which the page updates `view.sort`
 and `collapsed`.

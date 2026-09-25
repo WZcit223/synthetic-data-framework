@@ -20,7 +20,7 @@ is a Svelte page whose charts are Chart.js and whose tables are Tabulator.
 - **The dashboard** (`index.html`) as `pages/Dashboard.svelte` and its parts:
   the ABC bars (`BarChart`), the SKU demand chart (`LineChart`, the forecast
   average as a second series), the shelf heatmap (`HeatGrid`), and its seven
-  tables (`DataTable`, sortable). The CSV export links stay. Each of the four
+  tables (`DataTable`, sortable). The CSV export links stay. Each of the three
   charts gets its table view under a "Show as table" disclosure (§2.2).
 - **Page tests:** the dashboard's behaviour spec (§5.3) on the harness F1
   added.
