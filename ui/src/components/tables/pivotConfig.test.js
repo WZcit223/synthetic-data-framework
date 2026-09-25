@@ -98,11 +98,19 @@ test("each clickable header names the sort it asks for, and the current one is m
   assert.deepEqual(c.sorts, { r0: { by: "label" }, c0_0: { by: "column", key: ["store"] }, c1_0: { by: "column", key: ["web"] }, t_0: { by: "value" } });
   assert.deepEqual(leaves(c.columns).map(x => x.title), ["region", "store", "web ▼", "Total"]);
   assert.ok(leaves(c.columns).every(x => (x.field in c.sorts) === /sortable/.test(x.cssClass ?? "")));
-  // with several values, a column's group header sorts by it: its first value's field says so
+  // with several values, a column's group header (and the totals') sorts by it, not its value headers
   const two = config({ rows: [{ field: "region" }], columns: [{ field: "channel" }], values: [{ field: "qty", agg: "sum" }, { field: "qty", agg: "max" }] }).c;
-  assert.deepEqual(two.sorts.c1_0, { by: "column", key: ["web"] });
-  assert.equal(two.columns[2].cssClass, "sortable");
-  assert.ok(!("_sortKey" in two.columns[2]));
+  assert.deepEqual(two.groupSorts, { c0_0: { by: "column", key: ["store"] }, c1_0: { by: "column", key: ["web"] }, t_0: { by: "value" } });
+  assert.deepEqual(two.sorts, { r0: { by: "label" } });
+  assert.deepEqual(two.columns.slice(1).map(x => x.cssClass), ["sortable", "sortable", "sortable"]);
+  // no option Tabulator would reject without a module it does not load
+  const all = cols => cols.flatMap(x => [x, ...(x.columns ? all(x.columns) : [])]);
+  assert.ok(all(two.columns).every(x => !("headerSort" in x) && !("resizable" in x) && !Object.keys(x).some(k => k.startsWith("_"))));
+});
+
+test("with no row field the label header is blank, not Tabulator's placeholder", () => {
+  const { c } = config({ columns: [{ field: "channel" }], values: [{ field: "qty", agg: "sum" }] });
+  assert.equal(c.columns[0].title, " ");
 });
 
 test("titles are text, never markup", () => {

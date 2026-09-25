@@ -50,11 +50,11 @@
       dataTree: c.tree,
       dataTreeStartExpanded: row => !closed.has(keyId(row.getData()._key)),
       dataTreeChildIndent: 14,
-      columnDefaults: { resizable: false, headerSort: false },
     });
     table.on("headerClick", (e, column) => {
-      const field = column.getField() ?? column.getSubColumns?.()[0]?.getField();
-      const s = c.sorts[field];
+      // a leaf header by its field; a group of values by its first leaf's (a higher group sorts nothing)
+      const field = column.getField();
+      const s = field ? c.sorts[field] : c.groupSorts[column.getSubColumns?.()[0]?.getField()];
       if (s) onsort(s);
     });
     table.on("dataTreeRowExpanded", row => ontoggle(keyId(row.getData()._key)));

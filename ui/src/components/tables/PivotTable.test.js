@@ -51,8 +51,23 @@ test("a header click asks for the sort that header names", () => {
   const column = field => ({ getField: () => field, getSubColumns: () => [] });
   t.handlers.headerClick({}, column("c1_0"));
   t.handlers.headerClick({}, column("r0"));
-  t.handlers.headerClick({}, { getField: () => undefined, getSubColumns: () => [column("t_0")] }); // a group header
+  t.handlers.headerClick({}, column("t_0"));
   assert.deepEqual(asked, [{ by: "column", key: ["web"] }, { by: "label" }, { by: "value" }]);
+});
+
+test("a group of values sorts by its column; a higher group sorts nothing", () => {
+  made.length = 0;
+  const asked = [];
+  const view = { rows: [{ field: "region" }], columns: [{ field: "channel" }], values: [{ field: "qty", agg: "sum" }, { field: "qty", agg: "max" }] };
+  render(PivotTable, props(view, { onsort: s => asked.push(s) }));
+  flushSync();
+  const t = made[0];
+  const column = field => ({ getField: () => field, getSubColumns: () => [] });
+  const group = (...subs) => ({ getField: () => undefined, getSubColumns: () => subs });
+  t.handlers.headerClick({}, group(column("c1_0"), column("c1_1")));
+  t.handlers.headerClick({}, column("c1_1")); // a value header under it
+  t.handlers.headerClick({}, group(group(column("c0_0")))); // a group of groups
+  assert.deepEqual(asked, [{ by: "column", key: ["web"] }]);
 });
 
 test("the tree opens with the collapsed groups closed and reports each toggle; a new result rebuilds it", () => {

@@ -85,7 +85,9 @@
 
   const presets = $derived(table ? PRESETS[presetKey(source, meta)] ?? [] : []);
   const canStack = $derived(additive(view));
-  const experimentRequest = $derived(catalog ? source?.experiment ?? defaultExperiment(catalog) : null);
+  /** @type {any} */
+  let lastRun = $state.raw(null); // the last experiment run from the form: a failed run keeps the form as it was
+  const experimentRequest = $derived(catalog ? source?.experiment ?? lastRun ?? defaultExperiment(catalog) : null);
 
   const sourceTitle = $derived(picked === "experiment" && !source?.experiment ? "Policy experiment" : meta?.title ?? "");
   const sourceInfo = $derived.by(() => {
@@ -334,7 +336,7 @@
   {#if picked === "experiment"}
     {#if catalog}
       {#key experimentRequest}
-        <ExperimentForm {catalog} request={experimentRequest} onrun={body => loadSource({ experiment: body })} />
+        <ExperimentForm {catalog} request={experimentRequest} onrun={body => loadSource({ experiment: (lastRun = body) })} />
       {/key}
     {:else if catalogError}
       <div class="notice bad">{catalogError}</div>

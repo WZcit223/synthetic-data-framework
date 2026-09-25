@@ -15,8 +15,9 @@ const mark = (sort, by, key) =>
  * - `rowTitles`, `valueTitles`: the row fields' and the values' labels; `formats`: one per value.
  * - `totals`: the display's totals switch; `heat`: shade leaf cells, each value on its own
  *   scale over the ramp `ramp` (low to high), with `ink(fill)` the text colour on a fill.
- * Returns `{columns, data, tree, sorts, heatKey, cut}`: `tree` when subtotals nest rows
- * (Tabulator's data tree), `sorts` the sort each clickable header asks for, keyed by field.
+ * Returns `{columns, data, tree, sorts, groupSorts, heatKey, cut}`: `tree` when subtotals nest
+ * rows (Tabulator's data tree); `sorts` the sort each clickable leaf header asks for, keyed by
+ * its field, and `groupSorts` each clickable group header's, keyed by its first leaf's field.
  */
 export function pivotConfig(result, { view, rowTitles, valueTitles, formats, totals, heat, ramp, ink }) {
   const sort = view.sort ?? { by: "label", dir: "asc" };
@@ -30,6 +31,10 @@ export function pivotConfig(result, { view, rowTitles, valueTitles, formats, tot
   const withTotalRow = totals || view.rows.length === 0; // with no row field the totals row is the only row
   /** @type {Record<string, {by: string, key?: any[]}>} */
   const sorts = {};
+  // the sort of a group of values (a column's, or the totals'), keyed by the field of its first value:
+  // Tabulator names a group column by no field of its own
+  /** @type {Record<string, {by: string, key?: any[]}>} */
+  const groupSorts = {};
 
   // heat scales per value, over leaf cells (and the total column when there are no columns)
   const scales = view.values.map((_, k) => {
@@ -52,7 +57,6 @@ export function pivotConfig(result, { view, rowTitles, valueTitles, formats, tot
     title,
     hozAlign: "right",
     headerHozAlign: "right",
-    headerSort: false,
     minWidth: 88,
     cssClass: total ? "tot" : undefined,
     titleFormatter: cell => text(cell.getValue()),
@@ -80,9 +84,9 @@ export function pivotConfig(result, { view, rowTitles, valueTitles, formats, tot
     if (sortable) sorts[field] = { by: "label" };
     return {
       field,
-      title: title + (sortable ? mark(sort, "label") : ""),
+      // Tabulator shows an empty title as the text "&nbsp;"; a space keeps the header blank
+      title: (title || " ") + (sortable ? mark(sort, "label") : ""),
       frozen: true,
-      headerSort: false,
       minWidth: 96,
       titleFormatter: cell => text(cell.getValue()),
       formatter: cell => text(cell.getValue() ?? ""),
@@ -103,7 +107,8 @@ export function pivotConfig(result, { view, rowTitles, valueTitles, formats, tot
       cols[0].title = title + mark(sort, "column", key);
       return cols;
     }
-    return [{ title: title + mark(sort, "column", key), titleFormatter: cell => text(cell.getValue()), columns: cols, headerSort: false, _sortKey: key }];
+    groupSorts[`c${j}_0`] = { by: "column", key };
+    return [{ title: title + mark(sort, "column", key), titleFormatter: cell => text(cell.getValue()), columns: cols, cssClass: "sortable" }];
   };
   const group = (from, to, depth) => {
     const out = [];
@@ -115,7 +120,7 @@ export function pivotConfig(result, { view, rowTitles, valueTitles, formats, tot
       if (depth === L - 1) {
         for (let q = j; q < k; q++) out.push(...leaf(q, shownColumns[q].key));
       } else {
-        out.push({ title: partLabel(shownColumns[j].key[depth]), titleFormatter: cell => text(cell.getValue()), headerSort: false, columns: group(j, k, depth + 1) });
+        out.push({ title: partLabel(shownColumns[j].key[depth]), titleFormatter: cell => text(cell.getValue()), columns: group(j, k, depth + 1) });
       }
       j = k;
     }
@@ -127,24 +132,22 @@ export function pivotConfig(result, { view, rowTitles, valueTitles, formats, tot
       shade: L === 0, total: L > 0, calc: result.totals.grand[k],
     }));
     if (L) {
-      sorts["t_0"] = { by: "value" };
-      if (nV > 1) columns.push({ title: "Total" + mark(sort, "value"), titleFormatter: cell => text(cell.getValue()), headerSort: false, columns: cols });
-      else { cols[0].title = "Total" + mark(sort, "value"); columns.push(cols[0]); }
+      if (nV > 1) {
+        groupSorts["t_0"] = { by: "value" };
+        columns.push({ title: "Total" + mark(sort, "value"), titleFormatter: cell => text(cell.getValue()), columns: cols, cssClass: "sortable" });
+      } else {
+        sorts["t_0"] = { by: "value" };
+        cols[0].title = "Total" + mark(sort, "value");
+        columns.push(cols[0]);
+      }
     } else {
       sorts["t_0"] = { by: "value" };
       cols[0].title += mark(sort, "value");
       columns.push(...cols);
     }
   }
-  // a multi-value column group sorts by its column when its header is clicked: its first value's field says so
   for (const c of columns.flatMap(function flat(c) { return c.columns ? [c, ...c.columns.flatMap(flat)] : [c]; })) {
-    if (c._sortKey) {
-      sorts[c.columns[0].field] = { by: "column", key: c._sortKey };
-      delete c._sortKey;
-      c.cssClass = "sortable";
-    } else if (c.field in sorts) {
-      c.cssClass = [c.cssClass, "sortable"].filter(Boolean).join(" ");
-    }
+    if (c.field in sorts) c.cssClass = [c.cssClass, "sortable"].filter(Boolean).join(" ");
   }
 
   // the rows: flat, with a repeated prefix left blank, or nested under their subtotals
@@ -181,5 +184,5 @@ export function pivotConfig(result, { view, rowTitles, valueTitles, formats, tot
 
   const k = scales.findIndex(Boolean);
   const heatKey = k < 0 ? null : { label: valueTitles[k], lo: formats[k](scales[k].lo), hi: formats[k](scales[k].hi), each: nV > 1 };
-  return { columns, data, tree, sorts, heatKey, cut: cut ? { shown: colLimit, of: result.columns.length } : null };
+  return { columns, data, tree, sorts, groupSorts, heatKey, cut: cut ? { shown: colLimit, of: result.columns.length } : null };
 }

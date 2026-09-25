@@ -57,6 +57,16 @@ test("the ticks and the tooltip use the given format", () => {
   assert.equal(c.options.plugins.tooltip.callbacks.label({ dataset: { label: "s" }, parsed: { y: 0.5 } }), "s: 50%");
 });
 
+test("the value axis ticks take tickFormat when given, the tooltip keeps format", () => {
+  const tick = v => `~${v}`;
+  const line = lineConfig({ labels: ["a"], format: fmt, tickFormat: tick, series: [{ name: "x", values: [1] }] }, LOOK, book());
+  assert.equal(line.options.scales.y.ticks.callback(5), "~5");
+  assert.equal(lineConfig({ labels: ["a"], format: fmt, series: [{ name: "x", values: [1] }] }, LOOK, book()).options.scales.y.ticks.callback(5), "5");
+  const bars = barConfig({ labels: ["a"], format: fmt, tickFormat: tick, horizontal: true, series: [{ name: "x", values: [1] }] }, LOOK, book());
+  assert.equal(bars.options.scales.x.ticks.callback(5), "~5");
+  assert.equal(bars.options.plugins.tooltip.callbacks.label({ dataset: { label: "x" }, parsed: { x: 5 } }), "x: 5");
+});
+
 test("bars can be stacked and horizontal; the value axis moves with them", () => {
   const series = [{ name: "a", values: [1, null] }, { name: "b", values: [2, 3] }];
   const v = barConfig({ series, labels: ["x", "y"], format: fmt }, LOOK, book());

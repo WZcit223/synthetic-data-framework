@@ -1,7 +1,7 @@
 <!--
   The Explore chart view: one chart per value (small multiples), a line over a time
   axis or bars, grouped or stacked. Series colours follow each column's key across
-  redraws (a filter keeps them; a new series field starts them afresh), and the
+  redraws (a filter keeps them; a new series field or source starts them afresh), and the
   folded "Other" series is grey.
 -->
 <script>
@@ -16,15 +16,17 @@
 
   const books = new Map(); // one per colour scheme
   let keyed = ""; // the series key the books' colours were assigned for
+  let keyedTable = null; // and the table: a new source starts the colours afresh
 
   const model = $derived(chartModel(result, table, view, display));
 
   const charts = $derived.by(() => {
     const l = look(theme.scheme);
     const key = seriesKey(view);
-    if (key !== keyed) {
+    if (key !== keyed || table !== keyedTable) {
       for (const b of books.values()) b.reset();
       keyed = key;
+      keyedTable = table;
     }
     if (!books.has(theme.scheme)) books.set(theme.scheme, colorBook(l.series, l.other));
     const byId = books.get(theme.scheme).assign(model.ids, model.other);
@@ -41,9 +43,9 @@
     <figure class="multiple">
       <figcaption>{c.title}</figcaption>
       {#if model.line}
-        <LineChart series={c.series} labels={c.labels} format={c.format} height={280} />
+        <LineChart series={c.series} labels={c.labels} format={c.format} tickFormat={c.compact} height={280} />
       {:else}
-        <BarChart series={c.series} labels={c.labels} format={c.format} stacked={model.stacked} {horizontal} height={barHeight} />
+        <BarChart series={c.series} labels={c.labels} format={c.format} tickFormat={c.compact} stacked={model.stacked} {horizontal} height={barHeight} />
       {/if}
     </figure>
   {/each}

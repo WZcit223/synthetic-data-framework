@@ -99,6 +99,17 @@ test("a collapsed subtotal group stays collapsed when the table is sorted", asyn
   await expect(group.locator(".tabulator-data-tree-control-expand")).toHaveCount(1);
 });
 
+test("collapsed groups open again when the row fields change", async ({ page }) => {
+  const view = { rows: [{ field: "category" }, { field: "abc_class" }], values: [{ field: "quantity", agg: "sum" }], subtotals: true };
+  await page.goto("/explore.html#view=" + encodeURIComponent(JSON.stringify({ source: { dataset: "order-lines" }, view })), { waitUntil: "networkidle" });
+  const rows = page.locator(".result .tabulator-tableholder .tabulator-row");
+  await rows.first().locator(".tabulator-data-tree-control").click();
+  await expect(rows.first().locator(".tabulator-data-tree-control-expand")).toHaveCount(1);
+  await page.locator('.field[data-field="channel"]').click(); // a third row field: the first group is still there
+  await expect(chips(page, "rows")).toHaveText(["Category▾", "ABC class▾", "Channel▾"]);
+  await expect(rows.first().locator(".tabulator-data-tree-control-collapse")).toHaveCount(1);
+});
+
 test("a link that cannot be opened says why", async ({ page }) => {
   await page.goto("/explore.html#view=%7Bbad", { waitUntil: "networkidle" });
   await expect(page.locator(".failure")).toContainText("the view in this link is not valid JSON");
@@ -116,6 +127,19 @@ test("the policy experiment runs from its form", async ({ page }) => {
   const d = await (await answer).json();
   await expect(page.locator(".statusline")).toContainText(`${d.rows.length} rows read`);
   expect(linked(page).source.experiment.outcomes.length).toBeGreaterThan(0);
+});
+
+test("an experiment that fails keeps the form as the user left it", async ({ page }) => {
+  await page.goto("/explore.html", { waitUntil: "networkidle" });
+  await page.selectOption("#source", "experiment");
+  await page.getByRole("button", { name: "Run experiment" }).click();
+  await expect(page.locator(".statusline")).toContainText("rows read");
+  await page.route("**/api/v1/experiments", route => route.fulfill({ status: 500, contentType: "application/json", body: '{"detail":"boom"}' }));
+  const outcome = page.locator(".expform input[name=outcome]").first();
+  await outcome.uncheck();
+  await page.getByRole("button", { name: "Run experiment" }).click();
+  await expect(page.locator(".failure")).toContainText("Could not load the experiment");
+  await expect(outcome).not.toBeChecked();
 });
 
 test("a synthesizer run opens in Explore", async ({ page }) => {

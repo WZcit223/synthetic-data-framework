@@ -23,6 +23,12 @@
   /** @type {{shelf: string, index: number} | null} */
   let over = $state(null);
 
+  // a menu belongs to the table it was opened on: a new one (another source, a link) closes it
+  $effect(() => {
+    void table;
+    menu = null;
+  });
+
   const TITLES = { rows: "Rows", columns: "Columns", values: "Values", filters: "Filters" };
   const fieldOf = name => table?.fields.find(f => f.name === name);
   const chips = $derived(Object.fromEntries(SHELVES.map(s => [s, table ? chipsFor(table, view, s) : []])));
@@ -197,10 +203,10 @@
   {/each}
 </div>
 
-{#if menu?.kind === "chip"}
+{#if menu?.kind === "chip" && (menu.shelf === "values" ? view.values : view[menu.shelf])[menu.index]}
   {@const list = menu.shelf === "values" ? view.values : view[menu.shelf]}
   {@const it = list[menu.index]}
-  {@const f = fieldOf(it?.field)}
+  {@const f = fieldOf(it.field)}
   <Popover anchor={menu.anchor} onclose={close}>
     <div role="menu">
       {#if menu.shelf === "values"}
