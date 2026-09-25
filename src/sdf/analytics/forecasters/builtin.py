@@ -28,6 +28,7 @@ from .core import Forecast, ForecasterInfo, check_quantiles, matrix
 
 ERROR_WINDOW = 56  # the last days of the history whose forecasts size the intervals
 MIN_ERRORS = 14  # fewer errors at a step: every SKU borrows the pooled, scaled errors of all SKUs
+REFIT_EVERY = 7  # seasonal-linear refits its weights every this many origins of the error window
 
 
 class _PointModel:
@@ -138,7 +139,7 @@ class SeasonalNaive(_PointModel):
 
 
 class SeasonalLinear(_PointModel):
-    """``sdf.analytics.models.seasonal_linear`` per SKU, fitted once on the history and fed forward.
+    """``sdf.analytics.models.seasonal_linear`` per SKU, fed forward, fitted only on days before each origin.
 
     The features are those of ``models._design_row``: an intercept, the day index,
     one dummy per day of the cycle but the first, and the lags 1 and ``period``.
@@ -158,11 +159,28 @@ class SeasonalLinear(_PointModel):
         return self.period
 
     def _paths(self, y: np.ndarray, origins: np.ndarray, horizon: int) -> np.ndarray:
+        """Each origin's path from weights fitted only on days before it.
+
+        Refitting at every origin would cost a least-squares fit per SKU and origin, so
+        the weights are refitted every ``REFIT_EVERY`` origins, and at the last one; an
+        origin uses the latest fit made at or before it. The errors that size the
+        interval are then out of sample, like the forecast itself.
+        """
         p = self.period
-        n = int(origins.max())
-        if n < 2 * p + 2:  # too short to fit: hold the last day, as the one-step model does
-            return _hold(y[:, origins - 1], horizon)
-        w = self._weights(y[:, :n])  # SKUs × (p + 3)
+        out = np.empty((len(y), len(origins), horizon))
+        refits = np.unique(np.concatenate([origins[:-1][::REFIT_EVERY], origins[-1:]]))
+        anchor = refits[np.searchsorted(refits, origins, side="right") - 1]
+        for r in np.unique(anchor):
+            chosen = anchor == r
+            if r < 2 * p + 2:  # too short to fit: hold the last day, as the one-step model does
+                out[:, chosen] = _hold(y[:, origins[chosen] - 1], horizon)
+            else:
+                out[:, chosen] = self._forward(y, self._weights(y[:, :r]), origins[chosen], horizon)
+        return out
+
+    def _forward(self, y: np.ndarray, w: np.ndarray, origins: np.ndarray, horizon: int) -> np.ndarray:
+        """Feed each SKU's predictions forward from each origin with weights ``w`` (SKUs × (p + 3))."""
+        p = self.period
         dummies = np.concatenate([np.zeros((len(y), 1)), w[:, 2 : p + 1]], axis=1)  # SKUs × p
         buf = np.zeros((len(y), len(origins), p + horizon))
         buf[:, :, :p] = y[:, origins[:, None] - p + np.arange(p)[None, :]]

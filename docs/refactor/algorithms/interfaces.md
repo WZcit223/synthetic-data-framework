@@ -158,8 +158,10 @@ forecasts are compared with what followed, and the empirical quantiles of the
 errors at each step are added to the point forecast and floored at 0. All SKUs
 share the day axis, so they have the same number of errors at a step; when a
 step has fewer than 14, every SKU borrows the errors of all SKUs, each scaled by
-its SKU's mean. The `method` field says so. `seasonal-linear` fits its weights
-once per forecast, on the whole history given.
+its SKU's mean. The `method` field says so. Every error comes from a forecast
+that used only the days before its origin: `seasonal-linear` refits its
+weights every 7 origins of the error window (and at the last one), and each
+origin uses the latest fit made at or before it.
 
 PR 2 adds `gradient-boosting` and, with the `app` extra, `lightgbm` (§4).
 
@@ -721,7 +723,7 @@ Each new endpoint is synchronous and bounded, as in the causal sequence:
 | | time, checked before each forecaster and each origin | 30 s (`MAX_BACKTEST_SECONDS`) |
 
 Measured in PR 1: the five built-ins together, with the `true-distribution`
-row, take 2.1 s at 400 SKUs × 730 days (horizon 14, 4 origins) and 9.6 s at
+row, take 4.7 s at 400 SKUs × 730 days (horizon 14, 4 origins) and 15.4 s at
 the largest request (horizon 56, 12 origins). The built-ins run for all SKUs at
 once; the exact quantiles are computed once per day shared by several origins.
 | `GET /anomalies` | SKUs × days in the frame | measured in PR 4 |

@@ -440,7 +440,7 @@ The contract is [`refactor/algorithms/interfaces.md`](refactor/algorithms/interf
 | naive | 87.8 % | 1.083 | 6.7 % | 0.969 | 34.4 % | 78.0 % | 7.41 |
 | moving-average | 68.9 % | 0.851 | -4.7 % | 0.753 | 37.7 % | 77.0 % | 6.47 |
 | seasonal-naive | 81.0 % | 1.000 | -4.7 % | 0.903 | 34.2 % | 79.7 % | 6.97 |
-| seasonal-linear | 70.5 % | 0.870 | 4.9 % | 0.776 | 33.7 % | 66.9 % | 5.51 |
+| seasonal-linear | 70.5 % | 0.870 | 4.9 % | 0.772 | 38.9 % | 80.6 % | 6.92 |
 
 **Demand benchmark** (`uv run sdf forecast --benchmark`): 200 SKUs × 365 days
 from a declared process (weekday profile, trend, unannounced promotions,
@@ -453,7 +453,7 @@ known and scored as `true-distribution`:
 | naive | 112.8 % | 1.037 | 3.7 % | 1.346 | 41.1 % | 78.7 % | 9.34 |
 | moving-average | 90.1 % | 0.828 | -1.1 % | 1.030 | 46.7 % | 76.8 % | 8.56 |
 | seasonal-naive | 108.8 % | 1.000 | -1.1 % | 1.306 | 41.6 % | 79.7 % | 9.01 |
-| seasonal-linear | 86.5 % | 0.795 | -2.6 % | 0.953 | 47.3 % | 75.5 % | 8.20 |
+| seasonal-linear | 86.5 % | 0.795 | -2.6 % | 0.955 | 47.9 % | 76.9 % | 8.40 |
 | true-distribution | 85.6 % | 0.787 | -2.3 % | **0.898** | 45.5 % | 90.1 % | 8.71 |
 
 What the numbers say:
@@ -461,10 +461,11 @@ What the numbers say:
 - On the benchmark, most of the error is noise no forecaster removes: the
   exact distribution's own WAPE is 85.6 %. The best built-in, seasonal-linear,
   comes within one point of it on WAPE (86.5 %), but not on the pinball loss
-  (0.953 against 0.898), because its interval is too narrow.
-- The built-ins' intervals come from their errors over the last 56 days, and
-  cover less than they should: 67 % to 80 % with the bounds included, where the
-  exact distribution's covers 90 %. A calibrated forecaster must close that gap;
+  (0.955 against 0.898), because its interval is too narrow.
+- The built-ins' intervals come from their errors over the last 56 days, each
+  error from a forecast that saw only the days before its origin. They still
+  cover less than they should on the benchmark: 75 % to 80 % with the bounds
+  included, where the exact distribution's covers 90 %. A calibrated forecaster must close that gap;
   the gradient-boosted forecaster of the next step is scored on it.
 - Seasonal naive is the weakest reference on noisy daily demand: one past day
   per forecast is a poor estimate of the mean.

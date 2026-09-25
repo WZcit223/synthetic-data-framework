@@ -173,6 +173,21 @@ def test_seasonal_naive_repeats_the_last_cycle_and_linear_recovers_a_clean_week(
     assert np.allclose(linear.mean[0], weekly(73)[63:], atol=1e-6)
 
 
+@pytest.mark.parametrize(
+    "model", [MeanForecaster(), NaiveForecaster(), MovingAverage(5), SeasonalNaive(7), SeasonalLinear(7)]
+)
+def test_a_path_from_an_origin_depends_only_on_the_days_before_it(model):
+    rng = np.random.default_rng(4)
+    y = rng.poisson(6, (3, 90)).astype(float)
+    origins = np.append(np.arange(34, 90), 90)
+    paths = model._paths(y, origins, 5)
+    for j, o in enumerate(origins[:-1]):
+        changed = y.copy()
+        changed[:, o:] = 1_000.0  # the future, poisoned
+        again = model._paths(changed, origins, 5)
+        assert np.array_equal(again[:, j], paths[:, j]), (model.info.name, int(o))
+
+
 def test_moving_average_uses_its_window_and_mean_the_whole_history():
     history = table([1.0] * 30 + [10.0] * 5)
     assert np.allclose(run(MovingAverage(5), history).mean, 10.0)
