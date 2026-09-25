@@ -168,11 +168,11 @@ updates it when its props change, and destroys it when it leaves the page.
 <BarChart      {series} {labels} {format} {stacked} {horizontal} />
 <IntervalChart {rows} {format} {reference} />                   <!-- point + interval per row; reference line -->
 <StripChart    {groups} {format} />                             <!-- jittered points per group, with its mean -->
-<HeatGrid      {cells} {columns} {rows} {format} />             <!-- a value per cell on the sequential ramp -->
+<HeatGrid      {cells} {columns} {rows} {format} {domain} />             <!-- a value per cell on the sequential ramp -->
 ```
 
 Optional props, which may be left out: `band` (no band), `stacked` and
-`horizontal` (`false`), `reference` (no line). Every other prop is required.
+`horizontal` (`false`), `reference` (no line), `domain` (the values shown). Every other prop is required.
 
 The props, in JSDoc types (`number | null` is a missing value: a gap in a
 line, no bar, an empty cell; never a zero):
@@ -195,8 +195,10 @@ line, no bar, an empty cell; never a zero):
 /** @typedef {{row: string, column: string, value: number|null, label?: string, flag?: boolean}} HeatCell */
 // HeatGrid: columns: string[] and rows: string[] give the order, the first row
 // on top; a cell missing from cells, or with value null, is drawn empty. The
-// colour scales from the smallest to the largest value shown; `label` is the
-// cell's tooltip, and a flagged cell gets a ring in the theme's --bad colour.
+// colour scales over domain ([low, high], e.g. [0, 1] for a share) or, without
+// one, from the smallest to the largest value shown (all equal: the middle
+// step); `label` is the cell's tooltip, and a flagged cell gets a ring in the
+// theme's --bad colour.
 ```
 
 Each component's test (§5.2) builds its Chart.js datasets from these shapes,
@@ -238,7 +240,8 @@ Optional: `format`, `tone` (`{[name]: (value, record) => "good"|"warn"|"bad"|nul
 a cell's colour class, so a status reads in colour), `sort` (the initial sort,
 `{column, dir}`), `download` (`false`, or the CSV file's name), `height` (the
 rows' natural height), `placeholder` (the text of an empty table), `heat`
-(`false`) and `maxHeight` (`"70vh"`). A cell is always text, never HTML.
+(`false`) and `maxHeight` (`"70vh"`). A title and a cell are always text, never
+HTML: a label can come from the API, and Tabulator writes titles as markup.
 `PivotTable` always has a bounded height: `maxHeight` has a default and
 cannot be unset, because Tabulator renders only the visible rows of a table
 whose height is bounded, and the pivot's row budget goes on that promise

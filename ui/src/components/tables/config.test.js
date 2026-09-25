@@ -26,6 +26,13 @@ test("an API table is taken as it is: titles, alignment and sort order come from
   assert.ok(cols.every(c => c.headerSort));
 });
 
+test("a title is text too: a label from the API is shown, not run", () => {
+  const [col] = columns([{ name: "p", label: '<img src=x onerror="alert(1)">', kind: "measure" }]);
+  const node = col.titleFormatter({ getValue: () => col.title });
+  assert.equal(node.nodeType, 3);
+  assert.equal(node.textContent, '<img src=x onerror="alert(1)">');
+});
+
 test("rows become records keyed by field name", () => {
   assert.deepEqual(records(FIELDS, [["SKU-1", "2025-01-01", 3]]), [{ sku_id: "SKU-1", day: "2025-01-01", qty: 3 }]);
 });

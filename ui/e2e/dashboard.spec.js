@@ -84,6 +84,28 @@ test("a table sorts by the column clicked, and the other way on a second click",
   expect(twice).not.toEqual(once);
 });
 
+test("each slider's label and the regenerate request say what the slider holds", async ({ page }) => {
+  await page.goto("/index.html", { waitUntil: "networkidle" });
+  const sliders = page.locator('.ctrl input[type="range"]');
+  const held = [];
+  for (let i = 0; i < await sliders.count(); i++) {
+    const slider = sliders.nth(i);
+    const value = await slider.inputValue();
+    held.push(Number(value));
+    await expect(slider.locator("xpath=..").locator("output")).toHaveText(new RegExp(`^${Number(value)}(\\.0+)?$`));
+  }
+  const post = page.waitForRequest(r => r.url().endsWith("/api/v1/world") && r.method() === "POST");
+  await page.getByRole("button", { name: /Regenerate/ }).click();
+  const body = (await post).postDataJSON();
+  expect([body.n_skus, body.horizon_days, body.daily_orders_per_a_sku, body.stockout_pressure, body.seed]).toEqual(held);
+});
+
+test("a table header from the API is shown as text", async ({ page }) => {
+  await page.goto("/index.html", { waitUntil: "networkidle" });
+  const titles = card(page, /Policy comparison/).locator(".tabulator-col-title");
+  await expect(titles).toHaveText(["Metric", "naive", "service-level-95"]);
+});
+
 test("at 390 px the dashboard does not overflow sideways", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/index.html", { waitUntil: "networkidle" });

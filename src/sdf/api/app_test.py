@@ -348,7 +348,10 @@ def test_ui_reaches_the_backend_only_through_api():
 
 def test_ui_has_no_inline_event_handler():
     """The pages are ES modules, whose functions are not globals: every handler is registered in a script."""
-    for path in sorted(UI_DIR.glob("*.html")) + sorted(UI_SRC.rglob("*.js")):
+    shipped = [
+        p for p in sorted(UI_SRC.rglob("*.js")) if not p.name.endswith(".test.js")
+    ]  # tests hold hostile input on purpose
+    for path in sorted(UI_DIR.glob("*.html")) + shipped:
         text = path.read_text(encoding="utf-8")
         assert not re.findall(r"<[a-zA-Z][^>]*\son[a-z]+\s*=", text), path.name
     nav = (UI_SRC / "components" / "Nav.svelte").read_text(encoding="utf-8")

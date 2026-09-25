@@ -4,6 +4,7 @@
 -->
 <script>
   import { API, api } from "../../lib/api.js";
+  import { onGrid } from "./sliders.js";
 
   /** @type {{onregenerated: () => Promise<unknown>}} */
   let { onregenerated } = $props();
@@ -17,13 +18,14 @@
   let status = $state("");
 
   const EXPORTS = ["skus", "inventory", "outbound", "sensors"];
+  const STEPS = { n_skus: 20, horizon_days: 10 };
 
   // Size the generation sliders to what this backend accepts; keep the page defaults if it cannot say.
   async function loadLimits() {
     let l;
     try { l = await api("/world/limits"); } catch (err) { console.warn("world limits unavailable:", err.message); return; }
     bounds = { n_skus: l.n_skus, horizon_days: l.horizon_days };
-    for (const key of ["n_skus", "horizon_days"]) spec[key] = Math.min(bounds[key].max, Math.max(bounds[key].min, spec[key]));
+    for (const key of ["n_skus", "horizon_days"]) spec[key] = onGrid(spec[key], bounds[key], STEPS[key]);
   }
 
   // The warehouse generators this server offers; the current world's is preselected and named.
@@ -70,10 +72,10 @@
 <div class="card">
   <div class="controls">
     <label class="ctrl">SKUs <output>{spec.n_skus}</output>
-      <input type="range" min={bounds.n_skus.min} max={bounds.n_skus.max} step="20" bind:value={spec.n_skus} />
+      <input type="range" min={bounds.n_skus.min} max={bounds.n_skus.max} step={STEPS.n_skus} bind:value={spec.n_skus} />
     </label>
     <label class="ctrl">Days of history <output>{spec.horizon_days}</output>
-      <input type="range" min={bounds.horizon_days.min} max={bounds.horizon_days.max} step="10" bind:value={spec.horizon_days} />
+      <input type="range" min={bounds.horizon_days.min} max={bounds.horizon_days.max} step={STEPS.horizon_days} bind:value={spec.horizon_days} />
     </label>
     <label class="ctrl">Demand intensity (class-A) <output>{spec.daily_orders_per_a_sku.toFixed(1)}</output>
       <input type="range" min="1" max="16" step="0.5" bind:value={spec.daily_orders_per_a_sku} />

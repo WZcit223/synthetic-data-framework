@@ -46,7 +46,7 @@
     <div class="note top">Each square = one location, shaded by vision-estimated fill. Red ring = stocktake
       discrepancy vs book inventory.</div>
     {#if heat?.cells.length}
-      <HeatGrid cells={heat.cells} rows={heat.rows} columns={heat.columns} format={share} />
+      <HeatGrid cells={heat.cells} rows={heat.rows} columns={heat.columns} format={share} domain={[0, 1]} />
       <div class="legend muted">
         <span>empty</span><span class="ramp"></span><span>full</span><span class="ring">discrepancy</span>
       </div>

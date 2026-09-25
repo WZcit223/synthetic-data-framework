@@ -202,15 +202,15 @@ export function stripConfig({ groups, format }, look, book) {
 export const rampStep = (ramp, t) => ramp[Math.min(ramp.length - 1, Math.max(0, Math.floor(t * ramp.length)))];
 
 /**
- * A value per cell on the sequential ramp, scaled from the smallest to the
- * largest value shown; a missing or null cell is drawn empty. A flagged cell
- * gets a ring in the "bad" colour; a cell's label is its tooltip.
+ * A value per cell on the sequential ramp, scaled over `domain` ([low, high]) or,
+ * without one, from the smallest to the largest value shown; a missing or null
+ * cell is drawn empty. A flagged cell gets a ring in the "bad" colour; a cell's
+ * label is its tooltip.
  */
-export function heatConfig({ cells, columns, rows, format }, look) {
+export function heatConfig({ cells, columns, rows, format, domain }, look) {
   const known = cells.filter(c => c.value != null);
-  const lo = Math.min(...known.map(c => c.value));
-  const hi = Math.max(...known.map(c => c.value));
-  const t = v => (hi > lo ? (v - lo) / (hi - lo) : 1);
+  const [lo, hi] = domain ?? [Math.min(...known.map(c => c.value)), Math.max(...known.map(c => c.value))];
+  const t = v => (hi > lo ? (v - lo) / (hi - lo) : 0.5); // all equal: the middle of the ramp, neither end
   const data = known.map(c => ({ x: c.column, y: c.row, v: c.value, label: c.label, flag: !!c.flag }));
   const options = base(look, format, { legend: false });
   options.plugins.tooltip.callbacks = {

@@ -16,12 +16,14 @@ const SORTERS = { measure: "number", time: "string", dimension: "string" };
  * Tabulator column definitions. `label` (with `unit` in brackets) is the title;
  * `kind` gives the alignment and the sorter. `format` is `{[name]: v => text}`,
  * `tone` is `{[name]: (v, record) => "good"|"warn"|"bad"|null}`: a cell class,
- * so a status reads in colour. Cells are text, never HTML.
+ * so a status reads in colour. Titles and cells are text, never HTML: a label
+ * can come from the API (a policy's name), and Tabulator would write it as markup.
  */
 export function columns(fields, { format = {}, tone = {} } = {}) {
   return fields.map(f => ({
     field: f.name,
     title: f.unit ? `${f.label} (${f.unit})` : f.label,
+    titleFormatter: cell => document.createTextNode(cell.getValue()),
     hozAlign: f.kind === "measure" ? "right" : "left",
     headerHozAlign: f.kind === "measure" ? "right" : "left",
     sorter: SORTERS[f.kind] ?? "string",

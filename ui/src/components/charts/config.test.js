@@ -135,3 +135,12 @@ test("a heat grid scales its cells onto the ramp and leaves a blank cell out", (
   assert.deepEqual(c.options.scales.y.labels, ["PICK", "BULK"]); // drawn bottom-up, so the first row is on top
   assert.equal(c.options.plugins.tooltip.callbacks.label({ raw: ds.data[1] }), "LOC-1");
 });
+
+test("a heat grid with a fixed domain colours by it, not by the values shown", () => {
+  const cells = [{ row: "A", column: "1", value: 0 }, { row: "A", column: "2", value: 0 }];
+  const fixed = heatConfig({ cells, rows: ["A"], columns: ["1", "2"], format: fmt, domain: [0, 1] }, LOOK);
+  assert.equal(fixed.data.datasets[0].backgroundColor({ raw: { v: 0 } }), LOOK.heat[0]); // empty shelves read empty
+  assert.equal(fixed.data.datasets[0].backgroundColor({ raw: { v: 1 } }), LOOK.heat.at(-1));
+  const flat = heatConfig({ cells, rows: ["A"], columns: ["1", "2"], format: fmt }, LOOK);
+  assert.equal(flat.data.datasets[0].backgroundColor({ raw: { v: 0 } }), rampStep(LOOK.heat, 0.5)); // all equal: the middle
+});
