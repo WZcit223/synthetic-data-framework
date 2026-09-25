@@ -499,18 +499,24 @@ def cmd_anomalies(detectors: list[str], *, benchmark: bool = False, csv_path: st
         if benchmark:
             bench = AnomalyBenchmark()
             frame, injected = bench.inject(frame)
-            table = score_detectors(detectors, frame, injected, registry=reg)
+            table = score_detectors(detectors, frame, injected, kinds=bench.kinds, registry=reg)
         else:
-            found = {}
             for name in detectors:
-                found[name] = reg.run(reg.create(name), frame)[1]
+                reg.check_params(name, {})
     except (KeyError, ValueError) as exc:
         click.echo(f"sdf anomalies: {exc.args[0] if isinstance(exc, KeyError) else exc}", err=True)
         return 1
+    found = {}
+    for name in [] if benchmark else detectors:
+        try:
+            found[name] = reg.run(reg.create(name), frame)[1]
+        except Exception as exc:  # the detector's own failure, or a result the registry refused
+            click.echo(f"sdf anomalies: {name} failed: {type(exc).__name__}: {exc}", err=True)
+            return 1
     n_skus, n_days = frame.shape
     print(f"default world: {n_skus} SKUs × {n_days} days; signals {', '.join(sorted(frame.signals))}")
     if benchmark:
-        kinds = sorted({k for *_, k in injected})
+        kinds = [k for k in bench.kinds if any(kind == k for *_, kind in injected)]
         counts = ", ".join(f"{sum(1 for *_, k in injected if k == kind)} {kind}" for kind in kinds)
         print(f"injected {len(injected)} anomalies (rate {bench.rate:g}, seed 7): {counts}")
         print(f"{'detector':<20}{'kind':<11}{'cut':<11}{'precision':>10}{'recall':>8}{'F1':>7}{'flagged':>9}")

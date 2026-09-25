@@ -16,6 +16,8 @@ from .engine import simulate_inventory
 from .policy import Policy, ServiceLevelPolicy, levels_for, policy_input
 from .world import World
 
+SIGNALS = ("demand", "on_hand", "receipts")  # the signals every frame of the world has
+
 
 def signal_frame(world: World, policy: Policy | None = None) -> SignalFrame:
     """``demand``, ``on_hand`` and ``receipts`` for every SKU of the world's demand table and every day of it."""

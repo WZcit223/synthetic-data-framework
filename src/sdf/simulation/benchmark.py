@@ -273,7 +273,7 @@ ANOMALY_KINDS = ("spike", "drop", "shrinkage")
 class AnomalyBenchmark:
     """Known anomalies injected into a frame of daily signals, so every detector can be scored on them.
 
-    A share ``rate`` of the SKU-days (of SKUs with demand) gets one anomaly, the kinds in
+    A share ``rate`` of all SKU-days, placed on SKUs with demand, gets one anomaly, the kinds in
     turn: a ``spike`` adds U(3, 6) times the SKU's mean to the day's demand; a ``drop``
     sets a selling day's demand to 0; ``shrinkage`` takes 2 to 5 days of mean demand out
     of stock from that day on, with no demand or receipt to explain it. The stock follows
@@ -284,7 +284,10 @@ class AnomalyBenchmark:
     among the ``kinds``; otherwise it gets nothing, so fewer than ``rate`` of the SKU-days
     may hold an anomaly. A stock-balance
     rule finds shrinkage exactly: it is here to check that a detector reads more than one
-    signal. The contract is ``docs/refactor/algorithms/interfaces.md`` §6.3.
+    signal. The stock is shifted, not replayed: the policy does not reorder in answer to
+    an anomaly, and a spike or a drop can leave demand unmet on a day that ends with
+    stock (7 SKU-days at the defaults), which a replay never does. Only the stock
+    balance is kept exact. The contract is ``docs/refactor/algorithms/interfaces.md`` §6.3.
     """
 
     rate: float = 0.01

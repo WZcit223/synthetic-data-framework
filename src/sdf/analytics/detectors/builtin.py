@@ -56,7 +56,7 @@ class SeasonalResidual:
 
 
 def _rolling_median(x: np.ndarray, window: int = 7) -> np.ndarray:
-    """The centred rolling median of each row, the window shortened at the ends."""
+    """The centred rolling median of each row, the row's first and last values repeated beyond its ends."""
     half = window // 2
     padded = np.pad(x, ((0, 0), (half, half)), mode="edge")
     windows = np.lib.stride_tricks.sliding_window_view(padded, window, axis=1)
@@ -135,14 +135,16 @@ class IsolationForestDetector:
             unexplained[np.abs(unexplained) < 1e-6] = 0.0  # rounding in the arithmetic, not missing stock
             missing = np.minimum(unexplained, 0.0) / mean
             columns.append(missing)
-            strength["on_hand"] = np.abs(missing) * STRONG  # any missing stock is a reason
+            strength["on_hand"] = np.abs(missing) * STRONG  # a day's mean demand gone missing, or more, is a reason
         demand = np.nan_to_num(frame.signals["demand"])
         direction = (demand - _weekday_median(demand, weekdays)) / spread["demand"]
         x = np.stack([c.ravel() for c in columns], axis=1)
         return x, strength, direction
 
     def _fit(self, frame: SignalFrame):
-        """The forest fitted on ``frame``, kept for it: ``scores`` and ``detect`` of one frame fit once."""
+        """The forest's scores on ``frame`` (SKUs × days, larger is more anomalous), its cut-off, and the
+        reasons and directions, kept for the frame: ``scores`` and ``detect`` of one frame fit once. A frame is
+        never changed after it is built, so the same frame object always has the same answer."""
         from sklearn.ensemble import IsolationForest
 
         kept = getattr(self, "_kept", None)
@@ -155,23 +157,23 @@ class IsolationForestDetector:
             contamination=self.contamination,
             random_state=self.seed,
         ).fit(x)
-        self._kept = (frame, (forest, x, strength, direction))
+        score = -forest.score_samples(x).reshape(frame.shape)
+        # scikit-learn's predict() flags a sample whose score_samples is below offset_: the same cut, scored once
+        self._kept = (frame, (score, -forest.offset_, strength, direction))
         return self._kept[1]
 
     def scores(self, frame: SignalFrame) -> np.ndarray:
-        forest, x, _, _ = self._fit(frame)
-        return -forest.score_samples(x).reshape(frame.shape)
+        return self._fit(frame)[0].copy()
 
     def detect(self, frame: SignalFrame) -> list[Detection]:
-        forest, x, strength, direction = self._fit(frame)
-        flagged = forest.predict(x).reshape(frame.shape) == -1
-        score = -forest.score_samples(x).reshape(frame.shape)
+        score, cut, strength, direction = self._fit(frame)
+        flagged = score > cut
         found = []
         for i, t in zip(*np.nonzero(flagged)):
             reasons = tuple(n for n in sorted(strength) if strength[n][i, t] >= STRONG)
             if not reasons:
                 reasons = (max(strength, key=lambda n: strength[n][i, t]),)
-            if "demand" in reasons:
+            if "demand" in reasons and direction[i, t] != 0:
                 way = "spike" if direction[i, t] > 0 else "drop"
             else:
                 way = "other"

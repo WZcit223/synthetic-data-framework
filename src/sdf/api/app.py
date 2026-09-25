@@ -73,7 +73,7 @@ from sdf.simulation.benchmark import (
 )
 from sdf.simulation.effects import MAX_EFFECT_WORK, MAX_REPLICATES, EffectStudy
 from sdf.simulation.experiment import OUTCOME_FIELDS, Experiment
-from sdf.simulation.signals import signal_frame
+from sdf.simulation.signals import SIGNALS, signal_frame
 from sdf.synthesis.materialise import WarehouseRefused
 from sdf.synthesis.registry import SynthesizerRegistry, default_registry
 from sdf.synthesis.spec import GenerationSpec
@@ -696,14 +696,17 @@ def create_app(
             "detectors": entries,
             "unavailable": detector_reg.unavailable(),
             "limits": {"max_detectors": MAX_DETECTORS},
-            "signals": ["demand", "on_hand", "receipts"],
+            "signals": list(SIGNALS),
             "benchmark": {"params": [p.to_dict() for p in AnomalyBenchmark.params()], "kinds": list(ANOMALY_KINDS)},
         }
 
     @api.get(
         "/anomalies",
         response_model=s.AnomaliesResult,
-        responses={422: {"description": "an unknown detector, or a result the registry refused"}},
+        responses={
+            422: {"description": "an unknown detector, or a result the registry refused"},
+            500: {"description": "the detector itself failed"},
+        },
     )
     def anomalies(detector: str = "seasonal-residual"):
         """One detector's detections on the current world's daily signals per SKU (demand, and the stock and
@@ -712,11 +715,16 @@ def create_app(
         world = store.current.world
         try:
             model = detector_reg.create(detector)
-            _, found = detector_reg.run(model, signal_frame(world))
-        except KeyError as exc:
+        except KeyError as exc:  # unknown or unavailable
             raise HTTPException(status_code=422, detail=exc.args[0]) from exc
-        except ValueError as exc:
+        try:
+            _, found = detector_reg.run(model, signal_frame(world))
+        except ValueError as exc:  # the guard refused its result
             raise HTTPException(status_code=422, detail=f"{detector}: {exc}") from exc
+        except Exception as exc:  # the detector's own failure, a KeyError included, is not an unknown detector
+            raise HTTPException(
+                status_code=500, detail=f"detector {detector} failed: {type(exc).__name__}: {exc}"
+            ) from exc
         found.sort(key=lambda d: (-d.score, d.sku_id, d.day))
         return {
             "detector": detector,

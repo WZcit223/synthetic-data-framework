@@ -340,3 +340,25 @@ def test_anomalies_lists_detections_and_refuses_an_unknown_detector():
     assert "seasonal-residual: " in result.output and "SKU-days flagged" in result.output
     bad = run("anomalies", "-d", "nope")
     assert bad.exit_code == 1 and "unknown detector 'nope'" in bad.output
+
+
+def test_anomalies_reports_a_detector_s_own_failure_without_a_traceback(monkeypatch):
+    from typing import ClassVar
+
+    from .analytics.detectors import DetectorInfo, DetectorRegistry
+
+    class Crashes:
+        info: ClassVar[DetectorInfo] = DetectorInfo("crashes", "fails on every frame")
+
+        def scores(self, frame):
+            raise RuntimeError("out of memory")
+
+        def detect(self, frame):
+            return []
+
+    reg = DetectorRegistry()
+    reg.register(Crashes)
+    monkeypatch.setattr("sdf.cli.default_detectors", lambda: reg)
+    result = run("anomalies", "-d", "crashes")
+    assert result.exit_code == 1 and "crashes failed: RuntimeError: out of memory" in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)

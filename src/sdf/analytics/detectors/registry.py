@@ -3,7 +3,9 @@
 Detectors are plug-ins in the ``sdf.detectors`` entry-point group, mounted by the
 shared loader (``sdf.foundation.plugins``). Every caller runs a detector through
 ``DetectorRegistry.run``, never directly, so scores of the wrong shape or with a
-non-finite value, and a detection outside the frame, are refused in one place.
+non-finite value, and a detection outside the frame, with a score that is not a
+finite number or with reasons that are not signals of the frame, are refused in one
+place; each detection passes on rebuilt, with its score a plain ``float``.
 The contract is ``docs/refactor/algorithms/interfaces.md`` §6.2.
 """
 
@@ -42,8 +44,9 @@ class DetectorRegistry(PluginRegistry[Detector]):
         """The parameters a client may set on ``name``: its typed constructor keywords."""
         return constructor_params(self._entry(name).cls)
 
-    def create(self, name: str, **params: Any) -> Detector:
-        """A new instance of ``name`` with ``params``, each checked against its published bounds first."""
+    def check_params(self, name: str, params: dict[str, Any]) -> None:
+        """``KeyError`` for an unknown or unavailable ``name``; ``ValueError`` for a parameter it does not take
+        or one outside its published bounds."""
         declared = {p.name: p for p in self.params(name)}
         unknown = sorted(set(params) - set(declared))
         if unknown:
@@ -52,6 +55,10 @@ class DetectorRegistry(PluginRegistry[Detector]):
             problem = declared[key].check(value)
             if problem:
                 raise ValueError(f"{name}: {key} {problem}")
+
+    def create(self, name: str, **params: Any) -> Detector:
+        """A new instance of ``name`` with ``params``, each checked against its published bounds first."""
+        self.check_params(name, params)
         return self._entry(name).cls(**params)
 
     def run(self, model: Detector, frame: SignalFrame) -> tuple[np.ndarray, list[Detection]]:
@@ -65,18 +72,28 @@ class DetectorRegistry(PluginRegistry[Detector]):
             raise ValueError(f"{name} returned scores of shape {scores.shape}, not {frame.shape} (SKUs × days)")
         if not np.isfinite(scores).all():
             raise ValueError(f"{name} returned a non-finite score")
-        detections = list(model.detect(frame))
+        checked = []
         skus, days = set(frame.sku_ids), set(frame.days)
-        for d in detections:
+        for d in model.detect(frame):
             if not isinstance(d, Detection):
                 raise ValueError(f"{name} returned {type(d).__name__}, not a Detection")
             if d.sku_id not in skus or d.day not in days:
                 raise ValueError(f"{name} reported {d.sku_id} on {d.day}, which is not in the frame")
             if d.direction not in DIRECTIONS:
                 raise ValueError(f"{name} reported the direction {d.direction!r}; it must be one of {list(DIRECTIONS)}")
-            if not np.isfinite(d.score):
-                raise ValueError(f"{name} reported a non-finite score for {d.sku_id} on {d.day}")
-        return scores, detections
+            try:
+                score = float(d.score) if not isinstance(d.score, (str, bytes)) else None
+            except (TypeError, ValueError):
+                score = None
+            if score is None or not np.isfinite(score):
+                raise ValueError(
+                    f"{name} reported the score {d.score!r} for {d.sku_id} on {d.day}, not a finite number"
+                )
+            reasons = d.signals
+            if not isinstance(reasons, tuple) or any(not isinstance(r, str) or r not in frame.signals for r in reasons):
+                raise ValueError(f"{name} named the signals {reasons!r}; they must be a tuple of the frame's signals")
+            checked.append(Detection(d.sku_id, d.day, score, d.direction, reasons))
+        return scores, checked
 
 
 def default_detectors() -> DetectorRegistry:

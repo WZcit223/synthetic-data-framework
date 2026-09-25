@@ -445,8 +445,9 @@ from sdf.synthesis.spec import GenerationSpec
 
 detectors = default_detectors()
 detectors.register(StockBalance)
-frame, injected = AnomalyBenchmark().inject(signal_frame(World.generate(GenerationSpec())))
-scores = score_detectors(["stock-balance", "isolation-forest"], frame, injected, registry=detectors)
+bench = AnomalyBenchmark()
+frame, injected = bench.inject(signal_frame(World.generate(GenerationSpec())))
+scores = score_detectors(["stock-balance", "isolation-forest"], frame, injected, kinds=bench.kinds, registry=detectors)
 ```
 
 `scores` has, per detector, anomaly kind (and `all`) and cut, the precision,

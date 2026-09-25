@@ -460,10 +460,21 @@ counts that kind's hits and the false alarms (`uv run sdf anomalies
   0.6 with more false alarms, so they are read through the stock balance only.
 - **Limit:** the forest isolates what is rare. With shrinkage on 1 % of the
   SKU-days, as often as the share it flags, its shrinkage recall falls to 0.49.
-- **Time:** `isolation-forest` takes 1.9 s on the default world, 2.8 s on the
+- **Why the forest's two cuts agree.** It flags its `contamination` share
+  (1 %) of the SKU-days, the same count the benchmark injects, so its
+  threshold and its top-k are the same 180 SKU-days. The top-k column tells
+  something new only for a detector, like the rule, that raises more or fewer
+  alarms than there are anomalies.
+- **Limit of the benchmark:** the stock is shifted, not replayed. The policy
+  does not reorder in answer to an injected anomaly, and a spike or a drop can
+  leave demand unmet on a day that ends with stock (7 SKU-days here), which a
+  replay never does. Only the stock balance is kept exact, and it is all the
+  forest reads of the stock.
+- **Time:** `isolation-forest` takes 1.1 s on the default world, 2.8 s on the
   largest world the API allows (500 SKUs × 180 days); `seasonal-residual`
-  0.02 s. `GET /api/v1/anomalies?detector=NAME` answers each detector's
-  alarms on the current world; `/api/v1/demand-anomalies` is unchanged.
+  0.02 s and 0.16 s. `GET /api/v1/anomalies?detector=NAME` answers each
+  detector's alarms on the current world; `/api/v1/demand-anomalies` is
+  unchanged.
 
 **C6 — grounded knowledge Q&A** (`application/knowledge.py`): a natural-language
 interface that routes questions to computed facts and answers with real numbers —

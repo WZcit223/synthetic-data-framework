@@ -1524,7 +1524,13 @@ def test_anomalies_answers_one_detector_s_detections_on_the_world(client):
     assert len(body["rows"]) == len(expected) > 0
     scores = [r[2] for r in body["rows"]]
     assert scores == sorted(scores, reverse=True)
+    served = {(r[0], r[1]): r for r in body["rows"]}
+    for d in expected:
+        assert served[d.sku_id, d.day.isoformat()][2:] == [round(d.score, 4), d.direction, ", ".join(d.signals)]
     assert get(client, "/anomalies")["detector"] == "seasonal-residual"  # the default
+    forest = get(client, "/anomalies?detector=isolation-forest")
+    assert forest["rows"] and {r[3] for r in forest["rows"]} <= {"spike", "drop", "other"}
+    assert all(r[4] and set(r[4].split(", ")) <= {"demand", "on_hand", "receipts"} for r in forest["rows"])
 
 
 def test_anomalies_refuses_an_unknown_detector_and_a_result_the_guard_refuses():
@@ -1548,3 +1554,22 @@ def test_anomalies_refuses_an_unknown_detector_and_a_result_the_guard_refuses():
     assert unknown.status_code == 422 and "unknown detector 'nope'" in unknown.json()["detail"]
     refused = c.get(V1 + "/anomalies?detector=out-of-frame")
     assert refused.status_code == 422 and "not in the frame" in refused.json()["detail"]
+
+
+def test_anomalies_answers_a_detector_s_own_failure_as_that_failure():
+    from sdf.analytics.detectors import DetectorInfo, DetectorRegistry
+
+    class Crashes:
+        info: ClassVar = DetectorInfo("crashes", "fails on every frame")
+
+        def scores(self, frame):
+            raise KeyError("a column it expected")
+
+        def detect(self, frame):
+            return []
+
+    reg = DetectorRegistry()
+    reg.register(Crashes)
+    res = TestClient(create_app(detectors=reg), raise_server_exceptions=False).get(V1 + "/anomalies?detector=crashes")
+    assert res.status_code == 500  # its own KeyError is not an unknown detector
+    assert res.json()["detail"] == "detector crashes failed: KeyError: 'a column it expected'"

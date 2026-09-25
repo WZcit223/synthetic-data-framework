@@ -33,21 +33,22 @@ def test_record_adds_the_daily_stock_and_receipts_and_changes_nothing_else():
 
 
 def test_the_frame_holds_the_world_s_demand_and_the_policy_s_replayed_stock(world):
-    frame = signal_frame(world)
+    policy = ServiceLevelPolicy(lead_time_days=3)  # not the default: the frame replays the policy it is given
+    frame = signal_frame(world, policy)
     table = world.demand()
     assert frame.days == table.days and frame.sku_ids == tuple(table.series)
     assert set(frame.signals) == {"demand", "on_hand", "receipts"}
     sku = frame.sku_ids[0]
     assert np.array_equal(frame.signals["demand"][0], np.array(table.series[sku]))
     skus = {s.sku_id: s for s in world.stream("SKU")}
-    policy = ServiceLevelPolicy()
     trace = simulate_inventory(
         table.series[sku],
         levels_for(policy, policy_input(sku, table.series[sku], skus, table.profile(sku))),
-        lead_time_days=7,
+        lead_time_days=3,
         record=True,
     )
     assert tuple(frame.signals["on_hand"][0]) == trace.on_hand and tuple(frame.signals["receipts"][0]) == trace.receipts
+    assert not np.array_equal(frame.signals["on_hand"], signal_frame(world).signals["on_hand"])
 
 
 @pytest.fixture(scope="module")

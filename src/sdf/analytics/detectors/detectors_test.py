@@ -113,6 +113,18 @@ def test_the_guard_refuses_a_wrong_result_before_anyone_scores_it():
         Wrong.result = result
         with pytest.raises(ValueError, match=message):
             reg.run(reg.create("wrong"), f)
+    for score in ("1.5", None, np.nan):
+        Wrong.result = {"detect": [Detection("S0", f.days[0], score, "spike")]}
+        with pytest.raises(ValueError, match="not a finite number"):
+            reg.run(reg.create("wrong"), f)
+    for signals in (("on_hand",), ["demand"], (1,)):
+        Wrong.result = {"detect": [Detection("S0", f.days[0], 1.0, "spike", signals)]}
+        with pytest.raises(ValueError, match="must be a tuple of the frame's signals"):
+            reg.run(reg.create("wrong"), f)
+    # a number of numpy's own types is taken, and passed on as a plain float
+    Wrong.result = {"detect": [Detection("S0", f.days[0], np.int64(3), "spike", ("demand",))]}
+    (found,) = reg.run(reg.create("wrong"), f)[1]
+    assert type(found.score) is float and found == Detection("S0", f.days[0], 3.0, "spike", ("demand",))
 
     class NeedsStock(Exact):
         info: ClassVar[DetectorInfo] = DetectorInfo("needs-stock", "x", signals=("demand", "on_hand"))
@@ -188,10 +200,21 @@ def test_a_failing_detector_is_an_error_row_and_the_others_still_score():
 
     table = score_detectors(["broken", "exact"], f, {("S0", f.days[3], "spike")}, registry=registry(Broken, Exact))
     broken = [r for r in table.rows if r[0] == "broken"]
-    assert len(broken) == 1 and broken[0][1] == "all" and broken[0][8] == "no scores today"
+    assert len(broken) == 1 and broken[0][1] == "all" and broken[0][8] == "RuntimeError: no scores today"
     assert any(r[0] == "exact" and r[8] is None for r in table.rows)
+
+    class FailsToStart(Exact):
+        info: ClassVar[DetectorInfo] = DetectorInfo("fails-to-start", "x")
+
+        def __init__(self):
+            raise RuntimeError("no model file")
+
+    table = score_detectors(["fails-to-start"], f, {("S0", f.days[3], "spike")}, registry=registry(FailsToStart))
+    assert [r[8] for r in table.rows] == ["RuntimeError: no model file"]
     with pytest.raises(ValueError, match="each detector may appear once"):
         score_detectors(["exact", "exact"], f, set(), registry=registry(Exact))
+    with pytest.raises(KeyError, match="unknown detector 'nope'"):
+        score_detectors(["exact", "nope"], f, set(), registry=registry(Exact))
     with pytest.raises(ValueError, match="parameters for nope"):
         score_detectors(["exact"], f, set(), params={"nope": {}}, registry=registry(Exact))
 
@@ -206,3 +229,47 @@ def test_isolation_forest_names_the_missing_stock_as_the_reason():
     hit = [d for d in found if d.sku_id == "S2" and d.day == f.days[40]]
     assert hit and hit[0].signals == ("on_hand",) and hit[0].direction == "other"
     assert IsolationForestDetector().scores(f).shape == f.shape
+
+
+def test_the_rows_follow_the_benchmark_s_kinds_and_each_place_holds_one_kind():
+    f = frame(weekly())
+    injected = {("S0", f.days[3], "shrinkage"), ("S1", f.days[9], "spike"), ("S2", f.days[20], "odd")}
+    table = score_detectors(["exact"], f, injected, kinds=("spike", "drop", "shrinkage"), registry=registry(Exact))
+    assert [r[1] for r in table.rows if r[2] == "threshold"] == ["spike", "shrinkage", "odd", "all"]
+    with pytest.raises(ValueError, match="holds two kinds"):
+        score_detectors(["exact"], f, {("S0", f.days[3], "spike"), ("S0", f.days[3], "drop")}, registry=registry(Exact))
+
+
+def test_nothing_injected_leaves_only_the_false_alarms():
+    f = frame(weekly())
+
+    class One(Exact):
+        info: ClassVar[DetectorInfo] = DetectorInfo("one", "x")
+
+        def __init__(self):
+            super().__init__(frozenset({("S0", f.days[5])}))
+
+    rows = {r[2]: r for r in score_detectors(["one"], f, set(), registry=registry(One)).rows}
+    assert rows["threshold"][1:7] == ["all", "threshold", 0.0, None, None, 1]
+    assert rows["top-k"][1:7] == ["all", "top-k", None, None, None, 0]  # k = 0: nothing ranked
+
+
+def test_seasonal_residual_detects_exactly_the_scores_at_or_beyond_k():
+    rng = np.random.default_rng(1)
+    demand = rng.poisson(6, (8, 84)).astype(float)
+    demand[rng.integers(0, 8, 20), rng.integers(0, 84, 20)] *= 8
+    f = frame(demand)
+    det = SeasonalResidual(k=3.0)
+    scores = det.scores(f)
+    found = {(f.sku_ids.index(d.sku_id), f.days.index(d.day)) for d in det.detect(f)}
+    assert found and found == set(zip(*np.nonzero(scores >= 3.0)))
+
+
+def test_isolation_forest_is_repeatable_with_its_seed():
+    demand = weekly(6, 70)
+    on_hand = 10_000 - np.cumsum(demand, axis=1)
+    on_hand[2, 40:] -= 30.0
+    f = frame(demand, on_hand=on_hand, receipts=np.zeros(demand.shape))
+    one, again = IsolationForestDetector(seed=3), IsolationForestDetector(seed=3)
+    assert np.array_equal(one.scores(f), again.scores(f)) and one.detect(f) == again.detect(f)
+    assert not np.array_equal(one.scores(f), IsolationForestDetector(seed=4).scores(f))

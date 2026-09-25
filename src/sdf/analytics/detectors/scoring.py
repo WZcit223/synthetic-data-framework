@@ -4,7 +4,8 @@
 ``len(injected)`` SKU-days it rates highest, ties broken by SKU order and then day,
 so a detector is not judged by its threshold alone. Per kind, precision counts only
 the flagged points at an injected place of that kind or at no injected place. A
-detector that fails is an error row, not a failed run. The contract is
+detector that fails is an error row, not a failed run. Each injected place holds one
+kind. The contract is
 ``docs/refactor/algorithms/interfaces.md`` §6.3.
 """
 
@@ -35,7 +36,8 @@ SCORES_INFO = DatasetInfo(
         Field("precision", "Precision", "measure", unit="share", aggregate="mean"),
         Field("recall", "Recall", "measure", unit="share", aggregate="mean"),
         Field("f1", "F1", "measure", unit="share", aggregate="mean"),
-        Field("flagged", "Flagged", "measure", unit="rows", aggregate="sum"),
+        # a false alarm counts in every kind's row, so rows do not add up: a pivot shows the largest, the all row
+        Field("flagged", "Flagged", "measure", unit="rows", aggregate="max"),
         Field("seconds", "Run time", "measure", unit="s", aggregate="sum"),
         Field("error", "Error", "dimension"),
     ),
@@ -78,10 +80,13 @@ def score_detectors(
     injected: Set[tuple[str, date, str]],
     *,
     params: Mapping[str, Mapping[str, Any]] | None = None,
+    kinds: Sequence[str] = (),
     registry: DetectorRegistry | None = None,
 ) -> Table:
     """The ``anomaly-scores`` table of ``detectors`` on ``frame``, whose anomalies ``injected`` are
-    ``(sku_id, day, kind)``; ``ValueError`` for an empty, too long or repeated list, or unknown parameters."""
+    ``(sku_id, day, kind)``, one kind per place; its rows follow ``kinds`` (the benchmark's order), then any
+    other injected kind in name order. ``ValueError`` for an empty, too long or repeated list, unknown
+    parameters, or two kinds at one place."""
     reg = registry if registry is not None else default_detectors()
     names = list(detectors)
     if not names:
@@ -94,21 +99,28 @@ def score_detectors(
     for name in params:
         if name not in names:
             raise ValueError(f"parameters for {name}, which is not among the detectors {names}")
-    models = {n: reg.create(n, **params.get(n, {})) for n in names}  # unknown names and bad parameters fail first
-    kinds = list(dict.fromkeys(k for _, _, k in sorted(injected, key=lambda p: (p[1], p[0]))))
+    for name in names:  # unknown names and bad parameters fail the run before any detector runs
+        reg.check_params(name, dict(params.get(name, {})))
+    places: dict[Place, str] = {}
+    for sku, day, kind in injected:
+        if places.setdefault((sku, day), kind) != kind:
+            raise ValueError(f"{sku} on {day} holds two kinds of anomaly; each place holds one")
+    present = {k for _, _, k in injected}
+    order = [k for k in kinds if k in present] + sorted(present - set(kinds))
     rows = []
     for name in names:
         t0 = time.perf_counter()
         try:
-            scores, detections = reg.run(models[name], frame)
-        except Exception as exc:  # a failing detector is a row, not a failed run
-            rows.append([name, "all", None, None, None, None, None, round(time.perf_counter() - t0, 3), str(exc)])
+            scores, detections = reg.run(reg.create(name, **params.get(name, {})), frame)
+        except Exception as exc:  # a detector failing, in its constructor or its run, is a row, not a failed run
+            error = str(exc) if isinstance(exc, ValueError) else f"{type(exc).__name__}: {exc}"
+            rows.append([name, "all", None, None, None, None, None, round(time.perf_counter() - t0, 3), error])
             continue
         seconds = round(time.perf_counter() - t0, 3)
         threshold = {(d.sku_id, d.day) for d in detections}
         ranked = top_k(scores, frame, len(injected))
         for cut, flagged in zip(CUTS, (threshold, ranked)):
-            block = _rows(name, flagged, injected, kinds, cut)
+            block = _rows(name, flagged, injected, order, cut)
             if cut == "threshold":
                 block[-1][7] = seconds  # the run time once per detector: on its all-kinds threshold row
             rows += block
