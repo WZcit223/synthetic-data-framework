@@ -148,12 +148,28 @@ class DemandPoint(Model):
     qty: int
 
 
+class ForecastDay(Model):
+    date: str
+    mean: float
+    low: float
+    high: float
+
+
+class SkuForecast(Model):
+    forecaster: str
+    level: float = Field(description="the central interval's probability: 0.8 is the 10 % to 90 % quantiles")
+    days: list[ForecastDay]
+
+
 class DemandSeries(Model):
     sku_id: str
     history: list[DemandPoint]
-    forecast_avg_daily: float
+    forecast_avg_daily: float = Field(
+        description="Deprecated: the trailing 14-day mean; use `forecast`, the fitted forecast with its interval"
+    )
     forecast_horizon_days: int
-    forecast_total: float
+    forecast_total: float = Field(description="Deprecated: forecast_avg_daily × the horizon; use `forecast`")
+    forecast: SkuForecast
 
 
 class DemandAnomaly(Model):

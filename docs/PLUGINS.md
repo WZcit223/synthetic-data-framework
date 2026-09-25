@@ -279,7 +279,10 @@ A forecaster forecasts every SKU's daily demand for the next days, with a mean
 and quantiles. It is a class with an `info` class attribute and two methods:
 
 - `info = ForecasterInfo(name, description, requires=(), global_model=False)`.
-  Set `global_model=True` for one model over all SKUs.
+  Set `global_model=True` for one model over all SKUs. The built-in
+  `gradient-boosting` and `lightgbm` (`sdf/analytics/forecasters/boosted.py`)
+  are examples: one model learns from every SKU's history, and a SKU with too
+  little history of its own falls back to a simpler forecaster.
 - `fit(history)` learns from a `DemandTable` (`days`, and `series`: one daily
   series per SKU) and returns `self`.
 - `forecast(history, *, horizon, quantiles)` returns a

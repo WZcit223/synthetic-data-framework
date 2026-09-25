@@ -59,6 +59,7 @@ from sdf.application.agent import WarehouseAgent
 from sdf.application.datasets import DatasetCatalog, ReadDeadline, default_datasets
 from sdf.application.economics import financial_impact
 from sdf.application.knowledge import KnowledgeQA
+from sdf.application.replenishment import sku_forecast
 from sdf.application.scenarios import run_scenarios
 from sdf.simulation import catalog
 from sdf.simulation.benchmark import QUESTION as BENCHMARK_QUESTION, DemandBenchmark, PromotionBenchmark
@@ -80,6 +81,7 @@ MAX_DATASET_ROWS = 250_000  # the most rows one dataset response carries
 # takes 4 s on order-lines' 28 897 rows and about 5.5 s at 40 000; the three built-ins together about
 # 6 s, and with the causal extra's two about 12 s, well within MAX_ESTIMATE_SECONDS.
 MAX_ESTIMATE_ROWS = 40_000
+SKU_LEVEL = 0.8  # the central interval of the dashboard's SKU forecast
 
 
 def _spec_dict(spec: GenerationSpec) -> dict:
@@ -140,6 +142,7 @@ def create_app(
     synthesizers: SynthesizerRegistry | None = None,
     estimators: EstimatorRegistry | None = None,
     forecasters: ForecasterRegistry | None = None,
+    forecaster: str = "gradient-boosting",
 ) -> FastAPI:
     """A new app with its own world store, dataset catalogue and synthesizer registry.
 
@@ -149,7 +152,8 @@ def create_app(
     synthesizer comes from (default: ``default_registry()``, built once): the
     catalogue, runs, the initial world, ``POST /world`` and scenario regeneration. ``estimators``
     is the estimator catalogue (default: ``default_estimators()``) and ``forecasters`` the forecaster
-    catalogue (default: ``default_forecasters()``). ``POST /api/v1/world`` rejects parameters outside
+    catalogue (default: ``default_forecasters()``); ``forecaster`` names the one that draws the
+    dashboard's SKU forecast (``demand-series``), fitted once per world. ``POST /api/v1/world`` rejects parameters outside
     ``limits``. ``ui_dir``
     mounts a static UI at "/" for development hosting; ``cors_origins`` lets a
     UI hosted elsewhere call the API.
@@ -172,6 +176,9 @@ def create_app(
     forecaster_reg = forecasters if forecasters is not None else default_forecasters()
     app.state.estimators = estimator_reg
     app.state.forecasters = forecaster_reg
+    if forecaster not in forecaster_reg.names():
+        raise ValueError(f"forecaster {forecaster!r} is not mounted; mounted: {forecaster_reg.names()}")
+    app.state.forecaster = forecaster
     api = APIRouter(prefix=PREFIX)
 
     WorldRequest = create_model(  # noqa: N806 - a model class built from this app's limits
@@ -376,7 +383,10 @@ def create_app(
 
     @api.get("/demand-series", response_model=s.DemandSeries)
     def demand_series(sku_id: str):
-        return store.current.intel.demand_series(sku_id)
+        snapshot = store.current
+        series = snapshot.intel.demand_series(sku_id)
+        fc = snapshot.forecast(forecaster_reg, forecaster, horizon=series["forecast_horizon_days"], level=SKU_LEVEL)
+        return series | {"forecast": sku_forecast(fc, sku_id, SKU_LEVEL)}
 
     @api.get("/demand-anomalies", response_model=s.DemandAnomalies)
     def demand_anomalies():

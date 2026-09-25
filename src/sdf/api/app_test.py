@@ -6,6 +6,7 @@ Needs the ``api`` extra (FastAPI) and the dev dependency ``httpx2``; skipped oth
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import threading
 import time
@@ -107,6 +108,41 @@ def test_top_movers_and_demand_series(client):
     fields({"m": movers}, "m[].sku_id", "m[].name", "m[].abc_class")
     series = get(client, f"/demand-series?sku_id={movers[0]['sku_id']}")
     fields(series, "history[].date", "history[].qty", "forecast_avg_daily", "forecast_total", "forecast_horizon_days")
+    fields(series, "forecast.forecaster", "forecast.level", "forecast.days[].date", "forecast.days[].mean")
+    fc = series["forecast"]
+    assert fc["forecaster"] == "gradient-boosting" and fc["level"] == 0.8
+    assert len(fc["days"]) == series["forecast_horizon_days"] == 14
+    assert fc["days"][0]["date"] > series["history"][-1]["date"]
+    assert all(0 <= d["low"] <= d["high"] for d in fc["days"])
+    assert get(client, "/demand-series?sku_id=nope")["forecast"]["days"] == []
+
+
+def test_the_sku_forecast_is_fitted_once_per_world():
+    from sdf.analytics.forecasters import ForecasterInfo, ForecasterRegistry
+    from sdf.analytics.forecasters.builtin import MovingAverage
+
+    fits = []
+
+    class Counting(MovingAverage):
+        info: ClassVar = ForecasterInfo("counting", "moving-average, counting its fits")
+
+        def fit(self, history):
+            fits.append(len(history.days))
+            return self
+
+    reg = ForecasterRegistry()
+    reg.register(Counting)
+    c = TestClient(create_app(forecasters=reg, forecaster="counting"))
+    sku = get(c, "/top-movers?n=1")[0]["sku_id"]
+    assert get(c, f"/demand-series?sku_id={sku}")["forecast"]["forecaster"] == "counting"
+    get(c, f"/demand-series?sku_id={sku}")
+    get(c, "/demand-series?sku_id=another")
+    assert len(fits) == 1  # one fit covers every SKU of the world
+    assert post_world(c, n_skus=20, horizon_days=30).status_code == 200
+    get(c, f"/demand-series?sku_id={get(c, '/top-movers?n=1')[0]['sku_id']}")
+    assert len(fits) == 2 and fits[1] <= 30  # a new world: fitted again, on its own (30-day) history
+    with pytest.raises(ValueError, match="forecaster 'nope' is not mounted"):
+        create_app(forecasters=reg, forecaster="nope")
 
 
 def test_vision(client):
@@ -1272,7 +1308,10 @@ def test_the_forecaster_catalogue_publishes_parameters_limits_and_the_benchmark(
     assert ma["params"] == [
         {"name": "window", "type": "int", "default": 7, "min": 1, "max": 365, "exclusive": False, "nullable": False}
     ]
-    assert body["unavailable"] == {}
+    # lightgbm needs the app extra: listed as unavailable, with the reason, when it is not installed
+    lightgbm = importlib.util.find_spec("lightgbm") is not None
+    assert ("lightgbm" in names) is lightgbm
+    assert body["unavailable"] == ({} if lightgbm else {"lightgbm": "needs lightgbm"})
     assert body["limits"] == {
         "max_forecasters": 6,
         "max_horizon": 56,

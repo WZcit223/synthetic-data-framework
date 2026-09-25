@@ -149,6 +149,7 @@ CI (`.github/workflows/ci.yml`) runs these on Python 3.12, 3.13 and 3.14 for
 every PR into `main`, with the `api` extra installed (`uv sync --locked --extra
 api`) so the HTTP contract tests run, then `git diff --exit-code` to catch anything
 a check rewrote, then the synthesis and CLI tests again with the `synthesis`
-extra. The other extras are not installed in CI. Enable the versioned
+extra; on Python 3.13 only, the causal estimators' tests with the `causal`
+extra and the forecasters' tests with the `app` extra (LightGBM). Enable the versioned
 pre-commit hook once per clone with `git config core.hooksPath .githooks`; it
 runs `ruff check --fix-only` and `ruff format` on staged Python files.

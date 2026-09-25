@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from sdf.analytics.forecasters import Forecast, ForecasterRegistry
 from sdf.application.intelligence import WarehouseIntelligence
 from sdf.simulation.world import World
 from sdf.synthesis.materialise import DEFAULT_WAREHOUSE_SYNTHESIZER
@@ -42,6 +43,22 @@ class Snapshot:
     world: World
     intel: WarehouseIntelligence
     generated_ms: int
+    _forecasts: dict = field(default_factory=dict, compare=False, repr=False)
+    _forecast_lock: threading.Lock = field(default_factory=threading.Lock, compare=False, repr=False)
+
+    def forecast(self, forecasters: ForecasterRegistry, name: str, *, horizon: int, level: float) -> Forecast:
+        """Every SKU's forecast by ``name`` from the world's whole demand history, with a central ``level``
+        interval: fitted once per world and forecaster, then kept with this snapshot."""
+        key = (name, horizon, level)
+        with self._forecast_lock:  # concurrent first requests wait for one fit rather than each fitting
+            if key not in self._forecasts:
+                history = self.world.demand()
+                model = forecasters.create(name).fit(history)
+                tail = round((1 - level) / 2, 10)
+                self._forecasts[key] = forecasters.forecast(
+                    model, history, horizon=horizon, quantiles=(tail, round(1 - tail, 10))
+                )
+            return self._forecasts[key]
 
 
 class GenerationBusy(RuntimeError):

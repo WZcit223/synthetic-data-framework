@@ -40,11 +40,9 @@ API, every bound from its catalogue, and every result opens in Explore.
   - the request in the page's address, so a link reproduces it; "Open in
     Explore" for the three tables, through a new Explore source `forecasts`
     (`lib/sources.js`, and a fetch case and presets in `pages/explore/`).
-- **Dashboard:** the SKU chart (`pages/dashboard/Replenishment.svelte`) draws
-  the forecast's interval band from `demand-series.forecast` with
-  `LineChart`'s `band`, its labels extended over the forecast days (a band
-  has one low and high per label, null over the history); the anomaly panel gains a detector choice from
-  `GET /detectors` and lists `GET /anomalies` in a `DataTable`.
+- **Dashboard:** the SKU chart already draws the forecast's interval
+  (`demand-series.forecast`, PR 2); the anomaly panel gains a detector choice
+  from `GET /detectors` and lists `GET /anomalies` in a `DataTable`.
 - **Synthesizers page:** a table evaluation shows the detection AUC with its
   interval (`IntervalChart`, one row), the verdict in words and the top
   features.
@@ -72,7 +70,7 @@ checked. No accessibility layer is added (frontend overview, Non-goals).
   load's API calls); a backtest runs and shows the scores the API returned;
   a link with a request in its address runs it once; "Open in Explore" opens
   each table; nothing overflows at 390 px. The dashboard's and the
-  Synthesizers page's specs gain the band, the detector choice and the AUC.
+  Synthesizers page's specs gain the detector choice and the AUC.
 - The UI contract tests in `app_test.py` cover the new API paths and the
   fifth page.
 

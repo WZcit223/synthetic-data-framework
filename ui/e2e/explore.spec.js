@@ -151,6 +151,7 @@ test("a synthesizer run opens in Explore", async ({ page }) => {
 });
 
 test("an effect study and an estimation open in Explore", async ({ page }) => {
+  test.slow(); // four server runs: the study and the estimation, each on its page and again in Explore
   const study = {
     interventions: ["promo_spike"],
     policies: [{ kind: "service-level", service_level: 0.95, lead_time_days: 7, review_days: 7 }],
@@ -160,13 +161,16 @@ test("an effect study and an estimation open in Explore", async ({ page }) => {
   };
   await page.goto("/effects.html#request=" + encodeURIComponent(JSON.stringify(study)));
   await page.getByRole("link", { name: "Open effects in Explore" }).click();
-  await expect(page.locator(".preset[aria-pressed=true]")).toHaveText(PRESETS["effects-effects"][0].label);
+  // Explore runs the study again on the server: seconds of work, longer while the server is busy
+  // (a forecast fitted for a world another spec regenerated), so it gets more than the default 5 s
+  const rerun = { timeout: 30_000 };
+  await expect(page.locator(".preset[aria-pressed=true]")).toHaveText(PRESETS["effects-effects"][0].label, rerun);
   await expect(page.locator(".result .tabulator-row").first()).toBeVisible();
 
   await page.goto("/effects.html#estimate", { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Estimate", exact: true }).click();
   await page.getByRole("link", { name: "Open scores in Explore" }).click();
-  await expect(page.locator(".preset[aria-pressed=true]")).toHaveText(PRESETS["estimates-scores"][0].label);
+  await expect(page.locator(".preset[aria-pressed=true]")).toHaveText(PRESETS["estimates-scores"][0].label, rerun);
   await expect(page.locator(".result .tabulator-row").first()).toBeVisible();
 });
 

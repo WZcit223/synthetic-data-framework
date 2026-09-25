@@ -63,7 +63,11 @@ test("choosing a SKU redraws its demand chart", async ({ page }) => {
   const series = page.waitForResponse(r => r.url().includes(`/demand-series?sku_id=${second}`));
   await select.selectOption(second);
   const answer = await (await series).json();
-  await expect(page.getByTestId("series-meta")).toContainText(`(${answer.history.length} days of history)`);
+  const meta = page.getByTestId("series-meta");
+  await expect(meta).toContainText(`(${answer.history.length} days with demand in the history)`);
+  // the fitted forecast the API returned, summed over its days
+  const total = Math.round(answer.forecast.days.reduce((s, d) => s + d.mean, 0)).toLocaleString();
+  await expect(meta).toContainText(`Forecast (${answer.forecast.forecaster}) ≈ ${total} units over the next ${answer.forecast.days.length} days`);
 });
 
 test("a table sorts by the column clicked, and the other way on a second click", async ({ page }) => {

@@ -6,10 +6,13 @@
   import LineChart from "../../components/charts/LineChart.svelte";
   import DataTable from "../../components/tables/DataTable.svelte";
   import { fmt } from "../../lib/format.js";
+  import { demandChart } from "./series.js";
 
   /** @type {{movers: any[], sku: string, series: any, comparison: any, plan: any, backtest: any,
    *   serviceLevel: string, onsku: (sku: string) => void, onservicelevel: (level: string) => void}} */
   let { movers, sku, series, comparison, plan, backtest, serviceLevel, onsku, onservicelevel } = $props();
+
+  const chart = $derived(series ? demandChart(series) : null);
 
   const LEVELS = [["0.90", "90%"], ["0.95", "95%"], ["0.975", "97.5%"], ["0.99", "99%"]];
   const pct = v => (v * 100).toFixed(1) + "%";
@@ -60,18 +63,14 @@
     </div>
     {#if series}
       {#if series.history.length}
-        <LineChart format={fmt} yLabel="units"
-          labels={series.history.map(h => h.date)}
-          series={[
-            { name: "demand", values: series.history.map(h => h.qty) },
-            { name: "forecast avg", values: series.history.map(() => series.forecast_avg_daily) },
-          ]} />
+        <LineChart format={fmt} yLabel="units" labels={chart.labels} series={chart.series} band={chart.band} />
       {:else}
         <div class="muted">No demand for this SKU.</div>
       {/if}
       <div class="note" data-testid="series-meta">
-        Forecast ≈ <b>{fmt(series.forecast_avg_daily)}</b> units/day → <b>{fmt(series.forecast_total)}</b> over next
-        {series.forecast_horizon_days} days ({series.history.length} days of history).
+        Forecast ({series.forecast.forecaster}) ≈ <b>{fmt(Math.round(chart.total))}</b> units over the next
+        {series.forecast.days.length} days; each day's {Math.round(series.forecast.level * 100)} % interval is shaded
+        ({series.history.length} days with demand in the history).
       </div>
     {/if}
   </div>

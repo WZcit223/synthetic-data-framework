@@ -86,7 +86,10 @@ next days with a mean and quantiles, and one backtest scores them all from the
 same rolling origins: WAPE, bias, pinball loss, both interval coverages and
 the ratio to seasonal naive. On the demand benchmark, whose process is
 declared, a `true-distribution` row gives the same scores for the exact
-distribution the data came from.
+distribution the data came from. The built-in `gradient-boosting` (one model
+over every SKU; `lightgbm` with the `app` extra) comes within 3 % of that
+row's WAPE and draws the dashboard's SKU forecast with its interval
+([`docs/VALIDATION.md`](docs/VALIDATION.md)).
 Writing your own synthesizer or dataset is described in
 [`docs/PLUGINS.md`](docs/PLUGINS.md).
 

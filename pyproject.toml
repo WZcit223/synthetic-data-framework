@@ -7,7 +7,7 @@ module-name = "sdf"
 
 [project]
 name = "synthetic-data-framework"
-version = "1.9.0"
+version = "1.10.0"
 description = "Three-layer industrial-AI framework with synthetic-data-driven AI warehouse demo"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
@@ -51,6 +51,8 @@ skus = "sdf.application.datasets:SkuDataset"
 
 # Demand forecasters (docs/refactor/algorithms/interfaces.md §1).
 [project.entry-points."sdf.forecasters"]
+gradient-boosting = "sdf.analytics.forecasters.boosted:GradientBoosting"
+lightgbm = "sdf.analytics.forecasters.boosted:LightGBM"
 mean = "sdf.analytics.forecasters.builtin:MeanForecaster"
 moving-average = "sdf.analytics.forecasters.builtin:MovingAverage"
 naive = "sdf.analytics.forecasters.builtin:NaiveForecaster"

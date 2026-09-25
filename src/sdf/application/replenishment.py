@@ -7,7 +7,10 @@ dashboard, the agent and the reports.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from sdf.analytics.demand import DemandProfile, DemandTable
+from sdf.analytics.forecasters import Forecast
 from sdf.foundation.registry import DataSourceRegistry
 from sdf.simulation.experiment import Experiment
 from sdf.simulation.intervention import Baseline
@@ -100,13 +103,13 @@ def policy_comparison(reg: DataSourceRegistry, *, service_level: float = 0.95) -
 
 
 def demand_series(reg: DataSourceRegistry, sku_id: str, forecast_days: int = 14) -> dict:
-    """Daily demand history for one SKU + a naive trailing-average forecast.
+    """Daily demand history for one SKU, and its trailing mean as a daily rate.
 
     ``history`` lists the days on which the SKU shipped (what the chart
-    plots). The forecast is the mean over the last 14 *calendar* days of the
-    table, zero days included, like every other daily rate in the package.
-    ALGORITHM-HOOK[C1]: the forecast here is a trailing mean. Replace with a
-    fitted model (DeepAR / TFT / LightGBM) to get real predictive intervals.
+    plots). ``forecast_avg_daily`` is the mean over the last 14 *calendar* days
+    of the table, zero days included, like every other daily rate in the
+    package; the API keeps it for older clients, and adds the fitted forecast
+    of ``sku_forecast`` beside it.
     """
     table = demand_table(reg)
     series = table.series.get(sku_id, ())
@@ -120,3 +123,24 @@ def demand_series(reg: DataSourceRegistry, sku_id: str, forecast_days: int = 14)
         "forecast_horizon_days": forecast_days,
         "forecast_total": round(forecast_avg * forecast_days, 1),
     }
+
+
+def sku_forecast(fc: Forecast, sku_id: str, level: float) -> dict:
+    """One SKU's rows of a forecast of every SKU: each day's mean and its central ``level`` interval.
+
+    ``fc`` holds the two quantiles of that interval; a SKU it does not cover has no day.
+    """
+    days = []
+    if sku_id in fc.sku_ids:
+        i = fc.sku_ids.index(sku_id)
+        low, high = (fc.quantiles[lv][i] for lv in sorted(fc.quantiles))
+        for k in range(fc.horizon):
+            days.append(
+                {
+                    "date": (fc.origin + timedelta(days=k)).isoformat(),
+                    "mean": round(float(fc.mean[i, k]), 2),
+                    "low": round(float(low[k]), 2),
+                    "high": round(float(high[k]), 2),
+                }
+            )
+    return {"forecaster": fc.forecaster, "level": level, "days": days}
