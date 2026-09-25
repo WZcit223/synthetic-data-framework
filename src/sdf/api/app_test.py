@@ -357,11 +357,10 @@ def test_ui_has_no_inline_event_handler():
     nav = (UI_SRC / "components" / "Nav.svelte").read_text(encoding="utf-8")
     for page in PAGES:
         html = (UI_DIR / page).read_text(encoding="utf-8")
-        assert re.search(r'<script type="module" src="src/[a-z/]+\.js">', html), page
-        # the navigation bar: a rebuilt page mounts into #app under Nav.svelte; a page not yet rebuilt has its own
-        links = nav if '<div id="app"></div>' in html else html
-        for link in PAGES:
-            assert f'"{link}"' in links, (page, link)
+        assert re.search(r'<script type="module" src="src/pages/[a-z]+\.js">', html), page
+        assert '<div id="app"></div>' in html, page  # every page mounts its component, under Nav.svelte
+    for link in PAGES:
+        assert f'"{link}"' in nav, link
 
 
 def built_ui() -> Path:

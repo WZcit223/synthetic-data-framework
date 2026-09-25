@@ -1,6 +1,13 @@
 # F4 — The Explore page on the components
 
-> Status: planned.
+> Status: implemented. The page is `pages/Explore.svelte` with its parts in
+> `pages/explore/`: the view operations (`view.js`), the chart view's model
+> (`chartModel.js`) and the experiment form (`experiment.js`) are pure modules
+> with their own tests; the shelves, menus, field list, experiment form and
+> chart view are components. The table is `components/tables/PivotTable.svelte`
+> over the pure mapping `pivotConfig.js` (§3.2). With the Explore page rebuilt,
+> nothing was left in `ui/src/legacy/`, so this step deleted the folder (F5
+> had it).
 
 Contract: [`interfaces.md`](interfaces.md) §3.2 and §5.3.
 

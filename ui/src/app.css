@@ -1,5 +1,4 @@
-/* The shared look of the rebuilt pages, on the theme's tokens (theme.css). The
-   pages not yet rebuilt keep src/legacy/style.css. */
+/* The shared look of the pages, on the theme's tokens (theme.css). */
 @import "tabulator-tables/dist/css/tabulator.min.css";
 
 * { box-sizing: border-box; }

@@ -42,7 +42,7 @@ const axis = (look, extra = {}) => ({ ticks: { color: look.muted }, grid: { colo
  * Lines over shared labels; a null value is a gap. An optional band fills
  * between its low and high, and not where either is null.
  */
-export function lineConfig({ series, labels, yLabel, format, band }, look, book) {
+export function lineConfig({ series, labels, yLabel, format, tickFormat = format, band }, look, book) {
   const lines = colored(series, book).map(s => ({
     type: "line",
     label: s.name,
@@ -69,14 +69,14 @@ export function lineConfig({ series, labels, yLabel, format, band }, look, book)
     y: axis(look, {
       beginAtZero: true,
       title: { display: !!yLabel, text: yLabel ?? "", color: look.muted },
-      ticks: { color: look.muted, callback: v => format(v) },
+      ticks: { color: look.muted, callback: v => tickFormat(v) },
     }),
   };
   return { type: "line", data: { labels: [...labels], datasets }, options };
 }
 
 /** Bars, grouped or stacked, vertical or horizontal; a null value draws no bar. */
-export function barConfig({ series, labels, format, stacked = false, horizontal = false }, look, book) {
+export function barConfig({ series, labels, format, tickFormat = format, stacked = false, horizontal = false }, look, book) {
   const datasets = colored(series, book).map(s => ({
     label: s.name,
     data: [...s.values],
@@ -84,7 +84,7 @@ export function barConfig({ series, labels, format, stacked = false, horizontal 
     borderRadius: 4,
     borderSkipped: "start",
   }));
-  const value = { stacked, beginAtZero: true, ...axis(look), ticks: { color: look.muted, callback: v => format(v) } };
+  const value = { stacked, beginAtZero: true, ...axis(look), ticks: { color: look.muted, callback: v => tickFormat(v) } };
   const category = { stacked, ...axis(look), grid: { display: false } };
   const options = base(look, format, { legend: series.length > 1 });
   options.indexAxis = horizontal ? "y" : "x";

@@ -10,5 +10,5 @@
     "types": ["vite/client"]
   },
   "include": ["src/**/*.js", "src/**/*.svelte"],
-  "exclude": ["src/legacy/**", "src/**/*.test.js"]
+  "exclude": ["src/**/*.test.js"]
 }

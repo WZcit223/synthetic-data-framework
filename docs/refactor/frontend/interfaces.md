@@ -46,7 +46,8 @@ ui/
                     common.js, below), chart.js, palette.js, pivot.js, sources.js,
                     synthesis.js, effects-model.js, estimate-model.js, and their tests
     legacy/         today's page scripts and styles, moved unchanged: app.js, explore.js,
-                    synthesizers.js, effects.js, estimate.js, *.css, and dom.js (below)
+                    synthesizers.js, effects.js, estimate.js, *.css, and dom.js (below);
+                    emptied page by page in F2 to F4, and deleted in F4
   e2e/              the Playwright harness and one smoke spec per page (§5.3)
   dist/             built by `npm run build`; ignored by git
 ```
@@ -57,7 +58,7 @@ Where each export of today's `common.js` goes, with its tests:
 |---|---|---|
 | `API`, `api`, `describeDetail` | `lib/api.js` | `describeDetail`'s cases of `common.test.js`, as `api.test.js` |
 | `esc`, `fmt`, `valueFormatter`, `compactFormatter` | `lib/format.js` | the other cases of `common.test.js`, as `format.test.js` |
-| `$` (the one DOM helper) | `legacy/dom.js`, for the legacy pages only | none today; deleted with `legacy/` in F5 |
+| `$` (the one DOM helper) | `legacy/dom.js`, for the legacy pages only | none today; deleted with `legacy/` in F4 |
 
 `common.test.js` is split between the two new files with every assertion kept,
 so the seven test files of today become eight.
@@ -134,8 +135,8 @@ body.
 from `chart.js` for its axis, and F3 uses `effects-model.js` as it is. F5
 moves `niceTicks` and its tests from `chart.js` and `chart.test.js` into
 `lib/format.js` and `format.test.js`, unchanged, points `effects-model.js`'s
-import there, and only then deletes `legacy/` (empty by then), `lib/chart.js`
-and `lib/chart.test.js`.
+import there, and only then deletes `lib/chart.js` and `lib/chart.test.js`.
+(`legacy/` went in F4, the step that emptied it.)
 
 ### 1.4 Adding a page (the algorithm phase's PR 6)
 
@@ -164,8 +165,8 @@ One Svelte component per kind of chart; each owns one Chart.js instance,
 updates it when its props change, and destroys it when it leaves the page.
 
 ```svelte
-<LineChart     {series} {labels} {yLabel} {format} {band} />     <!-- lines; gaps at null; filled band -->
-<BarChart      {series} {labels} {format} {stacked} {horizontal} />
+<LineChart     {series} {labels} {yLabel} {format} {tickFormat} {band} />  <!-- lines; gaps at null; filled band -->
+<BarChart      {series} {labels} {format} {tickFormat} {stacked} {horizontal} />
 <IntervalChart {rows} {format} {reference} />                   <!-- point + interval per row; reference line -->
 <StripChart    {groups} {format} />                             <!-- jittered points per group, with its mean -->
 <HeatGrid      {cells} {columns} {rows} {format} {domain} />             <!-- a value per cell on the sequential ramp -->
@@ -210,7 +211,9 @@ null and interval cases included.
   position on screen: it comes from `palette.colorBook()` by the series' name,
   as today, so a series keeps its colour when others are filtered out.
 - **`format`** is a `(value) => string` from `lib/format.js` (`fmt`,
-  `valueFormatter`), used by the ticks and the tooltip alike.
+  `valueFormatter`), used by the ticks and the tooltip alike; the optional
+  `tickFormat` (`LineChart`, `BarChart`) formats the value axis's ticks instead,
+  such as `compactFormatter` for large values.
 - **`band`** is `{low, high, name}` for PR 6 of the algorithm phase (forecast
   intervals).
 - Tooltips, legends and hover use Chart.js's own, styled by the theme (§4).
@@ -235,7 +238,8 @@ subtotal groups, a 1,000-row budget, heat shading).
 
 ```svelte
 <DataTable  {fields} {rows} {format} {tone} {sort} {download} {height} {placeholder} />
-<PivotTable {result} {view} {heat} {collapsed} {maxHeight} onsort={…} ontoggle={…} />
+<PivotTable {result} {view} {rowTitles} {valueTitles} {formats} {totals} {heat} {collapsed} {maxHeight}
+            onsort={…} ontoggle={…} />
 ```
 
 Optional: `format`, `tone` (`{[name]: (value, record) => "good"|"warn"|"bad"|null}`,
@@ -244,6 +248,11 @@ a cell's colour class, so a status reads in colour), `sort` (the initial sort,
 rows' natural height), `placeholder` (the text of an empty table), `heat`
 (`false`) and `maxHeight` (`"70vh"`). A title and a cell are always text, never
 HTML: a label can come from the API, and Tabulator writes titles as markup.
+`PivotTable`'s `rowTitles` and `valueTitles` are the row fields' and the
+values' labels and `formats` one formatter per value, as the page shows them
+(the pivot result has keys, not labels); `totals` is the display's totals
+switch. Its one mapping to Tabulator's columns, rows and header sorts is the
+pure `tables/pivotConfig.js`, tested without a table.
 `PivotTable` always has a bounded height: `maxHeight` has a default and
 cannot be unset, because Tabulator renders only the visible rows of a table
 whose height is bounded, and the pivot's row budget goes on that promise
