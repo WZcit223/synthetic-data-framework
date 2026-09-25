@@ -223,11 +223,12 @@ tested with Vitest (`npm test`). The shared components are in
 (`charts/`), `DataTable` on Tabulator (`tables/`), and the navigation
 (`Nav.svelte`); each folder's `config.js` maps props to the library's options
 and is tested without a browser. Colours come from the tokens in
-`ui/src/theme.css`, a dark and a light set chosen by the system setting. The
-dashboard, the Synthesizers page and the Effects page (both views) are
-rebuilt on them (`ui/src/pages/*.svelte`, each mounted by its entry module in
-`ui/src/pages/`). The Explore page's script and styles are in `ui/src/legacy/`
-until the [frontend refactor](refactor/frontend/00-overview.md) rebuilds it. Every page has a Playwright test in `ui/e2e/`
+`ui/src/theme.css`, a dark and a light set chosen by the system setting. Every
+page is built on them (`ui/src/pages/*.svelte`, each mounted by its entry
+module in `ui/src/pages/`); the Explore page's pivot table is `PivotTable` on
+Tabulator (`tables/pivotConfig.js` maps a `pivot.js` result to it), and its
+view operations, chart model and experiment form are pure modules in
+`ui/src/pages/explore/`. Every page has a Playwright test in `ui/e2e/`
 (`npm run e2e`). No page has an inline script or event handler; each script
 registers its own. The pivot contract is in
 [`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §3; the

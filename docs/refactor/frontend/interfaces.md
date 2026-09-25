@@ -134,8 +134,8 @@ body.
 from `chart.js` for its axis, and F3 uses `effects-model.js` as it is. F5
 moves `niceTicks` and its tests from `chart.js` and `chart.test.js` into
 `lib/format.js` and `format.test.js`, unchanged, points `effects-model.js`'s
-import there, and only then deletes `legacy/` (empty by then), `lib/chart.js`
-and `lib/chart.test.js`.
+import there, and only then deletes `lib/chart.js` and `lib/chart.test.js`.
+(`legacy/` went in F4, the step that emptied it.)
 
 ### 1.4 Adding a page (the algorithm phase's PR 6)
 
@@ -235,7 +235,8 @@ subtotal groups, a 1,000-row budget, heat shading).
 
 ```svelte
 <DataTable  {fields} {rows} {format} {tone} {sort} {download} {height} {placeholder} />
-<PivotTable {result} {view} {heat} {collapsed} {maxHeight} onsort={…} ontoggle={…} />
+<PivotTable {result} {view} {rowTitles} {valueTitles} {formats} {totals} {heat} {collapsed} {maxHeight}
+            onsort={…} ontoggle={…} />
 ```
 
 Optional: `format`, `tone` (`{[name]: (value, record) => "good"|"warn"|"bad"|null}`,
@@ -244,6 +245,11 @@ a cell's colour class, so a status reads in colour), `sort` (the initial sort,
 rows' natural height), `placeholder` (the text of an empty table), `heat`
 (`false`) and `maxHeight` (`"70vh"`). A title and a cell are always text, never
 HTML: a label can come from the API, and Tabulator writes titles as markup.
+`PivotTable`'s `rowTitles` and `valueTitles` are the row fields' and the
+values' labels and `formats` one formatter per value, as the page shows them
+(the pivot result has keys, not labels); `totals` is the display's totals
+switch. Its one mapping to Tabulator's columns, rows and header sorts is the
+pure `tables/pivotConfig.js`, tested without a table.
 `PivotTable` always has a bounded height: `maxHeight` has a default and
 cannot be unset, because Tabulator renders only the visible rows of a table
 whose height is bounded, and the pivot's row budget goes on that promise
