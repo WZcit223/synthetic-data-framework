@@ -1,6 +1,6 @@
 # F3 — The Synthesizers and Effects pages on the components
 
-> Status: planned.
+> Status: implemented in this PR (F3).
 
 Contract: [`interfaces.md`](interfaces.md) §2, §3 and §5.3.
 
