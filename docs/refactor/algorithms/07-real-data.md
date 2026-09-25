@@ -1,7 +1,8 @@
 # PR 7 — Two years of real demand (only with decision D1)
 
-> Status: planned; waits for decision D1 of the overview. With D1 (c) it is
-> dropped.
+> Status: planned. Decision D1 (a) was taken on 2026-09-25: the compact daily
+> table is committed. The PR starts once the project lead provides the
+> dataset file.
 
 Contract: [`interfaces.md`](interfaces.md) §9.
 

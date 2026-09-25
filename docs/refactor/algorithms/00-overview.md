@@ -1,6 +1,8 @@
 # Algorithm phase — overview
 
-Status: proposed on 2026-09-24. On 2026-09-24 the project lead asked for four
+Status: proposed on 2026-09-24, approved by the project lead on 2026-09-25
+with the recommended decisions: D1 (a), and D2 and D3 left out of this
+sequence. On 2026-09-24 the project lead asked for four
 items, in this order: synthesizer choice from the UI (item 1) and the pivot
 table (item 3) first, then causal modelling (item 2) and the algorithm phase
 (item 4). Items 1 to 3 are done (the exploration sequence, #26 to #30, and the
@@ -150,6 +152,10 @@ PR re-measures its own numbers.
 
 These change the scope; the sequence below does not wait for them, except
 PR 7.
+
+**Decided on 2026-09-25:** D1 (a), the compact daily table is committed; D2
+and D3 are not in this sequence. PR 7 therefore runs once the project lead
+provides the dataset file.
 
 - **D1. Real data at full size.** The only real rows in the repository are the
   5-day extract `data/online_retail_ii_2010_10k.csv`;
