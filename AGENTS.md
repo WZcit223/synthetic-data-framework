@@ -126,7 +126,7 @@ intent still applies.
    plan can never approve itself; keep every tool call going through it.
 7. **The UI carries intent and presents results; it computes no business
    number.** `ui/` talks to the backend only through the versioned JSON API
-   (`/api/v1`, via the `api()` helper in `ui/app.js`). It may reshape what it
+   (`/api/v1`, via the `api()` helper in `ui/src/lib/api.js`). It may reshape what it
    received (sort, filter, group, pivot, chart) and it sends only user intent
    (generation parameters, questions, experiment choices). Any number a user
    could act on is computed in Python behind an endpoint, where it is tested.

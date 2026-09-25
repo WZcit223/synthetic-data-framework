@@ -1,8 +1,8 @@
-// Tests for the shared formatting: node --test ui/*.test.js
+// Tests for the shared formatting: npm test
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
-import { compactFormatter, describeDetail, esc, valueFormatter } from "./common.js";
+import { compactFormatter, esc, valueFormatter } from "./format.js";
 
 const f = (spec, v) => valueFormatter(spec, "en-US")(v);
 
@@ -21,15 +21,6 @@ test("values are formatted by unit, aggregation and share", () => {
 test("axis labels are compact", () => {
   assert.equal(compactFormatter({ unit: "currency" }, "en-US")(1_234_567), "1.2M");
   assert.equal(compactFormatter({ showAs: "share_of_total" }, "en-US")(0.25), "25%");
-});
-
-test("an API error detail reads as one line", () => {
-  assert.equal(describeDetail("unknown dataset 'x'"), "unknown dataset 'x'");
-  assert.equal(
-    describeDetail([{ loc: ["body", "policies", 0, "service_level"], msg: "Input should be less than 1" }]),
-    "policies.0.service_level: Input should be less than 1",
-  );
-  assert.equal(describeDetail(undefined), null);
 });
 
 test("escaping covers every markup character", () => {

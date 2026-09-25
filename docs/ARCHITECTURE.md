@@ -200,8 +200,8 @@ experiment result carries its fields too, so any of them can be pivoted.
 policy parameter's bounds. The contract is in
 [`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §1–2.
 
-The UI lives outside the Python package, in `ui/` (plain HTML/JS, no build
-step). It only carries user intent to the backend and presents results. It may
+The UI lives outside the Python package, in `ui/`, built with Vite into
+`ui/dist` (Node 22; the Python package, the CLI and the API need no Node). It only carries user intent to the backend and presents results. It may
 reshape data it received (sort, filter, group, pivot, chart) but computes no
 business number and writes nothing back except intent (generation parameters,
 questions, experiment choices). It reaches the backend through one `api()`
@@ -209,21 +209,24 @@ helper whose base URL is configurable, so it can be served by `create_app(ui_dir
 during development or hosted anywhere else. The contract is in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §4.
 
-The pages are ES modules. `ui/common.js` holds what every page shares (`api()`,
-escaping, number formatting); the dashboard is `index.html` with `app.js`, the
-Explore page `explore.html` with `explore.js`. The pivot engine (`pivot.js`),
-the chart drawing (`chart.js`) and the chart colours (`palette.js`) are
-separate modules; the Synthesizers page is `synthesizers.html` with
-`synthesizers.js`, its pure helpers (parameter input, distribution comparison)
-in `synthesis.js`; the Effects page is `effects.html` with `effects.js`, its pure
-helpers (reading an interval, each chart's axis, the request and its link) in
-`effects-model.js`, and its "Estimate from data" view is `estimate.js` with
-`estimate-model.js`; the sources an Explore link may name are checked by
-`sources.js`, shared by the pages that build links and the Explore page that
-opens them. The engine, the colours and the formatting touch no DOM and
-are tested with `node --test ui/*.test.js`. No page has an inline event
-handler; each script registers its own. The pivot contract is in
-[`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §3.
+The four pages (`index.html`, `explore.html`, `synthesizers.html`,
+`effects.html`) are Vite's entries. The modules with no DOM are in
+`ui/src/lib/`: `api.js` (the one `api()`), `format.js` (escaping, number
+formatting), the pivot engine (`pivot.js`), the chart drawing (`chart.js`), the
+chart colours (`palette.js`), the Synthesizers page's helpers (`synthesis.js`:
+parameter input, distribution comparison), the Effects page's (`effects-model.js`:
+reading an interval, each chart's axis, the request and its link) and its
+estimation view's (`estimate-model.js`), and `sources.js`, which checks the
+sources an Explore link may name. They are tested with Vitest (`npm test`). The
+page scripts and styles are in `ui/src/legacy/` (`app.js` for the dashboard,
+`explore.js`, `synthesizers.js`, `effects.js` with `estimate.js`) until the
+[frontend refactor](refactor/frontend/00-overview.md) rebuilds each page on
+Svelte, Chart.js and Tabulator. Every page has a Playwright test in `ui/e2e/`
+(`npm run e2e`). No page has an inline script or event handler; each script
+registers its own. The pivot contract is in
+[`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §3; the
+frontend's component and build contract in
+[`refactor/frontend/interfaces.md`](refactor/frontend/interfaces.md).
 
 ## 3. Why warehouse management is the first validation scenario
 - Real internal business demand exists (fast feedback, real stakeholders).

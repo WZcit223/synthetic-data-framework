@@ -130,6 +130,7 @@ space.
   the dependency direction testable.
 - **A JavaScript build tool for the UI.** Rejected for now: the dashboard is one
   static page. `ui/` stays plain HTML/JS until a feature needs more.
+  (Superseded on 2026-09-25 by the [frontend refactor](../frontend/00-overview.md): the UI now has a Vite build and npm dependencies, and moves onto Svelte, Chart.js and Tabulator.)
 
 ## Consequences
 

@@ -1,6 +1,6 @@
-// Tests for the pivot engine: node --test ui/*.test.js
+// Tests for the pivot engine: npm test
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 import { compareParts, distinctValues, keptCount, OTHER, partLabel, pivot, timeKey, toCsv, toTable, viewError } from "./pivot.js";
 

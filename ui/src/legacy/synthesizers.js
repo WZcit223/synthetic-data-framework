@@ -1,10 +1,12 @@
 // The Synthesizers page: the catalogue of synthesis algorithms, a run form built
 // from each one's parameters, and the run's scores with real and synthetic data
 // side by side. Every number comes from the API; this page only lays it out.
-import { $, api, esc, valueFormatter } from "./common.js";
-import { bindLine, lineChart } from "./chart.js";
-import { SERIES } from "./palette.js";
-import { boundsText, column, exploreLink, histogram, readParam } from "./synthesis.js";
+import { $ } from "./dom.js";
+import { api } from "../lib/api.js";
+import { esc, valueFormatter } from "../lib/format.js";
+import { bindLine, lineChart } from "../lib/chart.js";
+import { SERIES } from "../lib/palette.js";
+import { boundsText, column, exploreLink, histogram, readParam } from "../lib/synthesis.js";
 
 const PRODUCES = { series: "Series", table: "Table", warehouse: "Warehouse" };
 const ORIGIN = { builtin: "Built-in", plugin: "Plug-in", runtime: "Registered at runtime" };

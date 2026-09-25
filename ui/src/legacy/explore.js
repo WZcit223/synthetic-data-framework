@@ -2,11 +2,13 @@
 // by dragging fields onto Rows, Columns, Values and Filters. The whole view lives
 // in the address (#view=…), so a copied link rebuilds it.
 // UI rule: reshape what the API returned; never compute a business number here.
-import { $, api, compactFormatter, esc, valueFormatter } from "./common.js";
-import { barChart, bindBars, bindLine, lineChart } from "./chart.js";
-import { HEAT, colorBook, heat, inkOn } from "./palette.js";
-import { AGGREGATIONS, GRAINS, OTHER, distinctValues, keptCount, keyId, partLabel, pivot, toCsv, toTable, viewError } from "./pivot.js";
-import { sourceError } from "./sources.js";
+import { $ } from "./dom.js";
+import { api } from "../lib/api.js";
+import { compactFormatter, esc, valueFormatter } from "../lib/format.js";
+import { barChart, bindBars, bindLine, lineChart } from "../lib/chart.js";
+import { HEAT, colorBook, heat, inkOn } from "../lib/palette.js";
+import { AGGREGATIONS, GRAINS, OTHER, distinctValues, keptCount, keyId, partLabel, pivot, toCsv, toTable, viewError } from "../lib/pivot.js";
+import { sourceError } from "../lib/sources.js";
 
 const AGG_LABEL = { sum: "Sum", count: "Count", count_distinct: "Distinct", mean: "Mean", median: "Median", min: "Min", max: "Max" };
 const GRAIN_LABEL = { day: "Day", week: "Week", month: "Month", quarter: "Quarter", year: "Year", weekday: "Weekday" };

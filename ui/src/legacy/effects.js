@@ -2,15 +2,17 @@
 // effect study (POST /effects), and read each effect with its interval. The work budget
 // shown while editing is the server's check_only answer; every number drawn comes from
 // the study's tables. The address keeps the request, so a link reproduces the study.
-import { $, api, esc } from "./common.js";
-import { bindBars, clip } from "./chart.js";
-import { OTHER, SERIES, SURFACE } from "./palette.js";
+import { $ } from "./dom.js";
+import { api } from "../lib/api.js";
+import { esc } from "../lib/format.js";
+import { bindBars, clip } from "../lib/chart.js";
+import { OTHER, SERIES, SURFACE } from "../lib/palette.js";
 import {
   CONFIDENCES, COVERS, amount, axisFor, budgetView, byMetric, coversZero, exploreLink, fitRequest, intervalText, nextPolicy,
   reading, readRequestHash, records, relativeText, replicateRows, requestError, requestHash, rowLabel,
-} from "./effects-model.js";
+} from "../lib/effects-model.js";
 import { routeEstimate } from "./estimate.js";
-import { readEstimateHash } from "./estimate-model.js";
+import { readEstimateHash } from "../lib/estimate-model.js";
 
 // Two colours: an interval that excludes 0 in the first series hue, one that covers 0 in
 // the neutral grey. Each row also says its reading in text, so colour is never the only cue.

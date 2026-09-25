@@ -1,7 +1,7 @@
 // Charts for the Explore page, drawn as SVG strings (labels escaped) with a
 // hover and keyboard layer bound afterwards. One y-axis per chart: several
 // values become small multiples, never a second scale.
-import { esc } from "./common.js";
+import { esc } from "./format.js";
 import { SURFACE } from "./palette.js";
 
 // Round tick values covering [lo, hi]: 0 / 1,000 / 2,000, never 0 / 1,137 / 2,274.

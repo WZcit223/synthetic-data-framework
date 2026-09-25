@@ -1,6 +1,6 @@
-// Tests for the chart drawing: node --test ui/*.test.js
+// Tests for the chart drawing: npm test
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 import { barChart, clip, lineChart, niceTicks, stepIndex } from "./chart.js";
 

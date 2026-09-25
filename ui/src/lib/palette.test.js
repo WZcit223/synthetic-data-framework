@@ -1,6 +1,6 @@
-// Tests for the chart colours: node --test ui/*.test.js
+// Tests for the chart colours: npm test
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 import { colorBook, contrast, heat, HEAT, inkOn, luminance, OTHER, SERIES, SURFACE } from "./palette.js";
 

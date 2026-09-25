@@ -69,7 +69,7 @@ Scripts in `ui/package.json`:
 | `npm run dev` | Vite's development server on port 5173, `/api` proxied to `http://127.0.0.1:8000` |
 | `npm run build` | writes `ui/dist/`: the four pages, hashed assets, no source maps |
 | `npm test` | Vitest: the pure modules and the components (jsdom) |
-| `npm run check` | `svelte-check`: types from JSDoc, and Svelte's own warnings, as errors |
+| `npm run check` | `svelte-check`, warnings as errors. From F2, a `jsconfig.json` has it check the JSDoc types of the components and of `lib/`; F1 has no component and changes no module, so it adds none |
 | `npm run e2e` | Playwright against `ui/dist` served by the API (§5.3) |
 
 Serving the built UI: `SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app`.
@@ -78,15 +78,16 @@ Serving the built UI: `SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app`.
 
 **Dependencies** (versions pinned by the lockfile; ranges in `package.json`):
 
-| Package | Role | Licence |
-|---|---|---|
-| `svelte` 5 | the components | MIT |
-| `vite` 8, `@sveltejs/vite-plugin-svelte` 7 | the build | MIT |
-| `chart.js` 4 | charts | MIT |
-| `chartjs-chart-error-bars` 4 | interval (forest) plots | MIT |
-| `chartjs-chart-matrix` 3 | the shelf heatmap | MIT |
-| `tabulator-tables` 6 | tables | MIT |
-| `vitest`, `@testing-library/svelte`, `jsdom`, `svelte-check`, `@playwright/test` | development only | MIT / Apache-2.0 |
+| Package | Role | Licence | Added in |
+|---|---|---|---|
+| `svelte` 5 | the components | MIT | F1 |
+| `vite` 8, `@sveltejs/vite-plugin-svelte` 7 | the build | MIT | F1 |
+| `vitest`, `svelte-check`, `typescript` (svelte-check's checker), `@playwright/test` | development only | MIT / Apache-2.0 | F1 |
+| `chart.js` 4 | charts | MIT | F2 |
+| `chartjs-chart-error-bars` 4 | interval (forest) plots | MIT | F2 |
+| `chartjs-chart-matrix` 3 | the shelf heatmap | MIT | F2 |
+| `tabulator-tables` 6 | tables | MIT | F2 |
+| `@testing-library/svelte`, `jsdom` | development only (component tests) | MIT | F2 |
 
 Nothing is loaded from the network at run time.
 
@@ -314,7 +315,8 @@ the component's state.
 ### 5.3 Pages (F1 to F4)
 
 `ui/e2e/*.spec.js`, Playwright in Chromium, against the built UI served by the
-API on the default world. F1 adds the harness, the `npm run e2e` script, the CI
+API on the default world (`playwright.config.js` starts the API itself; in CI
+it runs once, on Python 3.13). F1 adds the harness, the `npm run e2e` script, the CI
 step and a smoke spec per page (the first point below, and the same API calls
 as `main` for the page's first load); F2 to F4 add the other points for the
 page each rebuilds:

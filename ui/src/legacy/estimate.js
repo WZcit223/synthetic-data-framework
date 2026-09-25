@@ -1,15 +1,17 @@
 // The Effects page's "Estimate from data" view: estimators scored on the promotion benchmark,
 // whose true effect is known (POST /causal/estimates). The form is built from GET /estimators;
 // every estimate, interval, bias and bound comes from the server. The address keeps the request.
-import { $, api, esc } from "./common.js";
-import { bindBars, bindLine, clip, lineChart } from "./chart.js";
-import { SURFACE } from "./palette.js";
-import { CONFIDENCES, amount, axisFor, intervalText, records, relativeText } from "./effects-model.js";
+import { $ } from "./dom.js";
+import { api } from "../lib/api.js";
+import { esc } from "../lib/format.js";
+import { bindBars, bindLine, clip, lineChart } from "../lib/chart.js";
+import { SURFACE } from "../lib/palette.js";
+import { CONFIDENCES, amount, axisFor, intervalText, records, relativeText } from "../lib/effects-model.js";
 import {
   SWEEP, estimateHash, estimateRequestError, estimatesLink, estimatorColors, fitEstimateRequest, readEstimateHash,
   scoreReading, sweepRequests, sweepSeries,
-} from "./estimate-model.js";
-import { boundsText, readParam } from "./synthesis.js";
+} from "../lib/estimate-model.js";
+import { boundsText, readParam } from "../lib/synthesis.js";
 
 const CHAR = 6.6; // average glyph width at 11px, for sizing the label column
 
