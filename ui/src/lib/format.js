@@ -1,9 +1,7 @@
-// HTML escaping and number formatting, shared by every page.
+// Number formatting, shared by every page. Its output is text: Svelte and the table
+// and chart components write it as text, never as HTML, so nothing here escapes.
 
-// Every string that came from the API is escaped before it goes into innerHTML:
-// product names, for one, come from imported files and may contain markup.
-export const esc = v => String(v ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
-export const fmt = n => (typeof n === "number" ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : n == null ? "–" : esc(n));
+export const fmt = n => (typeof n === "number" ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : n == null ? "–" : String(n));
 
 /**
  * A formatter for one pivot value: ``{unit, agg, showAs}`` in, ``v => text`` out.

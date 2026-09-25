@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import {
-  amount, axisFor, budgetView, byMetric, COVERS, coversZero, defaultRequest, exploreLink, fitRequest, intervalText, nextPolicy,
+  amount, budgetView, byMetric, COVERS, coversZero, defaultRequest, exploreLink, fitRequest, intervalText, nextPolicy,
   reading, readRequestHash, records, relativeText, replicateRows, requestError, requestHash,
 } from "./effects-model.js";
 import { sourceError } from "./sources.js";
@@ -53,18 +53,6 @@ test("effects are grouped by metric in the server's order", () => {
   const groups = byMetric(rows);
   assert.deepEqual(groups.map(g => g.metric), ["unmet_units", "holding_cost"]);
   assert.deepEqual(groups[0].rows.map(r => r.policy), ["service-level-95", "naive"]);
-});
-
-test("each chart's axis keeps 0 inside, whatever side the values are on", () => {
-  const up = axisFor([72247, 87333]);
-  assert.equal(up.lo, 0);
-  assert.ok(up.hi >= 87333 && up.ticks.includes(0));
-  const down = axisFor([-8, -3]);
-  assert.ok(down.lo <= -8 && down.hi === 0 && down.ticks.includes(0));
-  const both = axisFor([-1.39, 0.87]);
-  assert.ok(both.lo <= -1.39 && both.hi >= 0.87 && both.ticks.includes(0));
-  const flat = axisFor([0, 0, null]);
-  assert.ok(flat.hi > flat.lo && flat.ticks.includes(0)); // an unmoved metric still gets a scale
 });
 
 test("the replicate view reads each paired difference from the table, subtracting nothing", () => {

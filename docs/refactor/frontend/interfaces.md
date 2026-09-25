@@ -57,7 +57,7 @@ Where each export of today's `common.js` goes, with its tests:
 | Export | Module | Tests |
 |---|---|---|
 | `API`, `api`, `describeDetail` | `lib/api.js` | `describeDetail`'s cases of `common.test.js`, as `api.test.js` |
-| `esc`, `fmt`, `valueFormatter`, `compactFormatter` | `lib/format.js` | the other cases of `common.test.js`, as `format.test.js` |
+| `esc`, `fmt`, `valueFormatter`, `compactFormatter` | `lib/format.js` (`esc` deleted in F5) | the other cases of `common.test.js`, as `format.test.js` |
 | `$` (the one DOM helper) | `legacy/dom.js`, for the legacy pages only | none today; deleted with `legacy/` in F4 |
 
 `common.test.js` is split between the two new files with every assertion kept,
@@ -133,10 +133,11 @@ body.
 
 **`niceTicks` outlives `chart.js`.** `effects-model.js` imports `niceTicks`
 from `chart.js` for its axis, and F3 uses `effects-model.js` as it is. F5
-moves `niceTicks` and its tests from `chart.js` and `chart.test.js` into
-`lib/format.js` and `format.test.js`, unchanged, points `effects-model.js`'s
-import there, and only then deletes `lib/chart.js` and `lib/chart.test.js`.
-(`legacy/` went in F4, the step that emptied it.)
+was to move `niceTicks` into `lib/format.js`; by then its one user,
+`effects-model.js`'s `axisFor`, was used by no page (the Effects charts
+take their axes from Chart.js), so F5 deleted both with `lib/chart.js` and
+`lib/chart.test.js`, and `esc` with them (§1.2): no page writes HTML any
+more. (`legacy/` went in F4, the step that emptied it.)
 
 ### 1.4 Adding a page (the algorithm phase's PR 6)
 
@@ -146,7 +147,9 @@ and owns every change it needs here: the HTML entry and its line in
 `vite.config.js`, a `pages/Forecasts.svelte`, the Forecasts link in the shared
 navigation component (`Nav.svelte`, one place, so every page gets it), the page's
 Playwright spec, and the new files in §1.3's layout. The contract needs
-no other change for it; F5 rewrites `06-pages.md` to say so.
+no other change for it, unless its charts need more than `LineChart` draws
+(a band in a colour of its own, a scale shared across small multiples): that
+PR then adds it to §2.2. F5 rewrote `06-pages.md` to say so.
 
 ---
 

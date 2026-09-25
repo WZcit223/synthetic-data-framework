@@ -363,6 +363,15 @@ def test_ui_has_no_inline_event_handler():
         assert f'"{link}"' in nav, link
 
 
+def test_ui_writes_no_html_from_data():
+    """No page builds markup itself. (Tabulator writes a string title or cell as HTML: that the
+    table components give it text nodes is checked by their own tests, tables/*.test.js.)"""
+    for name, js in ui_scripts().items():
+        for sink in ("innerHTML", "outerHTML", "insertAdjacentHTML"):
+            assert sink not in js, (name, sink)
+        assert not re.search(r"\{\s*@html\b", js), name
+
+
 def built_ui() -> Path:
     """The built UI; its tests skip, saying why, when it was not built."""
     if not (UI_DIST / "index.html").is_file():

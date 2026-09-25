@@ -1,6 +1,10 @@
 # F5 — Remove the hand-written chart and table code; update the plans
 
-> Status: planned.
+> Status: implemented. One change to the scope below: `niceTicks` was not
+> moved but deleted, with `effects-model.js`'s `axisFor`, its only user, which
+> no page used any more (the Effects charts take their axes from Chart.js).
+> `esc` went too, since no page writes HTML (`fmt` now returns text as it is),
+> and so did `palette.js`'s `heat()`, used only by its own test.
 
 Contract: [`interfaces.md`](interfaces.md).
 

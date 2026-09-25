@@ -211,11 +211,11 @@ during development or hosted anywhere else. The contract is in
 
 The four pages (`index.html`, `explore.html`, `synthesizers.html`,
 `effects.html`) are Vite's entries. The modules with no DOM are in
-`ui/src/lib/`: `api.js` (the one `api()`), `format.js` (escaping, number
-formatting), the pivot engine (`pivot.js`), the chart drawing (`chart.js`), the
-chart colours (`palette.js`), the Synthesizers page's helpers (`synthesis.js`:
-parameter input, distribution comparison), the Effects page's (`effects-model.js`:
-reading an interval, each chart's axis, the request and its link) and its
+`ui/src/lib/`: `api.js` (the one `api()`), `format.js` (number formatting),
+the pivot engine (`pivot.js`), the chart colours (`palette.js`), the
+Synthesizers page's helpers (`synthesis.js`: parameter input, distribution
+comparison), the Effects page's (`effects-model.js`: reading an interval, the
+request and its link) and its
 estimation view's (`estimate-model.js`), and `sources.js`, which checks the
 sources an Explore link may name, and `csv.js` (the CSV writers). They are
 tested with Vitest (`npm test`). The shared components are in
@@ -234,6 +234,33 @@ registers its own. The pivot contract is in
 [`refactor/explore/interfaces.md`](refactor/explore/interfaces.md) §3; the
 frontend's component and build contract in
 [`refactor/frontend/interfaces.md`](refactor/frontend/interfaces.md).
+
+Every script and style is bundled into `ui/dist` by `npm run build`, so a
+built UI needs no network beyond its own API: it works offline. Nothing in
+`ui/src` draws a chart or a table by hand, and no page writes HTML from
+data: Svelte writes text as text, Chart.js draws on a canvas, and the table
+components hand Tabulator every title and cell as a text node (Tabulator
+writes a plain string as HTML; their tests check it with markup in the data).
+
+#### Adding a chart or a table
+
+- **A chart** is one of the components in `ui/src/components/charts/`
+  (`LineChart`, `BarChart`, `IntervalChart`, `StripChart`, `HeatGrid`), given
+  its data and a `format` from `lib/format.js`. A page never builds Chart.js
+  options itself. A kind of chart that none of them draws becomes a new
+  component: its props in the frontend contract (§2.2), its Chart.js options
+  from a pure function in `charts/config.js` with a test in `config.test.js`,
+  and any Chart.js part it needs registered in `charts/chartjs.js`. Colours
+  come from the theme (`look()`), a series' colour from its name through
+  `colorBook`, never from its position.
+- **A table** of API rows is a `DataTable` given the API's `{fields, rows}`
+  as they are, with `format` and `tone` for the cells that need them; a
+  pivot result is a `PivotTable`. Tabulator's modules are registered in the
+  component that uses them: an option or an event from a module not
+  registered does nothing, so a new one is registered with it.
+- **A new page** follows §1.4 of the frontend contract: an HTML entry, its
+  line in `vite.config.js`, an entry module that mounts its component, the
+  link in `Nav.svelte`, and a Playwright spec in `ui/e2e/`.
 
 ## 3. Why warehouse management is the first validation scenario
 - Real internal business demand exists (fast feedback, real stakeholders).

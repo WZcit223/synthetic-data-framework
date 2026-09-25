@@ -1,7 +1,6 @@
 // Pure helpers of the Effects page (no DOM), so Node's test runner covers them.
 // Every number comes from POST /effects: the effects, their intervals and the work
 // budget are the server's. These helpers only read, group, format and lay them out.
-import { niceTicks } from "./chart.js";
 import { readParam } from "./synthesis.js";
 
 export const CONFIDENCES = [0.8, 0.9, 0.95, 0.99];
@@ -30,14 +29,6 @@ export function byMetric(effects) {
     groups.get(r.metric).push(r);
   }
   return [...groups].map(([metric, rows]) => ({ metric, rows }));
-}
-
-// One chart's axis: round ticks over every value drawn, with 0 always inside, so each
-// chart shows where its intervals sit against zero.
-export function axisFor(values, count = 5) {
-  let lo = 0, hi = 0;
-  for (const v of values) if (v != null && Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
-  return niceTicks(lo, hi, count);
 }
 
 // The paired differences behind each effect of one metric, read from the replicate
