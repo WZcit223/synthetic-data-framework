@@ -34,7 +34,8 @@ uv run sdf forecast --benchmark      # per-SKU forecasts with intervals, against
 The full command list is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
 
 Web dashboard: a UI in `ui/` over the versioned JSON API (`/api/v1`,
-FastAPI; works offline, every asset is bundled). Building it needs Node 22:
+FastAPI; built with Svelte, Chart.js and Tabulator, and it works offline, as
+the build bundles every asset). Building it needs Node 22:
 
 ```bash
 uv sync --extra api

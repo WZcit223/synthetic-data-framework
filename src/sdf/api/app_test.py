@@ -363,6 +363,13 @@ def test_ui_has_no_inline_event_handler():
         assert f'"{link}"' in nav, link
 
 
+def test_ui_writes_no_html_from_data():
+    """Svelte, Chart.js and Tabulator write every label as text; no page builds markup itself."""
+    for name, js in ui_scripts().items():
+        for sink in ("innerHTML", "outerHTML", "insertAdjacentHTML", "{@html"):
+            assert sink not in js, (name, sink)
+
+
 def built_ui() -> Path:
     """The built UI; its tests skip, saying why, when it was not built."""
     if not (UI_DIST / "index.html").is_file():

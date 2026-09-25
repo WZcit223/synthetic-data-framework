@@ -2,7 +2,7 @@
 // Series hues are assigned in this order and never cycled: a ninth series folds
 // into "Other". A series keeps its colour when a filter removes its neighbours.
 
-export const SURFACE = "#161b22"; // the card surface every chart sits on (--panel in style.css)
+export const SURFACE = "#161b22"; // the dark theme's card surface every chart sits on (--surface in theme.css)
 
 // A published categorical order, stepped for dark surfaces and checked for
 // colour-blind separation between neighbours; palette.test.js keeps it that way.
@@ -14,9 +14,6 @@ export const OTHER = "#6e7681"; // the folded tail: a neutral grey, not a ninth 
 // left out: at its lightness neither white nor dark text reaches 4.5:1, so every
 // shade here carries readable cell text.
 export const HEAT = ["#104281", "#1c5cab", "#256abf", "#3987e5", "#6da7ec", "#86b6ef"];
-
-// The ramp step for t in [0, 1].
-export const heat = t => HEAT[Math.min(HEAT.length - 1, Math.max(0, Math.floor(t * HEAT.length)))];
 
 // The light theme's set, for pages on the new components (docs/refactor/frontend/interfaces.md §4):
 // the same hues in the same order, stepped darker so they read on a white surface, and the

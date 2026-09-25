@@ -13,6 +13,8 @@ clean framework-first, algorithm-second delivery.
 
 ## Phase 1 — Presentable framework (client-facing demo) ✅
 - Web dashboard (FastAPI + dependency-free HTML, inline SVG charts, offline).
+  Since rebuilt on Svelte, Chart.js and Tabulator; still offline, as every
+  asset is bundled by the build ([frontend refactor](refactor/frontend/00-overview.md)).
 - Two views: framework capability overview (management) + replenishment
   closed-loop deep dive (demand → forecast → reorder point → order → service level).
 - Scenario controls: live sliders for `GenerationSpec` (SKU count, demand, stockout, seed).

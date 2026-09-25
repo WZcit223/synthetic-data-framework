@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { compactFormatter, esc, valueFormatter } from "./format.js";
+import { compactFormatter, fmt, valueFormatter } from "./format.js";
 
 const f = (spec, v) => valueFormatter(spec, "en-US")(v);
 
@@ -23,7 +23,8 @@ test("axis labels are compact", () => {
   assert.equal(compactFormatter({ showAs: "share_of_total" }, "en-US")(0.25), "25%");
 });
 
-test("escaping covers every markup character", () => {
-  assert.equal(esc(`<a href="x">'&'</a>`), "&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;");
-  assert.equal(esc(null), "");
+test("fmt writes a number, a blank as a dash, and text as it is (the page writes it as text)", () => {
+  assert.equal(fmt(1234.567), (1234.567).toLocaleString(undefined, { maximumFractionDigits: 2 }));
+  assert.equal(fmt(null), "–");
+  assert.equal(fmt("<b>&</b>"), "<b>&</b>");
 });
