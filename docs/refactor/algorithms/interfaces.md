@@ -75,6 +75,7 @@ class Forecast:
     sku_ids: tuple[str, ...]  # the history's SKUs, in its order
     mean: np.ndarray  # float, SKUs × horizon, >= 0
     quantiles: dict[float, np.ndarray]  # level -> SKUs × horizon, >= 0, non-decreasing in level
+    method: str = ""  # how the intervals were made; the guard appends what it repaired
 
     @property
     def horizon(self) -> int: ...
@@ -93,8 +94,12 @@ class Forecaster(Protocol):
   the backtest can fit once and forecast from several origins (§2.1), and a
   global model can be fitted on one set of SKUs and asked about another.
 - Parameters are constructor keywords, read and published as `Param`s the way
-  synthesizers' are (`sdf.synthesis.registry.synthesizer_params`, with an
-  optional `param_bounds` class attribute).
+  synthesizers' are, with an optional `param_bounds` class attribute. PR 1
+  moved the reader down to the foundation, as
+  `sdf.foundation.params.constructor_params` (with `Param` and `ParamType`),
+  because `analytics` may not import `synthesis`; `sdf.synthesis.api.Param`
+  and `sdf.synthesis.registry.synthesizer_params` stay importable where they
+  were, unchanged.
 - `quantiles` are levels strictly between 0 and 1, at most 9, sorted and
   distinct (`check_quantiles`, which raises `ValueError` naming the problem).
 
@@ -117,7 +122,12 @@ and every endpoint use; a forecaster is never called directly by them):
   (monotone rearrangement); both are counted and reported in the scores'
   `method` field, never silent;
 - a result labelled with another forecaster's name is refused, as for
-  estimators.
+  estimators, and so is an `origin` other than the day after the history's
+  last day;
+- every forecaster is built once, before any runs: a `ValueError` from its
+  constructor (a value outside its published bounds, or a combination it
+  refuses) is the request's problem, a 422; any other exception is the
+  forecaster's own failure, its error row, and the others still run.
 
 ### 1.3 Target (after PR 1): the registry and the built-ins
 
@@ -146,11 +156,17 @@ The built-ins wrap the models of §1.1, per SKU, under dashed names:
 Each is repeated over the horizon the way the model implies (a seasonal naive
 repeats the last cycle; the others hold their value, except `seasonal-linear`,
 which feeds its own predictions forward). **Intervals for the built-ins** come
-from their own errors: at fit time each SKU's one-step to `horizon`-step
-errors over the last 56 days of its history (fewer if the history is shorter)
-give empirical quantiles per horizon step, added to the point forecast and
-floored at 0. With fewer than 14 errors for a SKU, the errors of all SKUs,
-scaled by each SKU's mean, are pooled. The `method` field says which.
+from their own errors, computed at forecast time from the history given (so
+nothing needs to be kept from `fit`): from each of the last 56 days of that
+history (fewer if it is shorter), each SKU's one-step to `horizon`-step
+forecasts are compared with what followed, and the empirical quantiles of the
+errors at each step are added to the point forecast and floored at 0. All SKUs
+share the day axis, so they have the same number of errors at a step; when a
+step has fewer than 14, every SKU borrows the errors of all SKUs, each scaled by
+its SKU's mean. The `method` field says so. Every error comes from a forecast
+that used only the days before its origin: `seasonal-linear` refits its
+weights every 7 origins of the error window (and at the last one), and each
+origin uses the latest fit made at or before it.
 
 PR 2 adds `gradient-boosting` and, with the `app` extra, `lightgbm` (§4).
 
@@ -210,7 +226,9 @@ metric fields. `forecasts` has `sku_id`, `date` (time), `forecaster`,
 `actual`, `mean`, and one `q<level>` field per quantile (`q10`, `q50`, `q90`).
 
 With `truth`, a row named `true-distribution` gives the same metrics for the
-exact distribution (§3), the floor no forecaster can beat on average.
+exact distribution (§3). No forecaster beats its pinball loss on average; its
+WAPE is a floor only for a mean forecast (a median forecast can have a lower
+WAPE), so the pinball loss is the score to compare with it.
 
 ### 2.3 Definitions
 
@@ -223,8 +241,8 @@ Over every SKU, origin and day ahead with actual `y`:
   7) on the same points; it is computed even if `seasonal-naive` was not
   requested, and is below 1 when a forecaster beats it. When that
   denominator is 0 (seasonal naive is exact on every point, for example on a
-  constant series) or empty, `relative_wape` is empty (`None`), never a
-  non-finite number.
+  constant series) or empty (every actual is 0), `relative_wape` is empty
+  (`None`), never a non-finite number.
 - **`pinball`** is the mean, over points and levels τ, of
   `max(τ(y − q_τ), (τ − 1)(y − q_τ))`.
 - **Coverage** is for the central interval between the lowest and highest
@@ -299,6 +317,8 @@ draw.table                     # DemandTable: the drawn daily demand, days from 
 draw.truth                     # TrueDemand
 draw.truth.mean(day)           # np.ndarray over SKUs: the expected demand a forecaster can know
 draw.truth.quantiles(day, (0.1, 0.5, 0.9))  # dict level -> np.ndarray over SKUs
+draw.truth.cdf(day, np.arange(10))  # SKUs × counts: P(demand <= x)
+draw.observed()                # Table "demand-benchmark": sku_id, date, units, true_mean
 ```
 
 The process, per SKU `i` and day `t`, is declared in the class docstring and
@@ -707,6 +727,11 @@ Each new endpoint is synchronous and bounded, as in the causal sequence:
 | | SKUs read from the world or drawn by the benchmark | 400 |
 | | time, checked before each forecaster and each origin | 30 s (`MAX_BACKTEST_SECONDS`) |
 | `GET /anomalies` | SKUs × days in the frame | measured in PR 4 |
+
+Measured in PR 1: the five built-ins together, with the `true-distribution`
+row, take 4.7 s at 400 SKUs × 730 days (horizon 14, 4 origins) and 15.4 s at
+the largest request (horizon 56, 12 origins). The built-ins run for all SKUs at
+once; the exact quantiles are computed once per day shared by several origins.
 
 The limits are published in `GET /forecasters` (and for detectors in
 `GET /detectors`), so the pages check them before sending.

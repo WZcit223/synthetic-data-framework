@@ -41,14 +41,26 @@ from sdf.analytics.causal import (
     default_estimators,
     score,
 )
+from sdf.analytics.demand import DemandTable
 from sdf.analytics.forecast import build_series, compare_models, models_for
+from sdf.analytics.forecasters import (
+    MAX_BACKTEST_SECONDS,
+    MAX_FORECASTERS,
+    MAX_HORIZON,
+    MAX_ORIGINS,
+    MAX_QUANTILES,
+    MIN_HISTORY,
+    ForecasterRegistry,
+    backtest as forecast_backtest,
+    default_forecasters,
+)
 from sdf.application.agent import WarehouseAgent
 from sdf.application.datasets import DatasetCatalog, ReadDeadline, default_datasets
 from sdf.application.economics import financial_impact
 from sdf.application.knowledge import KnowledgeQA
 from sdf.application.scenarios import run_scenarios
 from sdf.simulation import catalog
-from sdf.simulation.benchmark import QUESTION as BENCHMARK_QUESTION, PromotionBenchmark
+from sdf.simulation.benchmark import QUESTION as BENCHMARK_QUESTION, DemandBenchmark, PromotionBenchmark
 from sdf.simulation.effects import MAX_EFFECT_WORK, MAX_REPLICATES, EffectStudy
 from sdf.simulation.experiment import OUTCOME_FIELDS, Experiment
 from sdf.synthesis.materialise import WarehouseRefused
@@ -126,6 +138,7 @@ def create_app(
     datasets: DatasetCatalog | None = None,
     synthesizers: SynthesizerRegistry | None = None,
     estimators: EstimatorRegistry | None = None,
+    forecasters: ForecasterRegistry | None = None,
 ) -> FastAPI:
     """A new app with its own world store, dataset catalogue and synthesizer registry.
 
@@ -134,7 +147,8 @@ def create_app(
     served by later requests. ``synthesizers`` is likewise the one registry every
     synthesizer comes from (default: ``default_registry()``, built once): the
     catalogue, runs, the initial world, ``POST /world`` and scenario regeneration. ``estimators``
-    is the estimator catalogue (default: ``default_estimators()``). ``POST /api/v1/world`` rejects parameters outside
+    is the estimator catalogue (default: ``default_estimators()``) and ``forecasters`` the forecaster
+    catalogue (default: ``default_forecasters()``). ``POST /api/v1/world`` rejects parameters outside
     ``limits``. ``ui_dir``
     mounts a static UI at "/" for development hosting; ``cors_origins`` lets a
     UI hosted elsewhere call the API.
@@ -154,7 +168,9 @@ def create_app(
     catalogue = datasets if datasets is not None else default_datasets()
     app.state.datasets = catalogue
     estimator_reg = estimators if estimators is not None else default_estimators()
+    forecaster_reg = forecasters if forecasters is not None else default_forecasters()
     app.state.estimators = estimator_reg
+    app.state.forecasters = forecaster_reg
     api = APIRouter(prefix=PREFIX)
 
     WorldRequest = create_model(  # noqa: N806 - a model class built from this app's limits
@@ -591,6 +607,103 @@ def create_app(
             "data": data,
             "source": source,
             "world": world.label,
+            "elapsed_ms": round((time.monotonic() - started) * 1000),
+        }
+
+    @api.get("/forecasters", response_model=s.ForecasterList)
+    def forecasters_list():
+        """Every mounted forecaster with its parameters, the unavailable ones with the reason, the limits and the benchmark."""
+        entries = []
+        for name in forecaster_reg.names():
+            info = forecaster_reg.info(name)
+            entries.append(
+                {
+                    "name": name,
+                    "description": info.description,
+                    "origin": forecaster_reg.origin(name),
+                    "requires": list(info.requires),
+                    "global_model": info.global_model,
+                    "params": [p.to_dict() for p in forecaster_reg.params(name)],
+                }
+            )
+        return {
+            "forecasters": entries,
+            "unavailable": forecaster_reg.unavailable(),
+            "limits": {
+                "max_forecasters": MAX_FORECASTERS,
+                "max_horizon": MAX_HORIZON,
+                "max_origins": MAX_ORIGINS,
+                "max_quantiles": MAX_QUANTILES,
+                "max_skus": s.MAX_FORECAST_SKUS,
+                "max_seconds": MAX_BACKTEST_SECONDS,
+                "min_history": MIN_HISTORY,
+            },
+            "benchmark": {"params": [p.to_dict() for p in DemandBenchmark.params()]},
+        }
+
+    @api.post(
+        "/forecasts/backtest",
+        response_model=s.ForecastBacktestResult,
+        responses={
+            422: {"description": "an invalid request, parameter or benchmark value, or a history too short"},
+            500: {"description": "the benchmark draw failed"},
+        },
+    )
+    def forecasts_backtest(body: s.ForecastBacktestRequest):
+        """Each chosen forecaster from the same rolling origins: the current world's demand, or the demand benchmark.
+
+        A failing forecaster is a row with its error, not a failed request.
+        """
+        started = time.monotonic()
+        source = body.source
+        if (source.world is None) == (source.benchmark is None):
+            raise HTTPException(status_code=422, detail="source: give exactly one of world and benchmark")
+        truth = None
+        world_label = None
+        if source.benchmark is not None:
+            try:
+                bench = DemandBenchmark(**source.benchmark.model_dump())
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=f"benchmark: {exc}") from exc
+            try:
+                draw = bench.draw()
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=f"the benchmark draw failed: {exc}") from exc
+            history, truth, label = draw.table, draw.truth, "demand-benchmark"
+        else:
+            world = store.current.world  # one snapshot for the demand and the label
+            demand = world.demand()
+            keep = list(demand.series)[: s.MAX_FORECAST_SKUS]
+            history = DemandTable(days=demand.days, series={k: demand.series[k] for k in keep})
+            label, world_label = "world", world.label
+        try:
+            result = forecast_backtest(
+                body.forecasters,
+                history,
+                horizon=body.horizon,
+                origins=body.origins,
+                step=body.step,
+                quantiles=body.quantiles,
+                params=body.params,
+                refit=body.refit,
+                truth=truth,
+                deadline=started + MAX_BACKTEST_SECONDS,
+                registry=forecaster_reg,
+            )
+        except (KeyError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=exc.args[0] if isinstance(exc, KeyError) else str(exc)) from exc
+
+        def table(t):
+            return {"fields": [f.to_dict() for f in t.info.fields], "rows": [list(r) for r in t.rows]}
+
+        return {
+            "scores": table(result.scores),
+            "by_horizon": table(result.by_horizon),
+            "forecasts": table(result.forecasts),
+            "origins": [d.isoformat() for d in result.origins],
+            "source": label,
+            "world": world_label,
+            "skus": len(history.series),
             "elapsed_ms": round((time.monotonic() - started) * 1000),
         }
 

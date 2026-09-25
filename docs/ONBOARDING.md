@@ -40,6 +40,7 @@ uv run sdf impact               # counterfactual £ economics
 uv run sdf scenarios            # what-if scenario family
 uv run sdf effects --intervention promo_spike   # effects with intervals over paired replicates
 uv run sdf estimate --confounding 1   # estimators scored on the promotion benchmark
+uv run sdf forecast [--benchmark]     # forecasters backtested per SKU, with intervals
 uv run sdf privacy [csv]        # DCR / NNDR / clone-risk
 uv run sdf hooks                # where each checklist item plugs into the code
 ```

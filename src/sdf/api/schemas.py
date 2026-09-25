@@ -574,3 +574,89 @@ class EstimatesResult(Model):
     source: str  # "promotion-benchmark" or the dataset's name
     world: str  # the label of the world the rows came from
     elapsed_ms: int
+
+
+# -- forecasting -------------------------------------------------------------------------------
+
+MAX_FORECAST_SKUS = 400  # SKUs one backtest reads from the world or draws from the benchmark
+
+
+class ForecasterEntry(Model):
+    name: str
+    description: str
+    origin: Literal["builtin", "plugin", "runtime"]
+    requires: list[str]  # modules it needs; already importable, since it is mounted
+    global_model: bool  # one model over all SKUs, or one per SKU
+    params: list[ParamModel]
+
+
+class ForecastLimits(Model):
+    max_forecasters: int
+    max_horizon: int
+    max_origins: int
+    max_quantiles: int
+    max_skus: int  # MAX_FORECAST_SKUS
+    max_seconds: float  # MAX_BACKTEST_SECONDS: forecasters not started by then are "not run" rows
+    min_history: int  # days of history before the first origin
+
+
+class DemandBenchmarkSpec(Model):
+    params: list[ParamModel]  # with the bounds DemandBenchmark checks
+
+
+class ForecasterList(Model):
+    forecasters: list[ForecasterEntry]
+    unavailable: dict[str, str]
+    limits: ForecastLimits
+    benchmark: DemandBenchmarkSpec
+
+
+class DemandBenchmarkRequest(BaseModel):
+    """The demand benchmark's parameters. Their bounds are checked by DemandBenchmark itself (422)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    n_skus: int = 200
+    days: int = 365
+    intermittent_share: float = 0.3
+    promo_rate: float = 0.03
+    promo_uplift: float = 0.6
+    dispersion: float = 2.0
+    seed: int | None = None
+
+
+class WorldSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class ForecastSource(BaseModel):
+    """Exactly one of ``world`` (the current world's demand) and ``benchmark`` (a declared process)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    world: WorldSource | None = None
+    benchmark: DemandBenchmarkRequest | None = None
+
+
+class ForecastBacktestRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    forecasters: list[str] = Field(min_length=1)  # at most max_forecasters, checked with the rest (422)
+    params: dict[str, dict[str, Any]] = {}
+    source: ForecastSource = ForecastSource(world=WorldSource())
+    horizon: int = 14
+    origins: int = 4
+    step: int = 7
+    quantiles: list[float] = [0.1, 0.5, 0.9]
+    refit: Literal["each-origin", "once"] = "each-origin"
+
+
+class ForecastBacktestResult(Model):
+    scores: TableModel  # "forecast-scores": one row per forecaster, then "true-distribution" on the benchmark
+    by_horizon: TableModel  # "by-horizon"
+    forecasts: TableModel  # "forecasts": the last origin only
+    origins: list[str]  # the first forecast day of each origin, ISO dates
+    source: str  # "world" or "demand-benchmark"
+    world: str | None  # the label of the world the demand came from; null for the benchmark
+    skus: int  # SKUs scored
+    elapsed_ms: int
