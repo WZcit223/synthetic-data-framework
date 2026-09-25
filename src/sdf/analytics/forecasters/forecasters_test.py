@@ -238,6 +238,10 @@ def test_wape_is_empty_only_when_every_actual_is_zero_and_relative_when_the_refe
     zero = np.zeros((1, 2))
     out = _metrics(zero, np.ones((1, 2)), {0.5: np.ones((1, 2))}, (0.5,), np.zeros((1, 2)))
     assert out[0] is None and out[1] is None and out[2] is None
+    # no demand at all: seasonal naive's WAPE is undefined, so the ratio is too, even when it erred
+    assert _metrics(zero, np.ones((1, 2)), {0.5: np.ones((1, 2))}, (0.5,), np.ones((1, 2)))[1] is None
+    # an exact reference: the ratio is undefined as well
+    assert _metrics(np.ones((1, 2)), np.zeros((1, 2)), {0.5: np.ones((1, 2))}, (0.5,), np.zeros((1, 2)))[1] is None
     assert out[5:] == (None, None, None, None)  # one level: no interval
 
 
@@ -317,7 +321,39 @@ def test_a_constructor_that_fails_is_an_error_row_not_a_failed_request():
     reg.register(MeanForecaster)
     result = backtest(["fragile", "mean"], table([1.0] * 60), horizon=5, origins=2, registry=reg)
     assert [r[12] for r in result.scores.rows] == ["RuntimeError: no model file", None]
-    assert built == ["fragile"]  # built once, to run it: checking the request builds nothing
+    assert built == ["fragile"]  # built once, before any forecaster runs
+
+
+def test_a_constructor_that_refuses_its_configuration_refuses_the_request():
+    class Picky(MeanForecaster):
+        info: ClassVar[ForecasterInfo] = ForecasterInfo("picky", "refuses a combination")
+
+        def __init__(self, low: int = 1, high: int = 2) -> None:
+            if low >= high:
+                raise ValueError(f"low ({low}) must be below high ({high})")
+
+    reg = ForecasterRegistry()
+    reg.register(Picky)
+    with pytest.raises(ValueError, match=r"low \(3\) must be below high \(2\)"):
+        backtest(["picky"], table([1.0] * 60), horizon=5, origins=2, params={"picky": {"low": 3}}, registry=reg)
+
+
+def test_each_origin_refits_a_fresh_instance_and_once_keeps_the_first():
+    instances: list[int] = []
+
+    class Counting(MeanForecaster):
+        info: ClassVar[ForecasterInfo] = ForecasterInfo("counting-instances", "counts its instances")
+
+        def __init__(self) -> None:
+            instances.append(1)
+
+    reg = ForecasterRegistry()
+    reg.register(Counting)
+    backtest(["counting-instances"], table([1.0] * 60), horizon=5, origins=3, step=4, registry=reg)
+    assert len(instances) == 3  # one per origin, the first built before any ran
+    instances.clear()
+    backtest(["counting-instances"], table([1.0] * 60), horizon=5, origins=3, step=4, refit="once", registry=reg)
+    assert len(instances) == 1
 
 
 def test_the_deadline_turns_forecasters_not_started_into_not_run_rows():

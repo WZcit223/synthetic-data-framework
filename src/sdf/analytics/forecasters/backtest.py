@@ -126,6 +126,7 @@ def backtest(
     """
     reg = registry if registry is not None else default_forecasters()
     names, levels, params = _checked_request(reg, forecasters, horizon, origins, step, quantiles, params, refit)
+    built = _built(reg, names, params)
     y = matrix(history)
     n = len(history.days)
     need = horizon + (origins - 1) * step + MIN_HISTORY
@@ -152,7 +153,9 @@ def backtest(
     for name in names:
         started = time.monotonic()
         try:
-            means, qs, method = _run(reg, name, params.get(name, {}), history, starts, horizon, levels, refit, deadline)
+            means, qs, method = _run(
+                reg, name, params.get(name, {}), built[name], history, starts, horizon, levels, refit, deadline
+            )
         except _NotRun as exc:
             score_rows.append(_error_row(name, str(exc), None if exc.started is None else time.monotonic() - started))
             continue
@@ -212,13 +215,31 @@ def _checked_request(reg, forecasters, horizon, origins, step, quantiles, params
     if stray:
         raise ValueError(f"params names forecasters not requested: {stray}")
     for name in names:
-        # A bad parameter is the request's problem, refused before anything runs; nothing is built
-        # here, so a plug-in's own constructor failure becomes its error row when it runs.
-        reg.check_params(name, given.get(name, {}))
+        reg.check_params(name, given.get(name, {}))  # a value outside its published bounds: refused now
     return names, levels, given
 
 
-def _run(reg, name, params, history, starts, horizon, levels, refit, deadline):
+def _built(reg, names, params) -> dict[str, Any]:
+    """Each forecaster built once, before any runs; the instance serves its first origin.
+
+    A ``ValueError`` from a constructor is the plug-in refusing this configuration (for
+    example a combination of values each within bounds): the request's problem, raised.
+    Any other exception is the plug-in's own failure, kept to become its error row.
+    """
+    out: dict[str, Any] = {}
+    for name in names:
+        try:
+            out[name] = reg.create(name, **params.get(name, {}))
+        except ValueError:
+            raise
+        except Exception as exc:
+            out[name] = exc
+    return out
+
+
+def _run(reg, name, params, first, history, starts, horizon, levels, refit, deadline):
+    if isinstance(first, Exception):
+        raise first  # its constructor failed: this forecaster's error row
     means, qs = [], {lv: [] for lv in levels}
     methods: list[str] = []
     model = None
@@ -227,7 +248,9 @@ def _run(reg, name, params, history, starts, horizon, levels, refit, deadline):
             word = "not run" if j == 0 else "not finished"
             raise _NotRun(f"{word}: the request's {MAX_BACKTEST_SECONDS:g} s were used", None if j == 0 else 0.0)
         past = history.until(history.days[o])
-        if model is None or refit == "each-origin":
+        if model is None:
+            model = first.fit(past)
+        elif refit == "each-origin":
             model = reg.create(name, **params).fit(past)
         fc = reg.forecast(model, past, horizon=horizon, quantiles=levels)
         means.append(fc.mean)
@@ -259,7 +282,7 @@ def _metrics(actual, mean, qs, levels, ref_abs) -> tuple[Any, ...]:
     abs_err = np.abs(actual - mean)
     wape = float(abs_err.sum()) / total if total > 0 else None
     ref = float(ref_abs.sum())
-    relative = float(abs_err.sum()) / ref if ref > 0 else None
+    relative = float(abs_err.sum()) / ref if ref > 0 and total > 0 else None  # a ratio of two WAPEs
     bias = float((mean - actual).sum()) / total if total > 0 else None
     mae = float(abs_err.mean())
     pinball = float(np.mean([np.maximum(lv * (actual - qs[lv]), (lv - 1) * (actual - qs[lv])).mean() for lv in levels]))

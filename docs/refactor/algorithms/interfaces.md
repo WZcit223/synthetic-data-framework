@@ -124,9 +124,10 @@ and every endpoint use; a forecaster is never called directly by them):
 - a result labelled with another forecaster's name is refused, as for
   estimators, and so is an `origin` other than the day after the history's
   last day;
-- a forecaster whose constructor fails with anything but a `ValueError` (a bad
-  parameter, the request's problem) becomes an error row when it runs, not a
-  failed request.
+- every forecaster is built once, before any runs: a `ValueError` from its
+  constructor (a value outside its published bounds, or a combination it
+  refuses) is the request's problem, a 422; any other exception is the
+  forecaster's own failure, its error row, and the others still run.
 
 ### 1.3 Target (after PR 1): the registry and the built-ins
 
@@ -240,8 +241,8 @@ Over every SKU, origin and day ahead with actual `y`:
   7) on the same points; it is computed even if `seasonal-naive` was not
   requested, and is below 1 when a forecaster beats it. When that
   denominator is 0 (seasonal naive is exact on every point, for example on a
-  constant series) or empty, `relative_wape` is empty (`None`), never a
-  non-finite number.
+  constant series) or empty (every actual is 0), `relative_wape` is empty
+  (`None`), never a non-finite number.
 - **`pinball`** is the mean, over points and levels τ, of
   `max(τ(y − q_τ), (τ − 1)(y − q_τ))`.
 - **Coverage** is for the central interval between the lowest and highest

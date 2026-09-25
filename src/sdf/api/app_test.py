@@ -1295,6 +1295,29 @@ def test_a_backtest_request_that_cannot_run_is_a_422(client, body, detail):
     assert res.status_code == 422 and detail in res.json()["detail"], res.text
 
 
+def test_a_constructor_that_refuses_its_configuration_is_a_422():
+    from sdf.analytics.forecasters import ForecasterInfo, default_forecasters
+
+    class Picky:
+        info: ClassVar[ForecasterInfo] = ForecasterInfo("picky", "refuses a combination")
+
+        def __init__(self, low: int = 1, high: int = 2):
+            if low >= high:
+                raise ValueError(f"low ({low}) must be below high ({high})")
+
+        def fit(self, history):
+            return self
+
+        def forecast(self, history, *, horizon, quantiles):
+            raise AssertionError("never reached")
+
+    reg = default_forecasters()
+    reg.register(Picky)
+    c = TestClient(create_app(forecasters=reg))
+    res = c.post(V1 + "/forecasts/backtest", json={"forecasters": ["picky"], "params": {"picky": {"low": 3}}})
+    assert res.status_code == 422 and res.json()["detail"] == "low (3) must be below high (2)"
+
+
 def test_a_failing_forecaster_is_a_row_in_a_200():
 
     from sdf.analytics.forecasters import ForecasterInfo, default_forecasters
