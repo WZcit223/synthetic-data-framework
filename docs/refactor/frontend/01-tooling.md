@@ -1,0 +1,54 @@
+# F1 — Vite and Svelte in `ui/`, with nothing visible changed
+
+> Status: planned.
+
+Contract: [`interfaces.md`](interfaces.md) §1, §5.1 and §5.4.
+
+## Goal
+
+The UI is built and tested like any modern frontend, and CI does both, while
+every page looks and works exactly as before.
+
+## Scope
+
+- **Tooling:** `ui/package.json` with the dependencies and scripts of §1.2, the
+  lockfile, `vite.config.js` (four HTML entries, the `/api` proxy),
+  `svelte.config.js`, `.gitignore` for `ui/node_modules` and `ui/dist`.
+- **The four pages are built unchanged.** Vite takes today's HTML pages and
+  their module scripts as entries; no page is rewritten yet. The shared
+  modules move to `ui/src/lib/` (`common.js` splits into `api.js` and
+  `format.js`), with the imports updated and no logic changed.
+- **Tests:** the seven `ui/*.test.js` files move next to their modules and run
+  on Vitest (§5.1), assertions unchanged; `npm run check` runs `svelte-check`.
+- **CI:** a `ui` job on Node 22: `npm ci`, `npm run check`, `npm test`,
+  `npm run build`; it uploads `ui/dist` for the Python job, which runs the
+  UI-reading tests against it (§5.4). The `node --test ui/*.test.js` step goes.
+- **Python tests** that read `ui/` are pointed at the new layout (§5.4); each
+  property they check is kept.
+- **Docs:** README, ONBOARDING (`cd ui && npm ci && npm run build`, then
+  `SDF_UI_DIR=ui/dist`; `npm run dev` for development), ARCHITECTURE (the UI
+  section), AGENTS.md rule 7 (the `api()` function is in `ui/src/lib/api.js`),
+  CONTRIBUTING (the UI checks), and the three earlier plans that ruled out a
+  build step get a note pointing here.
+
+## Tests
+
+- Every pure-module test passes on Vitest with its assertions unchanged.
+- The built `ui/dist` serves all four pages with every asset (the Python mount
+  test).
+- In Chromium, each page of `ui/dist` renders like the same page on `main`
+  (screenshots side by side in the PR) and makes the same API calls.
+
+## Non-goals
+
+- No component, no chart or table library in use yet (F2).
+- No visual change.
+
+## Acceptance
+
+- The required checks of `AGENTS.md`, plus the `ui` job, green.
+- `SDF_UI_DIR=ui/dist` serves a UI indistinguishable from `main`'s.
+
+## Version
+
+`Version: none` — `ui/` and CI only.

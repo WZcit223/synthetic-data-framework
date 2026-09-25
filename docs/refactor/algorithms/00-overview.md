@@ -2,7 +2,10 @@
 
 Status: proposed on 2026-09-24, approved by the project lead on 2026-09-25
 with the recommended decisions: D1 (a), and D2 and D3 left out of this
-sequence. On 2026-09-24 the project lead asked for four
+sequence. PR 1 merged on 2026-09-25 (#38). The sequence then pauses, at the
+project lead's request, for the frontend refactor
+([`../frontend/00-overview.md`](../frontend/00-overview.md)), and resumes with
+PR 2; PR 6 (the pages) is written on the new frontend. On 2026-09-24 the project lead asked for four
 items, in this order: synthesizer choice from the UI (item 1) and the pivot
 table (item 3) first, then causal modelling (item 2) and the algorithm phase
 (item 4). Items 1 to 3 are done (the exploration sequence, #26 to #30, and the

@@ -1,0 +1,220 @@
+# Frontend refactor — component and build contract
+
+This is the **authoritative contract** for this sequence
+([`00-overview.md`](00-overview.md)). PR plans link here and do not redefine
+names, props or file locations. If an implementation must change one, the same
+PR updates this file, the affected plans and every caller.
+
+Every section is labelled **Current** (on `main` today) or **Target (after
+PR Fn)** (runnable when that PR merges).
+
+---
+
+## 1. Layout and build
+
+### 1.1 Current
+
+```
+ui/
+  package.json            {"type": "module"}: no dependency, no script
+  index.html  app.js      the dashboard
+  explore.html  explore.js  pivot.js
+  synthesizers.html  synthesizers.js  synthesis.js
+  effects.html  effects.js  estimate.js  effects-model.js  estimate-model.js
+  chart.js  palette.js  common.js  sources.js
+  *.css  favicon.svg
+  *.test.js               node --test ui/*.test.js
+```
+
+Each page loads one `<script type="module" src="x.js">`; modules import each
+other by relative path. The API mounts the folder with
+`SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app`.
+
+### 1.2 Target (after F1)
+
+```
+ui/
+  package.json  package-lock.json   pinned dependencies; scripts below
+  vite.config.js                    four HTML entries, the /api proxy for development
+  svelte.config.js
+  index.html  explore.html  synthesizers.html  effects.html   entries; same file names, same URLs
+  public/favicon.svg
+  src/
+    lib/            pure modules, no DOM: api.js, format.js, palette.js, pivot.js, sources.js,
+                    synthesis.js, effects-model.js, estimate-model.js, and their *.test.js
+    components/     shared Svelte components (§2, §3)
+    pages/          one folder per page: Dashboard.svelte, Explore.svelte, ... and their parts
+    theme.css       the colour tokens (§4)
+  e2e/              Playwright tests, one file per page
+  dist/             built by `npm run build`; ignored by git
+```
+
+Scripts in `ui/package.json`:
+
+| Script | Does |
+|---|---|
+| `npm run dev` | Vite's development server on port 5173, `/api` proxied to `http://127.0.0.1:8000` |
+| `npm run build` | writes `ui/dist/`: the four pages, hashed assets, no source maps |
+| `npm test` | Vitest: the pure modules and the components (jsdom) |
+| `npm run check` | `svelte-check`: types from JSDoc, and Svelte's own warnings, as errors |
+| `npm run e2e` | Playwright against `ui/dist` served by the API (§5.3) |
+
+Serving the built UI: `SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app`.
+`create_app(ui_dir=…)` is unchanged: it still mounts a folder that has an
+`index.html`.
+
+**Dependencies** (versions pinned by the lockfile; ranges in `package.json`):
+
+| Package | Role | Licence |
+|---|---|---|
+| `svelte` 5 | the components | MIT |
+| `vite` 8, `@sveltejs/vite-plugin-svelte` 7 | the build | MIT |
+| `chart.js` 4 | charts | MIT |
+| `chartjs-chart-error-bars` 4 | interval (forest) plots | MIT |
+| `chartjs-chart-matrix` 3 | the shelf heatmap | MIT |
+| `tabulator-tables` 6 | tables | MIT |
+| `vitest`, `@testing-library/svelte`, `jsdom`, `svelte-check`, `@playwright/test` | development only | MIT / Apache-2.0 |
+
+Nothing is loaded from the network at run time.
+
+---
+
+## 2. Charts
+
+### 2.1 Current
+
+`ui/chart.js` exports `barChart`, `lineChart`, `bindBars`, `bindLine`,
+`showTip`, `niceTicks`, `clip`, `stepIndex`; each chart is an SVG string put in
+the page with `innerHTML`. The dashboard, the effect and estimator interval
+plots and the replicate strip plot are drawn by hand in their page scripts.
+
+### 2.2 Target (after F2): `ui/src/components/charts/`
+
+One Svelte component per kind of chart; each owns one Chart.js instance,
+updates it when its props change, and destroys it when it leaves the page.
+
+```svelte
+<LineChart  {series} {labels} {yLabel} {format} {band}?      />  <!-- lines; gaps at null; optional filled band -->
+<BarChart   {series} {labels} {stacked}? {horizontal}? {format} />
+<IntervalChart {rows} {reference}? {format} />                 <!-- point + interval per row; optional reference line -->
+<StripChart {groups} {format} />                               <!-- jittered points per group, with the group mean -->
+<HeatGrid   {cells} {columns} {rows} {format} />               <!-- a value per cell on the sequential ramp -->
+```
+
+- **`series`** is `[{name, values, color?}]`. A colour is never chosen by
+  position on screen: it comes from `palette.colorBook()` by the series' name,
+  as today, so a series keeps its colour when others are filtered out.
+- **`format`** is a `(value) => string` from `lib/format.js` (`fmt`,
+  `valueFormatter`), used by the ticks and the tooltip alike.
+- **`band`** is `{low, high, name}` for PR 6 of the algorithm phase (forecast
+  intervals).
+- Every chart takes a `summary` string, rendered for screen readers
+  (`aria-label` on the canvas), and is followed by the page's table view of
+  the same numbers; no number is shown only in a chart.
+- Tooltips, legends and hover use Chart.js's own, styled by the theme (§4).
+  Keyboard access to data points comes from the table view.
+
+`IntervalChart` replaces the forest plots of `effects.js` and `estimate.js`
+(`chartjs-chart-error-bars`, scatter with x error bars); `StripChart` the
+replicate dots; `HeatGrid` the shelf heatmap (`chartjs-chart-matrix`).
+
+---
+
+## 3. Tables
+
+### 3.1 Current
+
+The dashboard, effects and estimator-score tables fill a `<tbody>` from
+template strings; `explore.js` `renderTable` draws the pivot by hand
+(multi-level headers, sticky row labels and totals, sorting, collapsible
+subtotal groups, a 1,000-row budget, heat shading).
+
+### 3.2 Target (after F2 and F4): `ui/src/components/tables/`
+
+```svelte
+<DataTable {columns} {rows} {sort}? {download}? {height}? />
+<PivotTable {result} {view} {heat}? on:sort on:toggle />
+```
+
+- **`DataTable`** wraps one Tabulator instance. `columns` is
+  `[{field, title, kind, format?}]`, where `kind` is the API's field kind
+  (`dimension`, `time`, `measure`), so measures align right and sort as
+  numbers; a table the API sends as `{fields, rows}` renders with no mapping
+  code. Sorting is on for every column; `download` adds a CSV button that
+  writes through `pivot.toCsv`, which guards against formula injection.
+- **`PivotTable`** renders the result of `lib/pivot.js` `pivot()`, unchanged:
+  column groups become Tabulator column groups; the row-label columns are
+  frozen; subtotal groups are Tabulator row groups, collapsible; the totals
+  row is a bottom calculation row; heat shading uses the theme's ramp.
+  Tabulator's virtual rendering draws only the visible rows, so the row
+  budget and its "Show all" button go; the 400-column cut stays, as a limit
+  of what a person can read.
+- Sorting and collapsing stay in the view state (`view.sort`, collapsed
+  groups), so a link still restores them.
+
+---
+
+## 4. Theme
+
+- `ui/src/theme.css` defines the tokens as CSS custom properties, one set for
+  `prefers-color-scheme: dark` (today's colours) and one for light:
+  `--surface`, `--surface-raised`, `--ink`, `--ink-muted`, `--rule`,
+  `--accent`, `--good`, `--warn`, `--bad`, and the heat ramp `--heat-0` to
+  `--heat-5`.
+- `lib/palette.js` stays the source of series colours and exports one set per
+  theme; its tests check contrast against both surfaces.
+- Chart.js and Tabulator read the tokens at render time and redraw when the
+  scheme changes.
+
+---
+
+## 5. Tests
+
+### 5.1 Pure modules (F1)
+
+`ui/src/lib/*.test.js`, run by Vitest. The assertions of today's
+`ui/*.test.js` move unchanged; only the imports change (`node:test` to
+`vitest`, `node:assert` stays). `chart.test.js` goes in F5 with `chart.js`.
+
+### 5.2 Components (F2 to F4)
+
+Vitest with Testing Library in jsdom: a component renders its table view with
+the right numbers, a chart receives the datasets its props describe (the
+Chart.js instance is inspected, not the canvas pixels), a link's view restores
+the component's state.
+
+### 5.3 Pages (F2 to F4)
+
+`ui/e2e/*.spec.js`, Playwright in Chromium, against the built UI served by the
+API on the default world:
+
+- each page loads with no console error and no failed request;
+- its main action works (dashboard: choose a SKU; Explore: build a pivot from
+  a preset and switch to the chart; Synthesizers: run an evaluation; Effects:
+  run a study and an estimation);
+- a link with a view in its address restores that view;
+- at 390 px wide nothing overflows horizontally.
+
+CI installs Chromium with `npx playwright install --with-deps chromium`.
+
+### 5.4 Python tests that read `ui/` (F1)
+
+`src/sdf/api/app_test.py` keeps each property, pointed at the new layout:
+
+| Test | Current | Target |
+|---|---|---|
+| every UI path is in the OpenAPI schema | `api("/…")` literals in `ui/*.js` | the same, in `ui/src/**/*.{js,svelte}` |
+| the UI reaches the backend only through `api()` | one `fetch(` in `common.js` | one `fetch(` in `ui/src/lib/api.js`, none elsewhere in `ui/src` |
+| no inline event handler | no `on…=` attribute in `ui/` | none in `ui/dist/*.html` and no inline `<script>` there |
+| every page links the others | in `ui/*.html` | in the page components' navigation |
+| the UI folder is mounted | `ui/` | `ui/dist/`, skipped with the reason when it was not built; CI builds it first |
+
+## 6. Compatibility
+
+- Page file names, URLs and hash formats do not change; links made before this
+  sequence open the same view after it.
+- The API, its schema and every Python behaviour are unchanged; `sdf demo` and
+  `docs/VALIDATION.md` do not move.
+- `SDF_UI_DIR` keeps its meaning; only the folder to point it at changes, from
+  `ui` to `ui/dist`, which F1 documents in the README, ONBOARDING and
+  ARCHITECTURE.

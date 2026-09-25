@@ -1,0 +1,48 @@
+# F4 — The Explore page on the components
+
+> Status: planned.
+
+Contract: [`interfaces.md`](interfaces.md) §3.2 and §5.3.
+
+## Goal
+
+The pivot page, the largest page (1,340 lines of page code today), becomes a
+set of Svelte components around the unchanged `pivot.js`.
+
+## Scope
+
+- **State:** one view object (`source`, `view`, `display`), as today, held in
+  Svelte state and written to the `#view=` address on every change; the
+  address is read on load and on `hashchange`.
+- **Field shelf and drop zones:** Rows, Columns, Values and Filters, with
+  drag and drop (native HTML5, as today) and keyboard alternatives.
+- **Menus:** aggregation, time grain and filter values, as Svelte popovers.
+- **Presets**, the source picker (catalogue datasets and the link sources of
+  `sources.js`), CSV download and copy link.
+- **Table view:** `PivotTable` (§3.2): column groups, frozen row labels,
+  collapsible subtotals, totals, heat shading, sorting; virtual rendering
+  instead of the row budget.
+- **Chart view:** small multiples with `BarChart` (grouped or stacked) and
+  `LineChart` for a time axis, the 50-bar and 8-series limits with "Other".
+
+## Tests
+
+- `pivot.test.js` unchanged.
+- Component tests: a view restores its shelves, sort and collapsed groups; the
+  pivot's column groups and totals match `pivot()`'s result.
+- Playwright: every preset renders; a pivot built by dragging fields; the chart
+  view; a link from each source kind (dataset, synthesis run, effects,
+  estimates) restores its view; 10,000 rows scroll without the page freezing.
+
+## Non-goals
+
+- No new pivot feature; no drill-through to records.
+
+## Acceptance
+
+- Every link from `main`'s tests and plans opens the same view; the pivot's
+  numbers match `pivot()`; screenshots of a preset in both themes and at 390 px.
+
+## Version
+
+`Version: none` — UI only.
