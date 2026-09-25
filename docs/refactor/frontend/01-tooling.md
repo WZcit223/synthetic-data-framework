@@ -11,13 +11,14 @@ every page looks and works exactly as before.
 
 ## Scope
 
-- **Tooling:** `ui/package.json` with the dependencies and scripts of §1.2, the
+- **Tooling:** the Playwright harness with a smoke spec per page (§5.3);
+  `ui/package.json` with the dependencies and scripts of §1.2, the
   lockfile, `vite.config.js` (four HTML entries, the `/api` proxy),
   `svelte.config.js`, `.gitignore` for `ui/node_modules` and `ui/dist`.
 - **The four pages are built unchanged.** Vite takes today's HTML pages and
   their module scripts as entries; no page is rewritten yet. The shared
-  modules move to `ui/src/lib/` (`common.js` splits into `api.js` and
-  `format.js`; `chart.js` moves too, until F5 deletes it) and the page
+  modules move to `ui/src/lib/` (`common.js` splits into `api.js`,
+  `format.js` and `legacy/dom.js`, export by export as in §1.2; `chart.js` moves too, until F5 deletes it) and the page
   scripts and styles to `ui/src/legacy/` (§1.2), with the imports updated and
   no logic changed. In the four HTML entries the only change is the path of
   each `<script type="module" src>` and `<link rel="stylesheet" href>`
@@ -26,10 +27,14 @@ every page looks and works exactly as before.
   markup, the page URLs and the favicon link stay as they are.
 - **Tests:** all seven `ui/*.test.js` files (`chart`, `common`,
   `effects-model`, `palette`, `pivot`, `sources`, `synthesis`) move next to
-  their modules and run on Vitest (§5.1), assertions unchanged; `npm run check` runs `svelte-check`.
+  their modules and run on Vitest (§5.1), assertions unchanged
+  (`common.test.js` split in two, §1.2); `npm run check` runs `svelte-check`.
 - **CI:** a `ui` job on Node 22: `npm ci`, `npm run check`, `npm test`,
   `npm run build`; it uploads `ui/dist` for the Python job, which runs the
-  UI-reading tests against it (§5.4). The `node --test ui/*.test.js` step goes.
+  UI-reading tests against it (§5.4), then installs Chromium
+  (`npx playwright install --with-deps chromium`), starts the API on
+  `ui/dist` and runs `npm run e2e` (§5.3). The `node --test ui/*.test.js`
+  step goes.
 - **Python tests** that read `ui/` are pointed at the new layout (§5.4); each
   property they check is kept.
 - **Docs:** README, ONBOARDING (`cd ui && npm ci && npm run build`, then
@@ -43,8 +48,10 @@ every page looks and works exactly as before.
 - Every pure-module test passes on Vitest with its assertions unchanged.
 - The built `ui/dist` serves all four pages with every asset (the Python mount
   test).
-- In Chromium, each page of `ui/dist` renders like the same page on `main`
-  (screenshots side by side in the PR) and makes the same API calls.
+- Playwright (§5.3, the harness is part of this PR): each page of `ui/dist`
+  loads with no console error and no failed request, and makes the same API
+  calls on its first load as on `main`. Screenshots of each page next to
+  `main`'s are attached to the PR as a manual check, not a CI assertion.
 
 ## Non-goals
 

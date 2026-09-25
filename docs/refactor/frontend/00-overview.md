@@ -126,8 +126,8 @@ light and dark, with screenshots in the PR.
 
 | # | Plan | Outcome | Version |
 |---|---|---|---|
-| F1 | [`01-tooling.md`](01-tooling.md) | Vite and Svelte in `ui/`, the four pages built unchanged, pure modules and their tests moved to `ui/src/lib` and Vitest, CI builds and tests the UI, the API serves `ui/dist` | none |
-| F2 | [`02-components.md`](02-components.md) | The chart and table components, the themes, the Playwright harness; the dashboard rebuilt on them | none |
+| F1 | [`01-tooling.md`](01-tooling.md) | Vite and Svelte in `ui/`, the four pages built unchanged, pure modules and their tests moved to `ui/src/lib` and Vitest, the Playwright harness with a smoke test per page, CI builds and tests the UI, the API serves `ui/dist` | none |
+| F2 | [`02-components.md`](02-components.md) | The chart and table components, the themes; the dashboard rebuilt on them | none |
 | F3 | [`03-synthesizers-effects.md`](03-synthesizers-effects.md) | The Synthesizers and Effects pages (with the estimation view) rebuilt | none |
 | F4 | [`04-explore.md`](04-explore.md) | The Explore page rebuilt: the pivot on Tabulator, its charts, drag and drop, menus, presets and links | none |
 | F5 | [`05-cleanup.md`](05-cleanup.md) | The hand-written chart and table code removed, the docs and the algorithm plan's PR 6 updated | none |

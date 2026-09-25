@@ -43,12 +43,24 @@ ui/
   public/favicon.svg
   src/
     lib/            the pure modules, moved unchanged: api.js and format.js (split from
-                    common.js), chart.js, palette.js, pivot.js, sources.js, synthesis.js,
-                    effects-model.js, estimate-model.js, and all seven *.test.js
+                    common.js, below), chart.js, palette.js, pivot.js, sources.js,
+                    synthesis.js, effects-model.js, estimate-model.js, and their tests
     legacy/         today's page scripts and styles, moved unchanged: app.js, explore.js,
-                    synthesizers.js, effects.js, estimate.js, *.css
+                    synthesizers.js, effects.js, estimate.js, *.css, and dom.js (below)
+  e2e/              the Playwright harness and one smoke spec per page (§5.3)
   dist/             built by `npm run build`; ignored by git
 ```
+
+Where each export of today's `common.js` goes, with its tests:
+
+| Export | Module | Tests |
+|---|---|---|
+| `API`, `api`, `describeDetail` | `lib/api.js` | `describeDetail`'s cases of `common.test.js`, as `api.test.js` |
+| `esc`, `fmt`, `valueFormatter`, `compactFormatter` | `lib/format.js` | the other cases of `common.test.js`, as `format.test.js` |
+| `$` (the one DOM helper) | `legacy/dom.js`, for the legacy pages only | none today; deleted with `legacy/` in F5 |
+
+`common.test.js` is split between the two new files with every assertion kept,
+so the seven test files of today become eight.
 
 ### 1.3 Target (after F2 to F5)
 
@@ -61,7 +73,7 @@ ui/src/
   components/Nav.svelte             F2: the shared navigation, every page's links
   pages/Dashboard.svelte ...        F2 the dashboard; F3 Synthesizers and Effects; F4 Explore
   theme.css                         F2 (§4)
-ui/e2e/                             F2: the Playwright harness; one spec per page as it is rebuilt
+ui/e2e/                             the behaviour specs of §5.3, one per page as it is rebuilt
 ```
 
 F5 deletes `legacy/` (empty by then), `lib/chart.js` and `lib/chart.test.js`.
@@ -121,12 +133,15 @@ One Svelte component per kind of chart; each owns one Chart.js instance,
 updates it when its props change, and destroys it when it leaves the page.
 
 ```svelte
-<LineChart     {series} {labels} {yLabel} {format} {summary} {band}? />  <!-- lines; gaps at null; optional filled band -->
-<BarChart      {series} {labels} {format} {summary} {stacked}? {horizontal}? />
-<IntervalChart {rows} {format} {summary} {reference}? />         <!-- point + interval per row; optional reference line -->
-<StripChart    {groups} {format} {summary} />                    <!-- jittered points per group, with the group mean -->
-<HeatGrid      {cells} {columns} {rows} {format} {summary} />    <!-- a value per cell on the sequential ramp -->
+<LineChart     {series} {labels} {yLabel} {format} {summary} {band} />     <!-- lines; gaps at null; filled band -->
+<BarChart      {series} {labels} {format} {summary} {stacked} {horizontal} />
+<IntervalChart {rows} {format} {summary} {reference} />                   <!-- point + interval per row; reference line -->
+<StripChart    {groups} {format} {summary} />                             <!-- jittered points per group, with its mean -->
+<HeatGrid      {cells} {columns} {rows} {format} {summary} />             <!-- a value per cell on the sequential ramp -->
 ```
+
+Optional props, which may be left out: `band` (no band), `stacked` and
+`horizontal` (`false`), `reference` (no line). Every other prop is required.
 
 The props, in JSDoc types (`number | null` is a missing value: a gap in a
 line, no bar, an empty cell; never a zero):
@@ -141,9 +156,11 @@ line, no bar, an empty cell; never a zero):
 // IntervalChart: one row per line, top to bottom in the given order; a null
 // low or high draws the point with no interval; group picks the colour by name.
 // reference: number | null, a vertical line (0 for effects).
-/** @typedef {{name: string, values: number[], mean?: number}} StripGroup */
+/** @typedef {{name: string, values: number[], mean: number}} StripGroup */
 // StripChart: one row of points per group; jitter is seeded by the group's
-// name, so a redraw does not move points; mean defaults to the values' mean.
+// name, so a redraw does not move points. mean is required and is drawn as
+// given: on the Effects page it is the effect the API sends (`effect`); the
+// chart never computes a mean itself (AGENTS.md rule 7).
 /** @typedef {{row: string, column: string, value: number|null}} HeatCell */
 // HeatGrid: columns: string[] and rows: string[] give the order; a cell
 // missing from cells, or with value null, is drawn empty.
@@ -161,8 +178,11 @@ null and interval cases included.
   intervals).
 - **`summary`** is required on every chart: a sentence rendered for screen
   readers (`aria-label` on the canvas, `role="img"`). A chart without one is a
-  `svelte-check` error (the prop has no default). Every chart is followed by the page's table view of
-  the same numbers; no number is shown only in a chart.
+  `svelte-check` error (the prop has no default). Every chart is followed by
+  a table view of the same numbers (a `DataTable`, folded under a "Show as
+  table" disclosure where the page has none today); no number is shown only
+  in a chart. The PR that rebuilds a page adds the views its charts lack: F2
+  the dashboard's ABC bars, SKU demand, policy comparison and shelf heatmap.
 - Tooltips, legends and hover use Chart.js's own, styled by the theme (§4).
   Keyboard access to data points comes from the table view.
 
@@ -184,9 +204,15 @@ subtotal groups, a 1,000-row budget, heat shading).
 ### 3.2 Target (after F2 and F4): `ui/src/components/tables/`
 
 ```svelte
-<DataTable {fields} {rows} {format}? {sort}? {download}? {height}? />
-<PivotTable {result} {view} {heat}? on:sort on:toggle />
+<DataTable  {fields} {rows} {format} {sort} {download} {height} />
+<PivotTable {result} {view} {heat} {collapsed} onsort={…} ontoggle={…} />
 ```
+
+Optional: `format`, `sort` (the initial sort), `download` (`false`), `height`
+(the rows' natural height) and `heat` (`false`). `collapsed` is the page's set
+of collapsed group keys; `onsort` and `ontoggle` are callback props (Svelte 5
+has no `on:` events on components) through which the page updates `view.sort`
+and `collapsed`.
 
 - **`DataTable`** wraps one Tabulator instance and takes the API's own table
   shape: `fields` is `[{name, label, kind, unit?, aggregate?}]` (the API's
@@ -208,10 +234,18 @@ subtotal groups, a 1,000-row budget, heat shading).
   `DataTable` writes through `tableCsv`; `PivotTable` through `pivot.toCsv`,
   which keeps its pivot-specific layout and now imports `csvCell`. Both are
   tested with the formula-injection cases of today's `pivot.test.js`.
-- **`PivotTable`** renders the result of `lib/pivot.js` `pivot()`, unchanged:
-  column groups become Tabulator column groups; the row-label columns are
-  frozen; subtotal groups are Tabulator row groups, collapsible; the totals
-  row is a bottom calculation row; heat shading uses the theme's ramp.
+- **`PivotTable`** renders the result of `lib/pivot.js` `pivot()`, unchanged,
+  and computes no number: every cell, subtotal and total shown is one
+  `pivot()` returned. Column groups become Tabulator column groups; the
+  row-label columns are frozen. Subtotal rows are `result.rows` entries like
+  any other, nested under their group with Tabulator's data tree, so a group
+  collapses and its row still shows `pivot()`'s subtotal; Tabulator's row
+  grouping and its group calculations are not used. The totals row is a
+  bottom calculation row whose calculator returns `result.totals` as they
+  are (a mean, a median or a share cannot be recomputed from the rows shown,
+  and the subtotal rows would be counted twice). Heat shading uses the
+  theme's ramp. A component test checks that the totals row equals
+  `result.totals` for a mean and a share.
   Tabulator's virtual rendering draws only the visible rows, so the row
   budget and its "Show all" button go; the 400-column cut stays, as a limit
   of what a person can read.
@@ -242,7 +276,8 @@ subtotal groups, a 1,000-row budget, heat shading).
 ### 5.1 Pure modules (F1)
 
 `ui/src/lib/*.test.js`, run by Vitest. All seven of today's `ui/*.test.js`
-files move, `chart.test.js` included, with their assertions unchanged; only
+files move, `chart.test.js` included, with their assertions unchanged
+(`common.test.js` split into `api.test.js` and `format.test.js`, §1.2); only
 the imports change (`node:test` to `vitest`, `node:assert` stays).
 `chart.test.js` is deleted in F5 together with `chart.js`. `csv.test.js` is
 new in F2 (§3.2).
@@ -254,10 +289,13 @@ the right numbers, a chart receives the datasets its props describe (the
 Chart.js instance is inspected, not the canvas pixels), a link's view restores
 the component's state.
 
-### 5.3 Pages (F2 to F4)
+### 5.3 Pages (F1 to F4)
 
 `ui/e2e/*.spec.js`, Playwright in Chromium, against the built UI served by the
-API on the default world:
+API on the default world. F1 adds the harness, the `npm run e2e` script, the CI
+step and a smoke spec per page (the first point below, and the same API calls
+as `main` for the page's first load); F2 to F4 add the other points for the
+page each rebuilds:
 
 - each page loads with no console error and no failed request;
 - its main action works (dashboard: choose a SKU; Explore: build a pivot from
