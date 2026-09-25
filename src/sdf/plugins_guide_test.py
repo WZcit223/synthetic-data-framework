@@ -34,11 +34,13 @@ def example(tag: str) -> type:
 
 def test_the_guide_declares_its_examples_under_their_own_names():
     synth, dataset, estimator = example("synthesizer"), example("dataset"), example("estimator")
+    forecaster = example("forecaster")
     blocks = re.findall(r"```toml\n(.*?)```", GUIDE.read_text(encoding="utf-8"), re.S)
     toml = tomllib.loads(blocks[0])["project"]["entry-points"]
     assert toml["sdf.synthesizers"] == {synth.info.name: "my_plugins.series:MovingAverageSeries"}
     assert toml["sdf.datasets"] == {dataset.info.name: "my_plugins.tables:StockByZone"}
     assert toml["sdf.estimators"] == {estimator.info.name: "my_plugins.causal:MedianDifference"}
+    assert toml["sdf.forecasters"] == {forecaster.info.name: "my_plugins.forecast:WeekdayMean"}
 
 
 def test_the_synthesizer_example_mounts_publishes_its_parameters_and_runs():
@@ -84,18 +86,40 @@ def test_the_estimator_example_mounts_and_scores_against_the_truth():
     assert again[1:4] == median[1:4]  # seeded: the same interval every time
 
 
+def test_the_forecaster_example_mounts_and_beats_seasonal_naive_on_the_benchmark():
+    from .analytics.forecasters import TRUE_DISTRIBUTION, backtest, default_forecasters
+    from .simulation.benchmark import DemandBenchmark
+
+    forecasters = default_forecasters()
+    forecasters.register(example("forecaster"))
+    assert forecasters.params("weekday-mean") == (Param("weeks", "int", 4, min=1, max=52),)
+    draw = DemandBenchmark().draw()
+    result = backtest(["weekday-mean", "seasonal-naive"], draw.table, truth=draw.truth, registry=forecasters)
+    mine, snaive, truth = result.scores.rows
+    assert mine[0] == "weekday-mean" and mine[12] is None and mine[2] < 1  # beats seasonal naive
+    assert mine[11] == "the same weekday over the last 4 weeks"
+    assert truth[0] == TRUE_DISTRIBUTION and truth[5] < mine[5]  # nothing beats the exact distribution's pinball
+    with pytest.raises(ValueError, match="weeks must be from 1 to 52"):
+        forecasters.create("weekday-mean", weeks=0)
+
+
 def test_the_examples_are_served_by_the_api():
     pytest.importorskip("fastapi")
     from fastapi.testclient import TestClient
 
     from .analytics.causal import default_estimators
+    from .analytics.forecasters import default_forecasters
     from .api.app import create_app
 
     synthesizers, datasets, estimators = default_registry(), default_datasets(), default_estimators()
+    forecasters = default_forecasters()
+    forecasters.register(example("forecaster"))
     synthesizers.register(example("synthesizer"))
     datasets.register(example("dataset"))
     estimators.register(example("estimator"))
-    client = TestClient(create_app(synthesizers=synthesizers, datasets=datasets, estimators=estimators))
+    client = TestClient(
+        create_app(synthesizers=synthesizers, datasets=datasets, estimators=estimators, forecasters=forecasters)
+    )
     listed = {s["name"]: s for s in client.get("/api/v1/synthesizers").json()["synthesizers"]}
     assert [p["name"] for p in listed["moving-average"]["params"]] == ["seed", "window"]
     res = client.post(
@@ -106,3 +130,8 @@ def test_the_examples_are_served_by_the_api():
     assert "median-difference" in [e["name"] for e in client.get("/api/v1/estimators").json()["estimators"]]
     res = client.post("/api/v1/causal/estimates", json={"estimators": ["median-difference"], "benchmark": {}})
     assert res.status_code == 200 and res.json()["rows"][0][1] is not None
+    assert "weekday-mean" in [f["name"] for f in client.get("/api/v1/forecasters").json()["forecasters"]]
+    res = client.post(
+        "/api/v1/forecasts/backtest", json={"forecasters": ["weekday-mean"], "source": {"benchmark": {"n_skus": 20}}}
+    )
+    assert res.status_code == 200 and res.json()["scores"]["rows"][0][1] is not None

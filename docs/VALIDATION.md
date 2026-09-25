@@ -413,6 +413,62 @@ clone-risk 9.5% ("review"). The metric discriminates and gates shareability.
 `synthesis/scenarios.py`): each scenario's safety stock versus baseline is in the
 scenario table under [Reproducible numbers](#reproducible-numbers) — quantified what-if.
 
+## Algorithm phase 1 — per-SKU probabilistic backtest (checklist C1)
+
+The backtest above scores one-step forecasts of the world's **total** demand.
+Replenishment decides per SKU and needs an interval, so the forecasters of
+`sdf.analytics.forecasters` forecast **every SKU** over **14 days ahead** with
+quantiles, from **4 rolling origins** 7 days apart, and each sees only the days
+before its origin. Scores are over every SKU, origin and day ahead:
+
+- **WAPE** Σ|actual − mean| / Σactual; **vs snaive** the WAPE divided by
+  seasonal naive's on the same points (below 1 beats it); **bias**
+  Σ(mean − actual) / Σactual;
+- **pinball** the quantile loss averaged over the 10 %, 50 % and 90 % levels;
+- **cover** the share of outcomes inside the 10 % to 90 % interval, with the
+  bounds excluded (open) and included (closed). Demand comes in whole units, so
+  an outcome often sits on a bound: a calibrated forecaster has 80 % between
+  the two numbers.
+
+The contract is [`refactor/algorithms/interfaces.md`](refactor/algorithms/interfaces.md) §2.
+
+**Default world** (`uv run sdf forecast`):
+
+| forecaster | WAPE | vs snaive | bias | pinball | cover (open) | cover (closed) | width |
+|---|---|---|---|---|---|---|---|
+| mean | 65.9 % | 0.814 | -3.7 % | 0.702 | 38.4 % | 72.7 % | 6.34 |
+| naive | 87.8 % | 1.083 | 6.7 % | 0.969 | 34.4 % | 78.0 % | 7.41 |
+| moving-average | 68.9 % | 0.851 | -4.7 % | 0.753 | 37.7 % | 77.0 % | 6.47 |
+| seasonal-naive | 81.0 % | 1.000 | -4.7 % | 0.903 | 34.2 % | 79.7 % | 6.97 |
+| seasonal-linear | 70.5 % | 0.870 | 4.9 % | 0.776 | 33.7 % | 66.9 % | 5.51 |
+
+**Demand benchmark** (`uv run sdf forecast --benchmark`): 200 SKUs × 365 days
+from a declared process (weekday profile, trend, unannounced promotions,
+intermittent SKUs, negative binomial noise), so the exact distribution is
+known and scored as `true-distribution`:
+
+| forecaster | WAPE | vs snaive | bias | pinball | cover (open) | cover (closed) | width |
+|---|---|---|---|---|---|---|---|
+| mean | 87.0 % | 0.800 | -4.1 % | 0.937 | 47.6 % | 74.6 % | 8.50 |
+| naive | 112.8 % | 1.037 | 3.7 % | 1.346 | 41.1 % | 78.7 % | 9.34 |
+| moving-average | 90.1 % | 0.828 | -1.1 % | 1.030 | 46.7 % | 76.8 % | 8.56 |
+| seasonal-naive | 108.8 % | 1.000 | -1.1 % | 1.306 | 41.6 % | 79.7 % | 9.01 |
+| seasonal-linear | 86.5 % | 0.795 | -2.6 % | 0.953 | 47.3 % | 75.5 % | 8.20 |
+| true-distribution | 85.6 % | 0.787 | -2.3 % | **0.898** | 45.5 % | 90.1 % | 8.71 |
+
+What the numbers say:
+
+- On the benchmark, most of the error is noise no forecaster removes: the
+  exact distribution's own WAPE is 85.6 %. The best built-in, seasonal-linear,
+  comes within one point of it on WAPE (86.5 %), but not on the pinball loss
+  (0.953 against 0.898), because its interval is too narrow.
+- The built-ins' intervals come from their errors over the last 56 days, and
+  cover less than they should: 67 % to 80 % with the bounds included, where the
+  exact distribution's covers 90 %. A calibrated forecaster must close that gap;
+  the gradient-boosted forecaster of the next step is scored on it.
+- Seasonal naive is the weakest reference on noisy daily demand: one past day
+  per forecast is a poor estimate of the mean.
+
 ## What this establishes
 - The **same** Application-Layer code runs on real data via the adapter — the
   Foundation-Layer "sources are interchangeable" claim is now demonstrated, not

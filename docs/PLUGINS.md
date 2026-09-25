@@ -1,6 +1,6 @@
-# Plug-ins: your own synthesizer, dataset or estimator
+# Plug-ins: your own synthesizer, dataset, estimator or forecaster
 
-The framework has three plug-in points. All three are found through Python entry
+The framework has four plug-in points. All four are found through Python entry
 points, so a plug-in is an ordinary installed package; nothing in this
 repository changes when you add one.
 
@@ -9,13 +9,16 @@ repository changes when you add one.
 | A **synthesizer** (an algorithm that generates a series, a table or a whole warehouse world) | `sdf.synthesizers` | `GET /api/v1/synthesizers`, the Synthesizers page, `sdf synth` / `sdf privacy` / `sdf tstr --synthesizer NAME`, and the dashboard's Generator choice for a warehouse generator |
 | A **dataset provider** (a table computed from the current world, for the Explore page) | `sdf.datasets` | `GET /api/v1/datasets`, the Explore page's source list |
 | An **estimator** (a method that estimates an average treatment effect from observed rows) | `sdf.estimators` | `GET /api/v1/estimators`, the Effects page's "Estimate from data" view, `sdf estimate --estimator NAME` |
+| A **forecaster** (a method that forecasts every SKU's daily demand, with quantiles) | `sdf.forecasters` | `GET /api/v1/forecasters`, `POST /api/v1/forecasts/backtest`, `sdf forecast -f NAME` |
 
 The built-ins are declared the same way, in this repository's `pyproject.toml`.
 The contracts behind this guide are in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §2
 (synthesizers), [`refactor/explore/interfaces.md`](refactor/explore/interfaces.md)
 §1 and §4 (datasets, parameters, runs) and
-[`refactor/causal/interfaces.md`](refactor/causal/interfaces.md) §3 (estimators).
+[`refactor/causal/interfaces.md`](refactor/causal/interfaces.md) §3 (estimators) and
+[`refactor/algorithms/interfaces.md`](refactor/algorithms/interfaces.md) §1 to §3
+(forecasters, the backtest and the demand benchmark).
 
 ## A synthesizer
 
@@ -270,6 +273,100 @@ scores = score(draw.table, draw.question, estimators,
                names=["median-difference", "regression-adjustment"], true_effect=draw.true_effect)
 ```
 
+## A forecaster
+
+A forecaster forecasts every SKU's daily demand for the next days, with a mean
+and quantiles. It is a class with an `info` class attribute and two methods:
+
+- `info = ForecasterInfo(name, description, requires=(), global_model=False)`.
+  Set `global_model=True` for one model over all SKUs.
+- `fit(history)` learns from a `DemandTable` (`days`, and `series`: one daily
+  series per SKU) and returns `self`.
+- `forecast(history, *, horizon, quantiles)` returns a
+  `Forecast(forecaster, origin, sku_ids, mean, quantiles, method="")`:
+  - `forecaster` is `self.info.name`, `origin` the day after the history's
+    last day, and `sku_ids` the history's SKUs in its order;
+  - `mean` and each `quantiles[level]` are arrays of SKUs × horizon, for the
+    levels asked for;
+  - use only the history you are given: the backtest cuts it at each origin.
+
+Parameters are constructor keywords, published and checked like a
+synthesizer's (`int`, `float`, `str` or `bool`, bounded by `param_bounds`).
+
+The registry checks every forecast before it is scored: a wrong shape, other
+SKUs, a missing level, a non-finite value or another name is refused, and that
+forecaster becomes an error row while the others still run. Negative values are
+set to 0, and quantiles that cross are sorted; both are counted in the row's
+`method`, never silent.
+
+This example forecasts each day as the mean of the same weekday over the last
+few weeks, and takes the quantiles from those same days. The test suite runs it
+as written:
+
+```python
+# plugins-example: forecaster
+from datetime import timedelta
+from typing import ClassVar
+
+import numpy as np
+
+from sdf.analytics.forecasters import Forecast, ForecasterInfo
+
+
+class WeekdayMean:
+    """Each day: the mean of the same weekday over the last `weeks` weeks; those days' spread gives the quantiles."""
+
+    info: ClassVar[ForecasterInfo] = ForecasterInfo(
+        "weekday-mean", "Mean of the same weekday over the last weeks, with its quantiles"
+    )
+    param_bounds: ClassVar[dict] = {"weeks": (1, 52)}
+
+    def __init__(self, weeks: int = 4):
+        self.weeks = weeks
+
+    def fit(self, history):
+        return self  # nothing to learn beyond the history each forecast gets
+
+    def forecast(self, history, *, horizon, quantiles) -> Forecast:
+        y = np.array([history.series[s] for s in history.series], dtype=float)
+        n = y.shape[1]
+        mean = np.zeros((len(y), horizon))
+        qs = {q: np.zeros((len(y), horizon)) for q in quantiles}
+        for k in range(horizon):
+            same = np.arange(n + k - 7 * (k // 7 + 1), -1, -7)[: self.weeks]  # the same weekday, before the origin
+            days = y[:, same] if len(same) else y[:, -1:]
+            mean[:, k] = days.mean(axis=1)
+            for q, value in zip(quantiles, np.quantile(days, quantiles, axis=1)):
+                qs[q][:, k] = value
+        origin = history.days[-1] + timedelta(days=1)
+        method = f"the same weekday over the last {self.weeks} weeks"
+        return Forecast(self.info.name, origin, tuple(history.series), mean, qs, method)
+```
+
+**Keep it fast.** A backtest runs its forecasters one after another, each from
+every origin, within 30 s, and the budget is checked between origins. Aim for
+about a second per origin on the published SKU limit
+(`GET /api/v1/forecasters` → `limits.max_skus`); `sdf forecast` prints each
+forecaster's run time.
+
+**Score it** on the demand benchmark, whose true distribution is known, next to
+the built-ins:
+
+```python
+from sdf.analytics.forecasters import backtest, default_forecasters
+from sdf.simulation.benchmark import DemandBenchmark
+
+forecasters = default_forecasters()
+forecasters.register(WeekdayMean)
+draw = DemandBenchmark().draw()
+result = backtest(["weekday-mean", "seasonal-naive"], draw.table, truth=draw.truth, registry=forecasters)
+```
+
+`result.scores` has a row per forecaster and a `true-distribution` row: the
+exact distribution the benchmark drew from, whose pinball loss no forecaster
+beats on average. A `relative_wape` below 1 means your forecaster beats
+seasonal naive on the same points.
+
 ## Declaring and installing a plug-in
 
 Put the class in a package and declare it in that package's `pyproject.toml`.
@@ -284,6 +381,9 @@ stock-by-zone = "my_plugins.tables:StockByZone"
 
 [project.entry-points."sdf.estimators"]
 median-difference = "my_plugins.causal:MedianDifference"
+
+[project.entry-points."sdf.forecasters"]
+weekday-mean = "my_plugins.forecast:WeekdayMean"
 ```
 
 Then add the package to the environment that runs the API or the CLI, for
@@ -295,6 +395,7 @@ For a quick experiment without packaging, register the class at runtime:
 
 ```python
 from sdf.analytics.causal import default_estimators
+from sdf.analytics.forecasters import default_forecasters
 from sdf.api.app import create_app
 from sdf.application.datasets import default_datasets
 from sdf.synthesis.registry import default_registry
@@ -305,7 +406,10 @@ datasets = default_datasets()
 datasets.register(StockByZone)
 estimators = default_estimators()
 estimators.register(MedianDifference)
-app = create_app(synthesizers=synthesizers, datasets=datasets, estimators=estimators)   # serve it with uvicorn
+forecasters = default_forecasters()
+forecasters.register(WeekdayMean)
+app = create_app(synthesizers=synthesizers, datasets=datasets, estimators=estimators,
+                 forecasters=forecasters)   # serve it with uvicorn
 ```
 
 ## When a plug-in does not load
@@ -313,10 +417,10 @@ app = create_app(synthesizers=synthesizers, datasets=datasets, estimators=estima
 A broken plug-in installed through an entry point never breaks the registry,
 the catalogue or the API. It is left out and listed with the reason:
 
-- `default_registry().unavailable()`, `default_datasets().unavailable()` and
-  `default_estimators().unavailable()`;
-- `"unavailable"` in `GET /api/v1/synthesizers`, `GET /api/v1/datasets` and
-  `GET /api/v1/estimators`;
+- `default_registry().unavailable()`, `default_datasets().unavailable()`,
+  `default_estimators().unavailable()` and `default_forecasters().unavailable()`;
+- `"unavailable"` in `GET /api/v1/synthesizers`, `GET /api/v1/datasets`,
+  `GET /api/v1/estimators` and `GET /api/v1/forecasters`;
 - the Synthesizers page and the Effects page's estimation form, under
   **Unavailable**. The built-in `dowhy-backdoor` and `econml-dml` are listed
   there ("needs dowhy", "needs econml") until the `causal` extra is installed.
@@ -328,7 +432,8 @@ The usual reasons:
 - the name is already taken, for example by a built-in (the reason names the
   holder: "name already provided by a builtin dataset (…)");
 - a constructor argument has no default;
-- `rows` does not take the world, or an estimator has no `estimate` method;
+- `rows` does not take the world, an estimator has no `estimate` method, or a
+  forecaster has no `fit` or `forecast` method;
 - the parameter bounds are malformed, or a default breaks its own bounds.
 
 A class registered at runtime with `register()` is checked the same way, but
@@ -348,6 +453,11 @@ quick experiment fails where it is set up.
   (installed plug-ins), or `POST /api/v1/causal/estimates` with
   `{"estimators": ["median-difference"], "benchmark": {"confounding": 1.0}}`, or tick it in
   the Effects page's "Estimate from data" view; each shows its score against the true effect.
+- **Forecaster:** `uv run sdf forecast --benchmark -f weekday-mean -f seasonal-naive`
+  (installed plug-ins; `--param weekday-mean.weeks=8` sets a parameter), or
+  `POST /api/v1/forecasts/backtest` with
+  `{"forecasters": ["weekday-mean"], "source": {"benchmark": {}}}`; both show its
+  scores next to the true distribution's.
 - **In Python:**
 
   ```python

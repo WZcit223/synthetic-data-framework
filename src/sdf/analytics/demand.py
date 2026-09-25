@@ -78,6 +78,30 @@ class DemandTable:
         series = {sku: tuple(float(by_day.get(d, 0.0)) for d in days) for sku, by_day in by_sku_day.items()}
         return cls(days=days, series=series)
 
+    def until(self, day: date) -> "DemandTable":
+        """The days before ``day``, same SKUs: the history a forecaster may see at that origin."""
+        keep = sum(1 for d in self.days if d < day)
+        if keep == 0:
+            raise ValueError(f"no day before {day.isoformat()}; the table starts on {self._first()}")
+        return DemandTable(days=self.days[:keep], series={k: v[:keep] for k, v in self.series.items()})
+
+    def window(self, start: date, days: int) -> "DemandTable":
+        """``days`` days from ``start``, same SKUs, for scoring; ``ValueError`` when the table has fewer."""
+        if days < 1:
+            raise ValueError(f"days must be at least 1, got {days}")
+        if start not in self.days:
+            raise ValueError(f"{start.isoformat()} is not a day of the table ({self._first()} to {self._last()})")
+        i = self.days.index(start)
+        if i + days > len(self.days):
+            raise ValueError(f"the table has {len(self.days) - i} days from {start.isoformat()}, not {days}")
+        return DemandTable(days=self.days[i : i + days], series={k: v[i : i + days] for k, v in self.series.items()})
+
+    def _first(self) -> str:
+        return self.days[0].isoformat() if self.days else "nothing (no day)"
+
+    def _last(self) -> str:
+        return self.days[-1].isoformat() if self.days else "nothing"
+
     def total(self) -> tuple[float, ...]:
         """Sum over SKUs per day (the series the forecasters consume)."""
         return tuple(sum(col) for col in zip(*self.series.values())) if self.series else ()

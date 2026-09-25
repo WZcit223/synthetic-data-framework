@@ -146,6 +146,19 @@ the world's SKUs, favouring high demand, so the true effect is exact and each
 estimator can be scored against it. The contract is in
 [`refactor/causal/interfaces.md`](refactor/causal/interfaces.md) §3.
 
+`sdf.analytics.forecasters` forecasts every SKU's daily demand with a mean and
+quantiles. Forecasters are plug-ins in the `sdf.forecasters` group (the
+built-ins `mean`, `naive`, `moving-average`, `seasonal-naive` and
+`seasonal-linear`, whose intervals come from their own recent errors), and the
+registry checks every forecast before it is scored. `backtest` runs several
+from the same rolling origins, each seeing only the days before its origin, and
+scores them per SKU and per day ahead against seasonal naive. The demand
+benchmark (`DemandBenchmark` in `sdf.simulation.benchmark`) draws demand from a
+declared process, so its `TrueDemand` gives the exact distribution to score
+against. Constructor parameters of every plug-in kind are read by one function,
+`sdf.foundation.params.constructor_params`. The contract is in
+[`refactor/algorithms/interfaces.md`](refactor/algorithms/interfaces.md) §1 to §3.
+
 Its size is bounded twice:
 - a work budget, fixed before any world is generated;
 - a cooperative 30 s deadline, checked before every generation and
@@ -165,7 +178,10 @@ generator, with the held world as replicate 0. With `check_only`, it answers
 the work budget without generating anything. `GET /api/v1/estimators` lists
 the estimators, the request limits and the benchmark's parameters, and
 `POST /api/v1/causal/estimates` scores estimators on the benchmark or on a
-catalogue dataset over the current world.
+catalogue dataset over the current world. `GET /api/v1/forecasters` lists the
+forecasters with their parameters, the limits and the demand benchmark's
+parameters, and `POST /api/v1/forecasts/backtest` backtests forecasters on the
+current world's demand or on the benchmark.
 
 **Tables.** Data leaves the backend as tables: typed fields
 (`sdf.foundation.tables.Field`: a dimension to group by, a time as an ISO date,

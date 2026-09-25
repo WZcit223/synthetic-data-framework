@@ -1,6 +1,29 @@
 # PR 1 — Forecaster plug-ins, a probabilistic backtest and a demand benchmark
 
-> Status: planned.
+> Status: implemented (algorithm phase PR 1).
+>
+> Measured (horizon 14, 4 origins 7 days apart, 80 % interval):
+> - Demand benchmark (seed 7, 200 SKUs × 365 days): the exact distribution's
+>   WAPE is 85.6 % and its pinball loss 0.898; the best built-in,
+>   `seasonal-linear`, has 86.5 % and 0.953, and seasonal naive 108.8 % and
+>   1.306. The exact distribution's 80 % interval covers 45.5 % of outcomes
+>   with the bounds excluded and 90.1 % with them included, so the nominal 80 %
+>   lies between the two, as the contract predicts (§2.3).
+> - Default world: `mean` has WAPE 65.9 % (0.814 of seasonal naive's 81.0 %).
+> - The built-ins' intervals are too narrow: 67 % to 80 % covered with the
+>   bounds included, against the exact distribution's 90 %.
+> - Timing: the five built-ins with the `true-distribution` row take 2.1 s at
+>   400 SKUs × 730 days and 9.6 s at the largest request (horizon 56, 12
+>   origins).
+>
+> Beyond the plan: `Param` and the constructor-parameter reader moved down to
+> `sdf.foundation.params` (analytics may not import synthesis; the old names
+> stay importable); the built-ins compute their intervals at forecast time from
+> the history given, for all SKUs at once; `Forecast` carries a `method`;
+> `TrueDemand` has `cdf` and `DemandDraw.observed()` gives the draw as a table;
+> `GET /forecasters` also publishes `min_history` in its limits; the backtest
+> response also has `origins`, `source`, `world`, `skus` and
+> `elapsed_ms`; `sdf forecast` takes `--param FORECASTER.NAME=VALUE`.
 
 Contract: [`interfaces.md`](interfaces.md) §1, §2, §3 and §10.
 

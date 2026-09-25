@@ -7,7 +7,7 @@ module-name = "sdf"
 
 [project]
 name = "synthetic-data-framework"
-version = "1.8.0"
+version = "1.9.0"
 description = "Three-layer industrial-AI framework with synthetic-data-driven AI warehouse demo"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
@@ -48,6 +48,14 @@ inventory = "sdf.application.datasets:InventoryDataset"
 order-lines = "sdf.application.datasets:OrderLinesDataset"
 replenishment-plan = "sdf.application.datasets:ReplenishmentPlanDataset"
 skus = "sdf.application.datasets:SkuDataset"
+
+# Demand forecasters (docs/refactor/algorithms/interfaces.md §1).
+[project.entry-points."sdf.forecasters"]
+mean = "sdf.analytics.forecasters.builtin:MeanForecaster"
+moving-average = "sdf.analytics.forecasters.builtin:MovingAverage"
+naive = "sdf.analytics.forecasters.builtin:NaiveForecaster"
+seasonal-linear = "sdf.analytics.forecasters.builtin:SeasonalLinear"
+seasonal-naive = "sdf.analytics.forecasters.builtin:SeasonalNaive"
 
 # Causal effect estimators (docs/refactor/causal/interfaces.md §3). The PyWhy two need the causal extra.
 [project.entry-points."sdf.estimators"]

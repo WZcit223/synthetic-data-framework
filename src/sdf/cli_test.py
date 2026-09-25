@@ -27,6 +27,7 @@ COMMANDS = [
     "scenarios",
     "effects",
     "estimate",
+    "forecast",
     "privacy",
     "validate",
     "hooks",
@@ -285,4 +286,32 @@ def test_estimate_drops_covariates_and_refuses_what_it_cannot_run():
         (["--confounding", "4"], "confounding must be from 0.0 to 3.0, got 4.0"),
     ):
         refused = run("estimate", *args)
+        assert refused.exit_code != 0 and message in refused.output, refused.output
+
+
+def test_forecast_backtests_the_built_ins_on_the_benchmark_against_its_truth(tmp_path):
+    out = tmp_path / "scores.csv"
+    result = run("forecast", "--benchmark", "--horizon", "7", "--origins", "2", "--csv", str(out))
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert lines[0].startswith("demand benchmark (seed 7): 200 SKUs × 365 days; 2 origins from ")
+    assert lines[1].split()[:3] == ["forecaster", "WAPE", "vs"]
+    names = [line.split()[0] for line in lines[2:8]]
+    assert names == ["mean", "naive", "moving-average", "seasonal-naive", "seasonal-linear", "true-distribution"]
+    assert "no forecaster beats its pinball loss on average" in result.output
+    header = out.read_text(encoding="utf-8").splitlines()[0]
+    assert header.startswith("forecaster,wape,relative_wape,bias,mae,pinball,coverage_open,coverage_closed,nominal")
+
+
+def test_forecast_takes_parameters_and_refuses_what_it_cannot_run():
+    result = run("forecast", "-f", "moving-average", "--param", "moving-average.window=28", "--origins", "2")
+    assert result.exit_code == 0 and result.output.startswith("default world: 200 SKUs × 90 days"), result.output
+    for args, message in (
+        (["-f", "nope"], "unknown forecaster 'nope'"),
+        (["--param", "moving-average.window=0"], "moving-average: window must be from 1 to 365, got 0"),
+        (["--param", "window=3"], "write FORECASTER.NAME=VALUE"),
+        (["--seed", "3"], "--seed draws the benchmark; add --benchmark"),
+        (["--horizon", "60"], "horizon must be a whole number from 1 to 56"),
+    ):
+        refused = run("forecast", *args)
         assert refused.exit_code != 0 and message in refused.output, refused.output

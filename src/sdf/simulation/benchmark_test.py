@@ -1,4 +1,4 @@
-"""The promotion benchmark: its table, the exact truth, the mechanism's edge cases and its bounds."""
+"""The benchmarks: the promotion benchmark (table, exact truth, edge cases, bounds) and the demand benchmark."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import importlib.util
 import math
 import statistics
 from dataclasses import replace
+from datetime import date
 
 import numpy as np
 import pytest
@@ -184,3 +185,79 @@ def test_the_pywhy_estimators_land_near_the_adjusted_built_ins(world):
         assert rows[name][1] is not None, rows[name][11]
         assert abs(rows[name][1] - rows["regression-adjustment"][1]) < 0.25 * draw.true_effect
         assert rows[name][7] == "yes"
+
+
+# -- the demand benchmark ---------------------------------------------------------------------------
+
+
+def test_the_demand_draw_averages_to_the_true_mean():
+    from sdf.simulation.benchmark import DemandBenchmark
+
+    d = DemandBenchmark(n_skus=400, days=365).draw()
+    drawn = np.mean([d.table.series[s] for s in d.table.series])
+    truth = np.mean([d.truth.mean(day) for day in d.table.days])
+    assert abs(drawn / truth - 1) < 0.02
+    assert d.table.days[0] == date(2025, 1, 1) and len(d.table.days) == 365
+    assert list(d.table.series) == list(d.truth.sku_ids) and d.truth.sku_ids[0] == "B-0000"
+
+
+def test_the_exact_quantiles_match_the_simulated_mixture():
+    from sdf.simulation.benchmark import DemandBenchmark
+
+    d = DemandBenchmark(n_skus=12, days=84, intermittent_share=0.5, promo_rate=0.2, promo_uplift=1.0, seed=3).draw()
+    t = d.truth
+    day = d.table.days[10]
+    exact = t.quantiles(day, (0.1, 0.5, 0.9))
+    rng = np.random.default_rng(0)
+    c = t.component[:, 10][:, None]
+    lifted = np.where(rng.random((12, 40_000)) < t.promo_rate, 1 + t.promo_uplift, 1.0)
+    k = t.dispersion
+    sims = rng.negative_binomial(k, k / (k + c * lifted)) * (rng.random((12, 40_000)) >= t.zero[:, None])
+    for lv in (0.1, 0.5, 0.9):
+        simulated = np.quantile(sims, lv, axis=1, method="inverted_cdf")
+        assert np.abs(exact[lv] - simulated).max() <= 1, lv  # counts: at most one unit apart from sampling noise
+    assert np.allclose(t.mean(day), sims.mean(axis=1), rtol=0.05)
+
+
+def test_without_promotions_or_zeros_the_quantiles_are_the_negative_binomial_s():
+    from scipy import stats
+
+    from sdf.simulation.benchmark import DemandBenchmark
+
+    d = DemandBenchmark(n_skus=10, days=84, intermittent_share=0.0, promo_rate=0.0, dispersion=4.0).draw()
+    day = d.table.days[5]
+    c = d.truth.component[:, 5]
+    for lv, got in d.truth.quantiles(day, (0.25, 0.75)).items():
+        assert np.array_equal(got, stats.nbinom.ppf(lv, 4.0, 4.0 / (4.0 + c)))
+    assert np.allclose(d.truth.mean(day), c)
+
+
+def test_the_demand_benchmark_refuses_values_outside_its_bounds():
+    from sdf.simulation.benchmark import DemandBenchmark
+
+    names = [p.name for p in DemandBenchmark.params()]
+    assert names == ["n_skus", "days", "intermittent_share", "promo_rate", "promo_uplift", "dispersion", "seed"]
+    for kwargs, match in (
+        ({"n_skus": 9}, "n_skus must be from 10 to 400"),
+        ({"days": 800}, "days must be from 84 to 730"),
+        ({"promo_rate": 0.5}, "promo_rate must be from 0.0 to 0.2"),
+        ({"seed": -1}, "seed must be from 0 to inf"),
+    ):
+        with pytest.raises(ValueError, match=match):
+            DemandBenchmark(**kwargs)
+    assert DemandBenchmark().draw().table.series == DemandBenchmark(seed=7).draw().table.series
+
+
+def test_the_true_distribution_s_coverages_bracket_the_nominal_level():
+    from sdf.analytics.forecasters import TRUE_DISTRIBUTION, backtest
+    from sdf.simulation.benchmark import DemandBenchmark
+
+    d = DemandBenchmark().draw()
+    result = backtest(["seasonal-naive"], d.table, horizon=14, origins=4, truth=d.truth)
+    row = next(r for r in result.scores.rows if r[0] == TRUE_DISTRIBUTION)
+    cov_open, cov_closed, nominal = row[6], row[7], row[8]
+    assert cov_open <= nominal <= cov_closed
+    snaive = result.scores.rows[0]
+    assert row[5] < snaive[5]  # the exact distribution's pinball loss is below seasonal naive's
+    observed = d.observed()
+    assert len(observed.rows) == 200 * 365 and observed.info.name == "demand-benchmark"

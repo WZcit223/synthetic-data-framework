@@ -14,6 +14,7 @@ import click
 from . import __version__, hooks
 from .analytics.causal import CausalQuestion, default_estimators, score
 from .analytics.forecast import build_series, compare_models, models_for
+from .analytics.forecasters import TRUE_DISTRIBUTION, backtest as forecast_backtest
 from .application.agent import WarehouseAgent
 from .application.economics import financial_impact
 from .application.intelligence import WarehouseIntelligence
@@ -21,7 +22,7 @@ from .application.scenarios import run_scenarios
 from .application.snapshot import render_markdown, replace_doc_block, snapshot
 from .foundation.adapters.retail_csv import load_online_retail_csv
 from .simulation import catalog
-from .simulation.benchmark import PromotionBenchmark
+from .simulation.benchmark import DemandBenchmark, PromotionBenchmark
 from .simulation.effects import EffectStudy
 from .simulation.world import World
 from .synthesis.materialise import build_registry
@@ -360,6 +361,7 @@ def cmd_effects(
 
 
 BUILT_IN_ESTIMATORS = ("difference-in-means", "regression-adjustment", "ipw")
+BUILT_IN_FORECASTERS = ("mean", "naive", "moving-average", "seasonal-naive", "seasonal-linear")
 
 
 def cmd_estimate(
@@ -418,6 +420,88 @@ def cmd_estimate(
             writer.writerows(table.rows)
         print(f"\nwrote {csv_path}")
     return 0
+
+
+def cmd_forecast(
+    forecasters: list[str],
+    *,
+    benchmark: bool = False,
+    seed: int | None = None,
+    horizon: int = 14,
+    origins: int = 4,
+    step: int = 7,
+    params: dict[str, dict[str, object]] | None = None,
+    csv_path: str | None = None,
+) -> int:
+    """Forecasters backtested per SKU on the default world, or on the demand benchmark against its true distribution."""
+    try:
+        if benchmark:
+            draw = DemandBenchmark(seed=seed).draw()
+            history, truth = draw.table, draw.truth
+            where = f"demand benchmark (seed {7 if seed is None else seed})"
+        else:
+            if seed is not None:
+                raise ValueError("--seed draws the benchmark; add --benchmark")
+            history, truth = World.generate(GenerationSpec()).demand(), None
+            where = "default world"
+        result = forecast_backtest(
+            forecasters, history, horizon=horizon, origins=origins, step=step, params=params, truth=truth
+        )
+    except (KeyError, ValueError) as exc:
+        click.echo(f"sdf forecast: {exc.args[0] if isinstance(exc, KeyError) else exc}", err=True)
+        return 1
+    first, last = result.origins[0].isoformat(), result.origins[-1].isoformat()
+    print(
+        f"{where}: {len(history.series)} SKUs × {len(history.days)} days; {origins} origins from {first} to {last},"
+        f" {horizon} days ahead each; 80 % interval (10 % to 90 %)"
+    )
+    rows = result.scores.rows
+    width = max(len("forecaster"), *(len(r[0]) for r in rows))
+    print(
+        f"{'forecaster':<{width}}{'WAPE':>8}{'vs snaive':>11}{'bias':>8}{'pinball':>9}"
+        f"{'cover (open)':>14}{'cover (closed)':>16}{'width':>8}{'seconds':>9}"
+    )
+
+    def pct(v):
+        return "" if v is None else f"{v * 100:.1f} %"
+
+    for r in rows:
+        if r[12] is not None:
+            print(f"{r[0]:<{width}}   error: {r[12]}")
+            continue
+        seconds = "" if r[10] is None else f"{r[10]:.2f}"
+        ratio = "" if r[2] is None else f"{r[2]:.3f}"
+        print(
+            f"{r[0]:<{width}}{pct(r[1]):>8}{ratio:>11}{pct(r[3]):>8}{r[5]:>9.3f}"
+            f"{pct(r[6]):>14}{pct(r[7]):>16}{r[9]:>8.2f}{seconds:>9}"
+        )
+    if truth is not None:
+        print(
+            f"\n{TRUE_DISTRIBUTION}: the exact distribution the benchmark drew from; no forecaster beats its pinball loss on average"
+        )
+    if csv_path:
+        with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh)
+            writer.writerow([f.name for f in result.scores.info.fields])
+            writer.writerows(rows)
+        print(f"\nwrote {csv_path}")
+    return 0
+
+
+def _forecaster_params(pairs: tuple[str, ...]) -> dict[str, dict[str, object]]:
+    """``FORECASTER.NAME=VALUE`` pairs, as ``--param`` takes them; values read as JSON (numbers, true, null)."""
+    out: dict[str, dict[str, object]] = {}
+    for pair in pairs:
+        key, sep, raw = pair.partition("=")
+        name, dot, param = key.partition(".")
+        if not sep or not dot or not name or not param:
+            raise click.BadParameter(f"{pair!r}: write FORECASTER.NAME=VALUE, e.g. moving-average.window=28")
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError:
+            value = raw
+        out.setdefault(name, {})[param] = value
+    return out
 
 
 def _grouped(rows: list[tuple]) -> list[tuple[tuple[str, str], list[tuple]]]:
@@ -687,6 +771,58 @@ def estimate(
         seed=seed,
         drop=list(drop),
         confidence=confidence,
+        csv_path=csv_path,
+    )
+    if code:
+        raise click.exceptions.Exit(code)
+
+
+@main.command()
+@click.option(
+    "-f",
+    "--forecaster",
+    "forecasters",
+    multiple=True,
+    default=BUILT_IN_FORECASTERS,
+    show_default=True,
+    help="A forecaster to backtest (repeatable); see GET /api/v1/forecasters for what is mounted.",
+)
+@click.option("--benchmark", is_flag=True, help="Backtest on the demand benchmark, with its true distribution.")
+@click.option("--seed", default=None, type=int, help="The benchmark draw's seed (default 7); needs --benchmark.")
+@click.option("--horizon", default=14, show_default=True, type=int, help="Days forecast from each origin, 1 to 56.")
+@click.option("--origins", default=4, show_default=True, type=int, help="Rolling origins, 1 to 12.")
+@click.option("--step", default=7, show_default=True, type=int, help="Days between origins.")
+@click.option(
+    "--param",
+    "params",
+    multiple=True,
+    help="A forecaster parameter as FORECASTER.NAME=VALUE (repeatable), e.g. moving-average.window=28.",
+)
+@click.option(
+    "--csv",
+    "csv_path",
+    type=click.Path(dir_okay=False, writable=True),
+    help="Also write the scores table to this CSV file.",
+)
+def forecast(
+    forecasters: tuple[str, ...],
+    benchmark: bool,
+    seed: int | None,
+    horizon: int,
+    origins: int,
+    step: int,
+    params: tuple[str, ...],
+    csv_path: str | None,
+) -> None:
+    """Forecasters backtested per SKU with intervals, against seasonal naive and, on the benchmark, the truth."""
+    code = cmd_forecast(
+        list(forecasters),
+        benchmark=benchmark,
+        seed=seed,
+        horizon=horizon,
+        origins=origins,
+        step=step,
+        params=_forecaster_params(params),
         csv_path=csv_path,
     )
     if code:

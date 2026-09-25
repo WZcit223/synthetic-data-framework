@@ -28,6 +28,7 @@ uv run sdf backtest                  # real-data forecast backtest
 uv run sdf agent "reorder & impact?" # tool-using agent + audit trace
 uv run sdf effects --intervention promo_spike   # an action's effect, with its interval
 uv run sdf estimate --confounding 1   # causal estimators scored against a known effect
+uv run sdf forecast --benchmark      # per-SKU forecasts with intervals, against the true distribution
 ```
 
 The full command list is in [`docs/ONBOARDING.md`](docs/ONBOARDING.md).
@@ -76,6 +77,14 @@ set to edit (drop `log_demand` and `abc_class` and the naive bias returns), and 
 sweep of the bias as confounding grows. An estimator is a plug-in like a
 synthesizer; [`docs/PLUGINS.md`](docs/PLUGINS.md) shows how to write, mount and
 score one.
+
+Forecasters are plug-ins too (`GET /api/v1/forecasters`,
+`POST /api/v1/forecasts/backtest`, `sdf forecast`). Each forecasts every SKU's
+next days with a mean and quantiles, and one backtest scores them all from the
+same rolling origins: WAPE, bias, pinball loss, both interval coverages and
+the ratio to seasonal naive. On the demand benchmark, whose process is
+declared, a `true-distribution` row gives the same scores for the exact
+distribution the data came from.
 Writing your own synthesizer or dataset is described in
 [`docs/PLUGINS.md`](docs/PLUGINS.md).
 

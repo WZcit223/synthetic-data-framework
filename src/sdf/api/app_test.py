@@ -1215,3 +1215,103 @@ def test_six_estimators_at_the_row_limit_finish_within_the_budget():
     assert all(r[1] is not None for r in rows), [r[11] for r in rows]
     assert rows[1][1] == pytest.approx(2, abs=0.1)  # regression adjustment recovers the planted effect
     assert elapsed < 30
+
+
+# -- forecasting ------------------------------------------------------------------------------------
+
+FORECASTERS = ["mean", "naive", "moving-average", "seasonal-naive", "seasonal-linear"]
+
+
+def forecast(client, **body):
+    return client.post(V1 + "/forecasts/backtest", json=body)
+
+
+def test_the_forecaster_catalogue_publishes_parameters_limits_and_the_benchmark(client):
+    from sdf.simulation.benchmark import DemandBenchmark
+
+    body = get(client, "/forecasters")
+    names = [e["name"] for e in body["forecasters"]]
+    assert set(FORECASTERS) <= set(names)
+    ma = next(e for e in body["forecasters"] if e["name"] == "moving-average")
+    assert ma["origin"] == "builtin" and ma["global_model"] is False
+    assert ma["params"] == [
+        {"name": "window", "type": "int", "default": 7, "min": 1, "max": 365, "exclusive": False, "nullable": False}
+    ]
+    assert body["unavailable"] == {}
+    assert body["limits"] == {
+        "max_forecasters": 6,
+        "max_horizon": 56,
+        "max_origins": 12,
+        "max_quantiles": 9,
+        "max_skus": 400,
+        "max_seconds": 30,
+        "min_history": 28,
+    }
+    assert body["benchmark"]["params"] == [p.to_dict() for p in DemandBenchmark.params()]
+
+
+def test_a_world_backtest_equals_the_backtest_on_the_same_demand(client):
+    from sdf.analytics.forecasters import backtest
+
+    res = forecast(client, forecasters=["seasonal-naive", "moving-average"], params={"moving-average": {"window": 28}})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["source"] == "world" and body["world"] and body["skus"] == 200
+    direct = backtest(
+        ["seasonal-naive", "moving-average"],
+        client.app.state.store.current.world.demand(),
+        params={"moving-average": {"window": 28}},
+    )
+    assert [r[:10] for r in body["scores"]["rows"]] == [list(r[:10]) for r in direct.scores.rows]
+    assert [f["name"] for f in body["scores"]["fields"]][:3] == ["forecaster", "wape", "relative_wape"]
+    assert len(body["by_horizon"]["rows"]) == 2 * 14 and len(body["forecasts"]["rows"]) == 2 * 200 * 14
+    assert body["origins"] == [d.isoformat() for d in direct.origins]
+
+
+def test_the_benchmark_adds_the_true_distribution_row(client):
+    res = forecast(client, forecasters=["mean"], source={"benchmark": {"n_skus": 20, "days": 120, "seed": 3}})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["source"] == "demand-benchmark" and body["world"] is None and body["skus"] == 20
+    names = [r[0] for r in body["scores"]["rows"]]
+    assert names == ["mean", "true-distribution"]
+
+
+@pytest.mark.parametrize(
+    "body, detail",
+    [
+        ({"forecasters": ["nope"]}, "unknown forecaster 'nope'"),
+        ({"forecasters": FORECASTERS + ["mean", "naive"]}, "at most 6 forecasters"),
+        ({"forecasters": ["mean"], "horizon": 57}, "horizon must be a whole number from 1 to 56"),
+        ({"forecasters": ["mean"], "quantiles": [0.9, 0.1]}, "sorted"),
+        ({"forecasters": ["mean"], "params": {"mean": {"x": 1}}}, "takes no parameter"),
+        ({"forecasters": ["mean"], "source": {}}, "exactly one of world and benchmark"),
+        ({"forecasters": ["mean"], "source": {"benchmark": {"n_skus": 5}}}, "benchmark: n_skus must be from 10"),
+        ({"forecasters": ["mean"], "horizon": 56, "origins": 12}, "the history has 90 days"),
+    ],
+)
+def test_a_backtest_request_that_cannot_run_is_a_422(client, body, detail):
+    res = forecast(client, **body)
+    assert res.status_code == 422 and detail in res.json()["detail"], res.text
+
+
+def test_a_failing_forecaster_is_a_row_in_a_200():
+
+    from sdf.analytics.forecasters import ForecasterInfo, default_forecasters
+
+    class Broken:
+        info: ClassVar[ForecasterInfo] = ForecasterInfo("broken", "always fails")
+
+        def fit(self, history):
+            return self
+
+        def forecast(self, history, *, horizon, quantiles):
+            raise RuntimeError("no forecast today")
+
+    reg = default_forecasters()
+    reg.register(Broken)
+    c = TestClient(create_app(forecasters=reg))
+    res = c.post(V1 + "/forecasts/backtest", json={"forecasters": ["broken", "mean"], "horizon": 7, "origins": 2})
+    assert res.status_code == 200, res.text
+    broken, mean = res.json()["scores"]["rows"]
+    assert broken[-1] == "RuntimeError: no forecast today" and mean[-1] is None
