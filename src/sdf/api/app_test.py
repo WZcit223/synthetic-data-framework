@@ -77,7 +77,44 @@ def test_replenishment_comparison(client):
     for key in ("policy", "skus_needing_order", "safety_stock_units", "unmet_units", "fill_rate", "holding_cost"):
         fields(body, f"policies[].{key}")
     fields(body, "policies[].order_cost")
-    assert [p["policy"] for p in body["policies"]] == ["naive", "service-level-95"]
+    assert [p["policy"] for p in body["policies"]] == ["naive", "service-level-95", "cost-based"]
+    # out of sample: levels from all but the last 30 days, costs of those days
+    assert body["holdout_days"] == 30
+    for p in body["policies"]:  # each figure is rounded on its own, so the parts may sum a unit or two off
+        parts = p["holdout_holding_cost"] + p["holdout_order_cost"] + p["holdout_lost_margin"]
+        assert abs(p["holdout_total_cost"] - parts) <= 2
+    costs = {p["policy"]: p["holdout_total_cost"] for p in body["policies"]}
+    assert costs["cost-based"] < costs["service-level-95"] < costs["naive"]
+
+
+def test_replenishment_comparison_on_a_short_history_has_no_holdout(small_client):
+    body = get(small_client, "/replenishment/comparison")
+    assert body["horizon_days"] < 58 and body["holdout_days"] is None
+    assert all(p["holdout_total_cost"] is None for p in body["policies"])
+    # an experiment asking for the held-out cost of that short history is refused with the reason
+    body = {"interventions": ["baseline"], "policies": [{"kind": "cost-based"}], "outcomes": ["simulated_cost_holdout"]}
+    res = small_client.post(V1 + "/experiments", json=body)
+    assert res.status_code == 422 and res.json()["detail"].startswith("holdout_days 30 ")
+
+
+def test_the_comparison_keeps_each_policy_s_row_for_its_world(monkeypatch):
+    from sdf.application import replenishment
+    from sdf.simulation import experiment
+
+    runs = []
+    real = experiment.Experiment.run
+
+    def counting(self):
+        runs.append([p.name for p in self.policies])
+        return real(self)
+
+    monkeypatch.setattr(experiment.Experiment, "run", counting)
+    c = TestClient(create_app())
+    first = get(c, "/replenishment/comparison?service_level=0.95")
+    assert get(c, "/replenishment/comparison?service_level=0.95") == first
+    get(c, "/replenishment/comparison?service_level=0.99")
+    assert runs == [["naive"], ["service-level-95"], ["cost-based"], ["service-level-99"]]
+    assert replenishment.policy_comparison(c.app.state.store.current.world.registry) == first  # uncached: same rows
 
 
 def test_replenishment(client):
@@ -748,10 +785,11 @@ def test_the_row_limit_applies_while_a_provider_is_read():
 def test_the_experiment_catalogue_lists_names_and_parameter_bounds(client):
     body = get(client, "/experiments/catalog")
     assert body["interventions"][0] == "baseline" and "promo_spike" in body["interventions"]
-    assert body["outcomes"] == ["replenishment_need", "active_stockouts", "simulated_cost"]
+    assert body["outcomes"] == ["replenishment_need", "active_stockouts", "simulated_cost", "simulated_cost_holdout"]
     assert body["max_per_list"] == 6
     kinds = {p["kind"]: p["params"] for p in body["policies"]}
     assert [p["name"] for p in kinds["naive"]] == ["lead_time_days", "review_days"]
+    assert [p["name"] for p in kinds["cost-based"]] == ["lead_time_days", "review_days"]
     assert kinds["service-level"][0] == {
         "name": "service_level",
         "type": "float",
@@ -784,6 +822,24 @@ def test_the_experiment_catalogue_lists_names_and_parameter_bounds(client):
 def test_the_catalogue_bounds_are_the_ones_the_experiment_endpoint_enforces(client, policy, status):
     body = {"interventions": ["baseline"], "policies": [policy], "outcomes": ["replenishment_need"]}
     assert client.post(V1 + "/experiments", json=body).status_code == status
+
+
+def test_experiments_and_effect_studies_run_the_cost_based_policy_out_of_sample(client):
+    body = {
+        "interventions": ["baseline"],
+        "policies": [{"kind": "service-level"}, {"kind": "cost-based"}],
+        "outcomes": ["simulated_cost_holdout"],
+    }
+    res = client.post(V1 + "/experiments", json=body)
+    assert res.status_code == 200, res.text
+    rows = res.json()["rows"]
+    total = {r["policy"]: r["value"] for r in rows if r["metric"] == "holdout_total_cost"}
+    assert set(total) == {"service-level-95", "cost-based"} and total["cost-based"] < total["service-level-95"]
+    study = {**body, "interventions": ["promo_spike"], "replicates": 2}
+    res = client.post(V1 + "/effects", json=study)
+    assert res.status_code == 200, res.text
+    metrics = {(r[1], r[2]) for r in res.json()["rows"]}
+    assert ("cost-based", "holdout_total_cost") in metrics
 
 
 def test_the_experiment_result_carries_its_fields(client):

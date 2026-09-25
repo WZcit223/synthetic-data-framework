@@ -512,7 +512,7 @@ def _grouped(rows: list[tuple]) -> list[tuple[tuple[str, str], list[tuple]]]:
 
 
 def _policy(text: str):
-    """``naive`` or ``service-level[:LEVEL]``, as ``--policy`` takes it."""
+    """``naive``, ``service-level[:LEVEL]`` or ``cost-based``, as ``--policy`` takes it."""
     kind, _, level = text.partition(":")
     if kind == "service-level" and level:
         try:
@@ -678,7 +678,7 @@ def pipeline(audit_log: str | None) -> None:
     multiple=True,
     default=("service-level:0.95",),
     show_default=True,
-    help="naive or service-level[:LEVEL] (repeatable).",
+    help="naive, service-level[:LEVEL] or cost-based (repeatable).",
 )
 @click.option(
     "--outcome",

@@ -27,6 +27,7 @@ class WarehouseIntelligence:
 
     def __init__(self, registry: DataSourceRegistry) -> None:
         self.reg = registry
+        self._comparison_rows: dict[str, dict] = {}  # policy name -> its comparison row, for this registry
 
     def kpis(self) -> KPISummary:
         return kpi.kpis(self.reg)
@@ -44,7 +45,7 @@ class WarehouseIntelligence:
         return replenishment.demand_profiles(self.reg)
 
     def replenishment_comparison(self, *, service_level: float = 0.95) -> dict:
-        return replenishment.policy_comparison(self.reg, service_level=service_level)
+        return replenishment.policy_comparison(self.reg, service_level=service_level, cache=self._comparison_rows)
 
     def replenishment_ss_policy(
         self, *, lead_time_days: int = 7, review_days: int = 7, service_level: float = 0.95, top_n: int = 12

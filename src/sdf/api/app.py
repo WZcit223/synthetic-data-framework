@@ -93,7 +93,11 @@ def _spec_dict(spec: GenerationSpec) -> dict:
 
 def _policy_params(kind: str) -> list[dict]:
     """The form parameters of a policy kind, with the bounds ``POST /experiments`` enforces."""
-    names = ("lead_time_days", "review_days") if kind == "naive" else ("service_level", "lead_time_days", "review_days")
+    names = (
+        ("service_level", "lead_time_days", "review_days")
+        if kind == "service-level"
+        else ("lead_time_days", "review_days")
+    )
     params = []
     for name in names:
         info = s.PolicyChoice.model_fields[name]
@@ -448,7 +452,10 @@ def create_app(
         ):
             if len(set(names)) != len(names):
                 raise HTTPException(status_code=422, detail=f"each {label} may appear once, got {names}")
-        rows = Experiment(store.current.world, interventions, policies, outcomes).run()
+        try:
+            rows = Experiment(store.current.world, interventions, policies, outcomes).run()
+        except ValueError as exc:  # an outcome the world cannot measure (a history too short to hold out)
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"rows": [r.__dict__ for r in rows], "fields": [f.to_dict() for f in OUTCOME_FIELDS]}
 
     @api.post("/effects", response_model=s.EffectsResult | s.EffectsBudget)

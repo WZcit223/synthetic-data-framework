@@ -6,6 +6,7 @@
   import LineChart from "../../components/charts/LineChart.svelte";
   import DataTable from "../../components/tables/DataTable.svelte";
   import { fmt } from "../../lib/format.js";
+  import { cheapestOutOfSample, comparisonTable, pct } from "./comparison.js";
   import { demandChart } from "./series.js";
 
   /** @type {{movers: any[], sku: string, series: any, comparison: any, plan: any, backtest: any,
@@ -15,19 +16,12 @@
   const chart = $derived(series ? demandChart(series) : null);
 
   const LEVELS = [["0.90", "90%"], ["0.95", "95%"], ["0.975", "97.5%"], ["0.99", "99%"]];
-  const pct = v => (v * 100).toFixed(1) + "%";
   const measure = (name, label) => ({ name, label, kind: "measure" });
   const dimension = (name, label) => ({ name, label, kind: "dimension" });
 
-  const METRICS = [
-    ["SKUs needing an order", "skus_needing_order"], ["Safety stock (units)", "safety_stock_units"],
-    ["Unmet units", "unmet_units"], ["Holding cost", "holding_cost"], ["Order cost", "order_cost"],
-  ];
   const policies = $derived(comparison?.policies ?? []);
-  const comparisonTable = $derived({
-    fields: [dimension("metric", "Metric"), ...policies.map((p, i) => measure(`p${i}`, p.policy))],
-    rows: METRICS.map(([label, key]) => [label, ...policies.map(p => p[key])]),
-  });
+  const table = $derived(comparisonTable(comparison));
+  const cheapest = $derived(cheapestOutOfSample(comparison));
 
   const PLAN_FIELDS = [
     dimension("sku_id", "SKU"), measure("avg_daily_demand", "μ/day"), measure("demand_std", "σ"),
@@ -76,16 +70,26 @@
   </div>
   <div class="card">
     <h3>Policy comparison <span class="pill">demand history replayed</span></h3>
-    {#if policies.length === 2}
+    {#if policies.length}
       <div class="figures">
-        <div><div class="k">Fill rate — {policies[0].policy}</div><div class="big bad">{pct(policies[0].fill_rate)}</div></div>
-        <div class="arrow big">→</div>
-        <div><div class="k">Fill rate — {policies[1].policy}</div><div class="big good">{pct(policies[1].fill_rate)}</div></div>
+        {#each policies as p (p.policy)}
+          <div>
+            <div class="k">{p.policy}</div>
+            {#if comparison.holdout_days}
+              <div class="big" class:good={p === cheapest}>{fmt(p.holdout_total_cost)}</div>
+              <div class="k">cost of the last {comparison.holdout_days} days · fill {pct(p.holdout_fill_rate)}</div>
+            {:else}
+              <div class="big">{pct(p.fill_rate)}</div><div class="k">fill rate</div>
+            {/if}
+          </div>
+        {/each}
       </div>
-      <DataTable fields={comparisonTable.fields} rows={comparisonTable.rows} />
-      <div class="note">Each SKU's {comparison.horizon_days}-day demand history is replayed under both policies
-        (default cost assumptions). ALGO-HOOK: a stochastic demand and lead-time model gives distributions,
-        not one number.</div>
+      <DataTable fields={table.fields} rows={table.rows} />
+      <div class="note">Each SKU's {comparison.horizon_days}-day demand history is replayed under each policy
+        (default cost assumptions).
+        {#if comparison.holdout_days}The costs of the last {comparison.holdout_days} days come from levels set on
+          the days before them only, so a policy is judged on days it was not fitted on.{/if}
+        ALGO-HOOK: a stochastic demand and lead-time model gives distributions, not one number.</div>
     {/if}
   </div>
 </div>

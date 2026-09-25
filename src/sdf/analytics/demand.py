@@ -16,7 +16,7 @@ little extra demand every day but one large order on a rare selling day, so its
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -32,6 +32,20 @@ class DemandProfile:
     mean: float
     std: float
     zero_ratio: float
+
+    @classmethod
+    def of(cls, series: Sequence[float]) -> DemandProfile:
+        """The profile of one daily series, with ``DemandTable.profile``'s arithmetic: mean over every
+        day, population standard deviation, share of days without demand."""
+        n = len(series)
+        if not n:
+            return cls(mean=0.0, std=0.0, zero_ratio=1.0)
+        mu = sum(series) / n
+        return cls(
+            mean=mu,
+            std=(sum((x - mu) ** 2 for x in series) / n) ** 0.5,
+            zero_ratio=sum(1 for x in series if x <= 0) / n,
+        )
 
     @property
     def is_intermittent(self) -> bool:

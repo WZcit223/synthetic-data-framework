@@ -6,9 +6,12 @@ import math
 from dataclasses import dataclass
 from typing import Protocol
 
+from sdf.analytics.demand import DemandProfile
 from .engine import simulate_inventory
-from .policy import Policy, plan_orders
+from .policy import Policy, levels_for, plan_orders, policy_input
 from .world import World
+
+MIN_FIT_DAYS = 28  # days an out-of-sample replay must leave for fitting the levels
 
 
 class Outcome(Protocol):
@@ -75,37 +78,68 @@ class ActiveStockouts:
 class SimulatedCost:
     """Replay each SKU's demand history under the policy and price the result.
 
-    Covers the first ``max_skus`` SKUs with demand in first-appearance order.
+    Covers the first ``max_skus`` SKUs with demand in first-appearance order. By default
+    the levels come from the same history the replay runs on (in sample). With
+    ``holdout_days``, each SKU's levels come from the days before the last ``holdout_days``
+    and the replay runs on those last days only (out of sample); the metrics are then
+    named ``holdout_…``, with their total, so both can be measured in one study, and a SKU
+    with no demand in its fitting days is left out, as a SKU with no demand always is: the
+    same SKUs for every policy, but a SKU launched inside the held-out days is not counted
+    (none is in the default world).
     ALGORITHM-HOOK[C2]: the replay is deterministic on history; a stochastic
     lead-time and demand model gives distributions instead of one number.
     """
 
     cost_model: CostModel
     max_skus: int = 400
+    holdout_days: int | None = None
     name: str = "simulated_cost"
+
+    def __post_init__(self) -> None:
+        if self.holdout_days is not None and (
+            isinstance(self.holdout_days, bool) or not isinstance(self.holdout_days, int) or self.holdout_days < 1
+        ):
+            raise ValueError(
+                f"holdout_days must be a whole number of days, at least 1, or None; got {self.holdout_days!r}"
+            )
 
     def measure(self, world: World, policy: Policy) -> dict[str, float]:
         cm = self.cost_model
         table = world.demand()
         skus = {s.sku_id: s for s in world.stream("SKU")}
+        holdout = self.holdout_days
+        if holdout is not None and holdout >= len(table.days):
+            raise ValueError(f"holdout_days {holdout} is not shorter than the history's {len(table.days)} days")
+        if holdout is not None and len(table.days) - holdout < MIN_FIT_DAYS:
+            raise ValueError(
+                f"holdout_days {holdout} leaves {len(table.days) - holdout} of the history's {len(table.days)} days"
+                f" to fit on; at least {MIN_FIT_DAYS} are needed"
+            )
         unmet = holding = order_cost = lost_margin = total_demand = 0.0
         for sku in list(table.series)[: self.max_skus]:
-            profile = table.profile(sku)
+            series = table.series[sku]
+            fit, replay = (series, series) if holdout is None else (series[:-holdout], series[-holdout:])
+            profile = table.profile(sku) if holdout is None else DemandProfile.of(fit)
             if profile.mean <= 0:
                 continue
             uc = skus[sku].unit_cost if sku in skus else 1.0
             margin = (skus[sku].unit_price - uc) if sku in skus else uc * 0.3
-            trace = simulate_inventory(table.series[sku], policy.levels(profile), lead_time_days=policy.lead_time_days)
+            levels = levels_for(policy, policy_input(sku, fit, skus, profile))
+            trace = simulate_inventory(replay, levels, lead_time_days=policy.lead_time_days)
             daily_holding = uc * cm.holding_cost_annual_rate / cm.working_days_per_year
             unmet += trace.unmet_units
             holding += trace.holding_unit_days * daily_holding
             order_cost += trace.orders * cm.order_fixed_cost
             lost_margin += trace.unmet_units * margin * cm.stockout_penalty_mult
             total_demand += trace.total_demand
-        return {
+        out = {
             "unmet_units": unmet,
             "fill_rate": 1.0 - unmet / total_demand if total_demand > 0 else 1.0,
             "holding_cost": holding,
             "order_cost": order_cost,
             "lost_margin": lost_margin,
         }
+        if holdout is None:
+            return out
+        out["total_cost"] = holding + order_cost + lost_margin
+        return {f"holdout_{k}": v for k, v in out.items()}
