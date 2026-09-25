@@ -238,7 +238,9 @@ frontend's component and build contract in
 Every script and style is bundled into `ui/dist` by `npm run build`, so a
 built UI needs no network beyond its own API: it works offline. Nothing in
 `ui/src` draws a chart or a table by hand, and no page writes HTML from
-data: Svelte, Chart.js and Tabulator write every label as text.
+data: Svelte writes text as text, Chart.js draws on a canvas, and the table
+components hand Tabulator every title and cell as a text node (Tabulator
+writes a plain string as HTML; their tests check it with markup in the data).
 
 #### Adding a chart or a table
 

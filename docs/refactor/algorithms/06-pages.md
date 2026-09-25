@@ -28,19 +28,22 @@ API, every bound from its catalogue, and every result opens in Explore.
     benchmark with its parameters), horizon, origins and interval level;
     checked before sending, from the published bounds;
   - the results:
-    - the scores as a `DataTable`, sortable, with the `true-distribution`
-      row set apart as the reference by its `tone`;
+    - the scores as a `DataTable`, sortable; the `true-distribution` row is
+      the reference, named so in its label (`tone` is for a status colour,
+      not for this);
     - WAPE by days ahead as a `LineChart`, one series per forecaster;
     - one SKU's history with each forecaster's interval band for the last
       origin, with a SKU picker: one `LineChart` per forecaster (small
-      multiples on a shared scale), each with the history, the
-      forecaster's mean and its `band`;
+      multiples, each on its own scale), each with the forecaster's mean as
+      its first series (a band takes the first series' colour), the history
+      second, and the interval as its `band`;
   - the request in the page's address, so a link reproduces it; "Open in
     Explore" for the three tables, through a new Explore source `forecasts`
     (`lib/sources.js`, and a fetch case and presets in `pages/explore/`).
 - **Dashboard:** the SKU chart (`pages/dashboard/Replenishment.svelte`) draws
   the forecast's interval band from `demand-series.forecast` with
-  `LineChart`'s `band`; the anomaly panel gains a detector choice from
+  `LineChart`'s `band`, its labels extended over the forecast days (a band
+  has one low and high per label, null over the history); the anomaly panel gains a detector choice from
   `GET /detectors` and lists `GET /anomalies` in a `DataTable`.
 - **Synthesizers page:** a table evaluation shows the detection AUC with its
   interval (`IntervalChart`, one row), the verdict in words and the top
@@ -53,8 +56,10 @@ API, every bound from its catalogue, and every result opens in Explore.
 The components of the frontend contract §2, with no hand-drawn chart. Colours
 follow the entity, never its rank: each forecaster's colour is its place in
 the catalogue, as for estimators (a `color` on each series). A band is the
-series colour at low opacity under the mean's line, as `LineChart` draws it;
-the `true-distribution` reference is a neutral series. Both themes are
+first series' colour at low opacity, as `LineChart` draws it, so the mean
+comes first; the `true-distribution` reference is a neutral series. A chart
+that needs more (a band in a colour of its own, a scale shared across small
+multiples) adds it to `LineChart` and to the frontend contract §2.2 in this PR. Both themes are
 checked. No accessibility layer is added (frontend overview, Non-goals).
 
 ## Tests
