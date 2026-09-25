@@ -13,6 +13,7 @@ export default defineConfig({
   reporter: process.env.CI ? "list" : "line",
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
+    locale: "en-US", // the page formats numbers in the browser's locale; the specs compare with en-US
     launchOptions: process.env.SDF_E2E_CHROMIUM ? { executablePath: process.env.SDF_E2E_CHROMIUM } : {},
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

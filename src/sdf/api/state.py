@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 
+from sdf.analytics.forecasters import Forecast, ForecasterRegistry
+from sdf.analytics.forecasters.builtin import MovingAverage
 from sdf.application.intelligence import WarehouseIntelligence
 from sdf.simulation.world import World
 from sdf.synthesis.materialise import DEFAULT_WAREHOUSE_SYNTHESIZER
@@ -42,6 +44,27 @@ class Snapshot:
     world: World
     intel: WarehouseIntelligence
     generated_ms: int
+    _forecasts: dict = field(default_factory=dict, compare=False, repr=False)
+    _forecast_lock: threading.Lock = field(default_factory=threading.Lock, compare=False, repr=False)
+
+    def forecast(self, forecasters: ForecasterRegistry, name: str, *, horizon: int, level: float) -> Forecast:
+        """Every SKU's forecast by ``name`` from the world's whole demand history, with a central ``level``
+        interval: fitted once per world and forecaster, then kept with this snapshot. If ``name`` fails,
+        the forecast is ``moving-average``'s, labelled as such, and its ``method`` says why."""
+        key = (name, horizon, level)
+        with self._forecast_lock:  # concurrent first requests wait for one fit rather than each fitting
+            if key not in self._forecasts:
+                history = self.world.demand()
+                tail = round((1 - level) / 2, 10)
+                levels = (tail, round(1 - tail, 10))
+                try:
+                    model = forecasters.create(name).fit(history)
+                    fc = forecasters.forecast(model, history, horizon=horizon, quantiles=levels)
+                except Exception as exc:  # a forecaster that fails must not take the dashboard's chart with it
+                    fc = MovingAverage().forecast(history, horizon=horizon, quantiles=levels)
+                    fc = replace(fc, method=f"{name} failed ({exc}), so moving-average; {fc.method}")
+                self._forecasts[key] = fc  # kept either way: a failed fit is not retried on every request
+            return self._forecasts[key]
 
 
 class GenerationBusy(RuntimeError):

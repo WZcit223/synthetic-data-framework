@@ -1,6 +1,10 @@
 # PR 2 — A gradient-boosted forecaster, and intervals on the dashboard
 
-> Status: planned.
+> Status: implemented. The numbers are in `docs/VALIDATION.md` ("Algorithm
+> phase 2"); every acceptance target is met. Two details the plan left open:
+> the models train on at most 60,000 (SKU, origin, days ahead) rows drawn with
+> the seed, and they are fitted per horizon as well as per set of levels,
+> since the days ahead are a feature.
 
 Contract: [`interfaces.md`](interfaces.md) §4.
 

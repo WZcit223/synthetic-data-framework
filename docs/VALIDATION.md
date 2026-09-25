@@ -441,6 +441,8 @@ The contract is [`refactor/algorithms/interfaces.md`](refactor/algorithms/interf
 | moving-average | 68.9 % | 0.851 | -4.7 % | 0.753 | 37.7 % | 77.0 % | 6.47 |
 | seasonal-naive | 81.0 % | 1.000 | -4.7 % | 0.903 | 34.2 % | 79.7 % | 6.97 |
 | seasonal-linear | 70.5 % | 0.870 | 4.9 % | 0.772 | 38.9 % | 80.6 % | 6.92 |
+| gradient-boosting | 65.3 % | 0.806 | -3.0 % | 0.668 | 39.6 % | 87.6 % | 6.55 |
+| lightgbm | **65.0 %** | **0.803** | -3.2 % | **0.660** | 39.1 % | 86.9 % | 6.11 |
 
 **Demand benchmark** (`uv run sdf forecast --benchmark`): 200 SKUs × 365 days
 from a declared process (weekday profile, trend, unannounced promotions,
@@ -454,6 +456,8 @@ known and scored as `true-distribution`:
 | moving-average | 90.1 % | 0.828 | -1.1 % | 1.030 | 46.7 % | 76.8 % | 8.56 |
 | seasonal-naive | 108.8 % | 1.000 | -1.1 % | 1.306 | 41.6 % | 79.7 % | 9.01 |
 | seasonal-linear | 86.5 % | 0.795 | -2.6 % | 0.955 | 47.9 % | 76.9 % | 8.40 |
+| gradient-boosting | 87.7 % | 0.806 | -1.2 % | 0.935 | 51.2 % | 89.5 % | 8.64 |
+| lightgbm | 87.1 % | 0.801 | -1.4 % | 0.934 | 50.5 % | 87.6 % | 8.39 |
 | true-distribution | 85.6 % | 0.787 | -2.3 % | **0.898** | 45.5 % | 90.1 % | 8.71 |
 
 What the numbers say:
@@ -469,6 +473,42 @@ What the numbers say:
   the gradient-boosted forecaster of the next step is scored on it.
 - Seasonal naive is the weakest reference on noisy daily demand: one past day
   per forecast is a poor estimate of the mean.
+
+### Algorithm phase 2 — gradient-boosted global forecasters (checklist C1)
+
+`gradient-boosting` fits one model over every SKU (scikit-learn's
+`HistGradientBoostingRegressor`): the demand on the last day and on the 7th
+and 14th last, the means of the last 7 and 28 days, the share of zero days in
+the last 28, the target day's weekday and the days ahead, all from the days
+before the origin. Poisson loss gives the mean and quantile loss each bound.
+It trains on at most 60,000 (SKU, origin, days ahead) rows drawn with its seed.
+Its defaults (200 iterations, learning rate 0.1, 31 leaves) are fixed, not
+tuned. `lightgbm` is the same design on LightGBM (the `app` extra). The rows
+are in the two tables above; the contract is
+[`refactor/algorithms/interfaces.md`](refactor/algorithms/interfaces.md) §4.1.
+
+- **Benchmark:** WAPE 87.7 % against the exact distribution's 85.6 %, 2.5 %
+  above it (the target was within 3 %), and 0.806 of seasonal naive's (target
+  below 0.85). The two boosted models have the lowest pinball loss of any
+  forecaster (0.935 and 0.934, against seasonal-linear's 0.955), because their
+  interval is the first to cover
+  what it should: 51 % to 90 % between the bounds (open to closed) brackets
+  the nominal 80 %, where every built-in stayed below 80 % with the bounds
+  included.
+- **Default world:** WAPE 65.3 %, 0.806 of seasonal naive's (target below
+  0.85), and with lightgbm again the lowest pinball loss; coverage 40 % to 88 %
+  brackets 80 %.
+- **Time:** the whole default-world backtest (the five built-ins and
+  `gradient-boosting`, 14 days ahead, 4 origins) takes 17 s on 4 cores, 15 s
+  of it `gradient-boosting` (4 models per origin), within the 30 s budget.
+- `lightgbm` scores within 1 % of `gradient-boosting` on both.
+- On the benchmark, `mean` and seasonal-linear still have a lower WAPE (87.0 %,
+  86.5 %): the benchmark's level is flat by design, which suits a long average.
+  The boosted models win on the pinball loss, which scores the whole
+  distribution and so decides the (s, S) levels.
+
+The dashboard's SKU chart draws `gradient-boosting`'s forecast with its 80 %
+interval (`GET /api/v1/demand-series`, fitted once per world).
 
 ## What this establishes
 - The **same** Application-Layer code runs on real data via the adapter — the
