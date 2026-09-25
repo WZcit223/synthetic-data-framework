@@ -1,6 +1,30 @@
 # PR 5 — The detection test, and column kinds for synthetic tables
 
-> Status: planned.
+> Status: implemented. The numbers are in `docs/VALIDATION.md` ("Detection
+> test"). **The acceptance target is met on the sample and not on the real
+> extract:** the detection AUC falls from 1.00 to 0.55 (`bootstrap-table`)
+> and 0.62 (`gaussian-copula`) on the sample, but only to 0.89 and 0.90 on
+> the extract, against a target under 0.75. Column kinds cannot reach it
+> there: the extract's real columns, each shuffled on its own, already score
+> 0.78, and both built-ins sample without learning how price, quantity and
+> hour depend on each other. The spike's 0.68 is not reproduced. Where the
+> implementation departs from the contract, and why:
+>
+> - The retail feature table declares `price` a `category`, not `real`: with
+>   the price a real number, the AUC only falls from 1.00 to 0.96–0.99, since
+>   a price between two list prices gives the row away.
+> - `detection_report` takes the column names as a keyword (`columns`), for
+>   `top_features`; without them the columns are "column 1", "column 2", ….
+>   With fewer rows than folds it returns `{"error": ...}`, and the
+>   evaluation's metrics are then `None` with the reason as the verdict.
+> - The evaluation adds a fifth metric, `detection_top_features` (the columns
+>   joined by commas; the API's metrics are single values), for PR 6's
+>   Synthesizers page.
+> - The recorded privacy numbers change more than foreseen: clone risk 4.38 %
+>   → 18.25 % on the sample and 7.62 % → 93.62 % on the extract, both now
+>   "review". Half the real rows scored against the other half give 20.12 %
+>   and 98.5 %, so on this discrete table the jump is realism, not copying;
+>   `docs/VALIDATION.md` records both.
 
 Contract: [`interfaces.md`](interfaces.md) §7.
 

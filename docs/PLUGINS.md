@@ -42,6 +42,24 @@ A synthesizer is a class with an `info` class attribute and two methods:
   `seed` pins one draw; without it, each call continues the instance's own
   random stream.
 
+**Column kinds (table synthesizers).** `TableData.kinds` says, per column,
+whether it is `"real"`, `"integer"` or `"category"` (`None`: all real). Pass
+your sampled rows through `apply_kinds(rows, data)` from `sdf.synthesis.api`,
+with the `TableData` you were fitted on: an integer column is rounded and
+kept within its observed range, and a category column takes only observed
+values (the nearest one). Both built-ins do. A synthesizer that ignores the
+kinds still works, but every table evaluation runs the detection test, and
+decimals in a whole-number column give its rows away: its `detection_auc`
+shows it.
+
+```python
+from sdf.synthesis.api import TableData, apply_kinds
+
+def sample(self, n=None, *, seed=None):
+    rows = ...  # your model's rows, in self._data.columns order
+    return apply_kinds(rows, self._data)  # self._data: the TableData given to fit()
+```
+
 **Parameters.** Every constructor argument needs a default, so the registry
 can create the synthesizer by name. Keyword arguments typed `int`, `float`,
 `str` or `bool` (or one of those or `None`) are its *parameters*. The catalogue

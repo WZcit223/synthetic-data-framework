@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from .api import SynthesizerInfo, TableData
+from .api import SynthesizerInfo, TableData, apply_kinds
 
 _COLS = ["Quantity", "Price", "hour", "weekday"]
 _PAIRS = [("Quantity", "Price"), ("Quantity", "hour"), ("Price", "weekday")]
@@ -51,7 +51,8 @@ class GaussianCopulaTable:
     CDF → each marginal's inverse CDF, the same steps as
     ``GaussianMultivariate.sample``), because that method draws from NumPy's
     process-global generator. Nothing global is read or written, repeated
-    ``sample()`` calls continue the model's stream, and ``seed`` pins one draw.
+    ``sample()`` calls continue the model's stream, and ``seed`` pins one draw. The
+    table's column kinds are applied to every row (``apply_kinds``).
     """
 
     info: ClassVar[SynthesizerInfo] = SynthesizerInfo(
@@ -68,11 +69,13 @@ class GaussianCopulaTable:
         self._rng = np.random.default_rng(seed)
         self._n_rows = 0
         self._model = None
+        self._data: TableData | None = None
 
     def fit(self, data: TableData) -> GaussianCopulaTable:
         import pandas as pd
         from copulas.multivariate import GaussianMultivariate
 
+        self._data = data
         self._n_rows = len(data.rows)
         self._model = GaussianMultivariate()
         self._model.fit(pd.DataFrame(data.rows, columns=list(data.columns), dtype=float))
@@ -94,7 +97,7 @@ class GaussianCopulaTable:
         normal = rng.multivariate_normal(np.zeros(len(correlation)), correlation, size=n)
         cdf = stats.norm.cdf(normal)
         columns = [np.asarray(u.percent_point(cdf[:, j]), dtype=float) for j, u in enumerate(self._model.univariates)]
-        return [tuple(float(c[i]) for c in columns) for i in range(n)]
+        return apply_kinds([tuple(float(c[i]) for c in columns) for i in range(n)], self._data)
 
 
 def gaussian_copula_fidelity(path: str, *, max_rows: int = 2000, seed: int = 1) -> dict:

@@ -608,6 +608,17 @@ def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "b
     for k in ("n_real", "n_synth", "dcr_median", "dcr_p05", "nndr_median", "clone_risk_pct", "verdict"):
         print(f"  {k:<16}: {rep.get(k)}")
     print("  ALGORITHM-HOOK[B3]: full membership-inference + differential privacy.\n")
+    print("  Detection test (B4): can a classifier tell synthetic rows from real ones?")
+    if rep.get("detection_auc") is None:
+        print(f"  {'verdict':<16}: {rep.get('detection_verdict')}\n")
+        return 0
+    print(
+        f"  {'AUC':<16}: {rep['detection_auc']} (folds {rep['detection_auc_low']} to {rep['detection_auc_high']};"
+        " 0.5 = indistinguishable)"
+    )
+    print(f"  {'verdict':<16}: {rep['detection_verdict']}")
+    print(f"  {'telling columns':<16}: {rep['detection_top_features'] or 'none'}")
+    print("  ALGORITHM-HOOK[B4]: a stronger discriminator, on a real holdout set.\n")
     return 0
 
 

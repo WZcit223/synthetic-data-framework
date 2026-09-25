@@ -8,7 +8,9 @@ entry-point group, and callers choose one by name. See ``docs/refactor/structure
 
 from __future__ import annotations
 
+from bisect import bisect_left
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, ClassVar, Literal, Protocol, Self
 
 from sdf.foundation.params import (  # re-exported: the names this module always had
@@ -36,12 +38,60 @@ class SeriesData:
     period: int
 
 
+ColumnKind = Literal["real", "integer", "category"]
+KINDS: tuple[str, ...] = ("real", "integer", "category")
+
+
 @dataclass(frozen=True)
 class TableData:
-    """Numeric rows with named columns."""
+    """Numeric rows with named columns, and optionally each column's kind (``None``: every column ``real``).
+
+    ``integer``: whole numbers within the observed range; ``category``: only the values
+    observed. A table synthesizer honours them by passing its rows through
+    ``apply_kinds``; one that ignores them still works, and the detection test shows it.
+    """
 
     rows: list[tuple[float, ...]]
     columns: tuple[str, ...]
+    kinds: tuple[ColumnKind, ...] | None = None
+
+    def __post_init__(self) -> None:
+        if self.kinds is None:
+            return
+        if len(self.kinds) != len(self.columns):
+            raise ValueError(f"{len(self.kinds)} kinds for {len(self.columns)} columns")
+        unknown = [k for k in self.kinds if k not in KINDS]
+        if unknown:
+            raise ValueError(f"unknown column kinds {unknown}; each is one of {list(KINDS)}")
+
+
+def apply_kinds(rows: list[tuple[float, ...]], data: TableData) -> list[tuple[float, ...]]:
+    """``rows`` sampled from a fit on ``data``, made to respect its kinds: an ``integer`` column rounded to the
+    nearest whole number and clipped to the observed range, a ``category`` column moved to the nearest observed
+    value (the lower one on a tie). ``rows`` unchanged when ``data.kinds`` is ``None`` or ``data`` has no row."""
+    if data.kinds is None or not data.rows or all(k == "real" for k in data.kinds):
+        return rows
+    observed = list(zip(*data.rows))
+    fixes = []
+    for kind, values in zip(data.kinds, observed):
+        if kind == "integer":
+            lo, hi = min(values), max(values)
+            fixes.append(lambda v, lo=lo, hi=hi: float(min(max(round(v), lo), hi)))
+        elif kind == "category":
+            fixes.append(partial(_nearest, sorted(set(values))))
+        else:
+            fixes.append(None)
+    return [tuple(v if fix is None else fix(v) for v, fix in zip(row, fixes)) for row in rows]
+
+
+def _nearest(levels: list[float], v: float) -> float:
+    i = bisect_left(levels, v)
+    if i == 0:
+        return float(levels[0])
+    if i == len(levels):
+        return float(levels[-1])
+    below, above = levels[i - 1], levels[i]
+    return float(below if v - below <= above - v else above)
 
 
 class Synthesizer(Protocol):

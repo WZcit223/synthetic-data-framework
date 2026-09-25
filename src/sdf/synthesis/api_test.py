@@ -56,3 +56,30 @@ def test_check_accepts(param, value):
 )
 def test_check_refuses_with_a_reason(param, value, message):
     assert message in param.check(value)
+
+
+def test_apply_kinds_rounds_integers_and_keeps_categories_to_observed_values():
+    from .api import TableData, apply_kinds
+
+    data = TableData(
+        rows=[(1.0, 2.5, 3.0, 0.1), (4.0, 7.0, 9.0, 0.2)],
+        columns=("qty", "price", "hour", "x"),
+        kinds=("integer", "category", "category", "real"),
+    )
+    sampled = [(2.6, 4.75, 5.9, 0.123), (-3.0, 100.0, 6.1, 5.0), (9.4, 2.4, 3.0, 0.2)]
+    assert apply_kinds(sampled, data) == [
+        (3.0, 2.5, 3.0, 0.123),  # 4.75 is as near 2.5 as 7.0: the lower value
+        (1.0, 7.0, 9.0, 5.0),  # clipped to the observed range; the nearest observed value
+        (4.0, 2.5, 3.0, 0.2),
+    ]
+    assert apply_kinds(sampled, TableData(data.rows, data.columns)) is sampled  # no kinds: unchanged
+    assert apply_kinds(sampled, TableData([], data.columns, data.kinds)) is sampled
+
+
+def test_table_data_refuses_kinds_that_do_not_fit_its_columns():
+    from .api import TableData
+
+    with pytest.raises(ValueError, match="1 kinds for 2 columns"):
+        TableData(rows=[], columns=("a", "b"), kinds=("real",))
+    with pytest.raises(ValueError, match=r"unknown column kinds \['text'\]"):
+        TableData(rows=[], columns=("a",), kinds=("text",))

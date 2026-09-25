@@ -651,7 +651,8 @@ class TableData:
   detection test shows the difference.
 - The evaluation's retail feature table declares `qty` integer, `price` real
   (with a note that the sample's catalogue prices make it categorical in
-  effect), `hour` and `weekday` category.
+  effect), `hour` and `weekday` category. *As built (PR 5):* `price` is
+  declared a category, since as a real number it kept the AUC at 0.96–0.99.
 
 ### 7.3 Target (after PR 5): the detection test (B4)
 
@@ -673,7 +674,10 @@ ranks columns by permutation importance. It runs in every table evaluation
 the privacy metrics, under the metric names `detection_auc`,
 `detection_auc_low`, `detection_auc_high` and `detection_verdict`.
 Spike (with integer columns rounded): 0.68 for `bootstrap-table` and 0.67 for
-`gaussian-copula` on the real extract.
+`gaussian-copula` on the real extract. *As built (PR 5):* 0.89 and 0.90 on the
+extract and 0.55 and 0.62 on the sample; the column names come in as
+`columns=`, and a fifth metric, `detection_top_features`, joins them by commas
+(`docs/VALIDATION.md`, "Detection test").
 
 ---
 

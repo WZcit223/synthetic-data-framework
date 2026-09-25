@@ -146,7 +146,11 @@ test("a synthesizer run opens in Explore", async ({ page }) => {
   await page.goto("/synthesizers.html#bootstrap-table", { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Run" }).click();
   await page.getByRole("link", { name: "Open in Explore" }).click();
-  await expect(page.locator(".preset[aria-pressed=true]")).toHaveText(PRESETS["synthesis-table"][0].label);
+  // Explore runs the evaluation again on the server, detection test included: seconds of work, so it gets
+  // more than the default 5 s
+  await expect(page.locator(".preset[aria-pressed=true]")).toHaveText(PRESETS["synthesis-table"][0].label, {
+    timeout: 30_000,
+  });
   await expect(page.locator(".result .tabulator-tableholder .tabulator-row")).toHaveCount(2); // real and synthetic
 });
 

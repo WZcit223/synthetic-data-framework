@@ -6,7 +6,7 @@ import random
 import statistics
 from typing import ClassVar
 
-from .api import SynthesizerInfo, TableData
+from .api import SynthesizerInfo, TableData, apply_kinds
 
 
 class BootstrapTable:
@@ -14,7 +14,8 @@ class BootstrapTable:
 
     Stands in for a fitted table generator so privacy can be measured with no
     heavy dependencies. Each ``sample()`` continues the instance's random
-    stream unless ``seed`` pins it. ALGORITHM-HOOK[A1]: use SDV CTGAN/copula rows instead.
+    stream unless ``seed`` pins it. The table's column kinds are applied to every row
+    (``apply_kinds``). ALGORITHM-HOOK[A1]: use SDV CTGAN/copula rows instead.
     """
 
     info: ClassVar[SynthesizerInfo] = SynthesizerInfo(
@@ -31,8 +32,10 @@ class BootstrapTable:
         self._cols: list[tuple[float, ...]] = []
         self._stds: list[float] = []
         self._n_rows = 0
+        self._data: TableData | None = None
 
     def fit(self, data: TableData) -> BootstrapTable:
+        self._data = data
         self._n_rows = len(data.rows)
         self._cols = list(zip(*data.rows))
         self._stds = [statistics.pstdev(c) or 1.0 for c in self._cols]
@@ -44,7 +47,8 @@ class BootstrapTable:
             return []
         rng = random.Random(seed) if seed is not None else self._rng
         n = self._n_rows if n is None else n
-        return [
+        rows = [
             tuple(rng.choice(col) + rng.gauss(0, self.jitter * std) for col, std in zip(self._cols, self._stds))
             for _ in range(n)
         ]
+        return apply_kinds(rows, self._data)

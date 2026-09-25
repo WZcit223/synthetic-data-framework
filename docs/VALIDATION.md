@@ -161,9 +161,9 @@ Backtest (daily, seasonal period 7, 139 points averaging 137.6 units, last 14 he
 | TSTR: TRTR MAE (real-trained) | 53.634 |
 | TSTR: TSTR MAE (synthetic-trained) | 48.538 |
 | TSTR: ratio TSTR / TRTR (→ 1.0 = as useful as real) | 0.905 |
-| privacy: DCR median / p05 | 0.0915 / 0.0205 |
-| privacy: clone risk % | 4.38 |
-| privacy: verdict | low leakage risk |
+| privacy: DCR median / p05 | 0.0932 / 0 |
+| privacy: clone risk % | 18.25 |
+| privacy: verdict | review — some synthetic rows are close to real rows |
 
 ### `online_retail_ii_2010_10k.csv` (hourly; 2,015 SKUs, 10,000 orders)
 
@@ -187,8 +187,8 @@ Backtest (hourly, seasonal period 11, 44 points averaging 2,049.2 units, last 14
 | TSTR: TRTR MAE (real-trained) | 2,628.952 |
 | TSTR: TSTR MAE (synthetic-trained) | 2,635.472 |
 | TSTR: ratio TSTR / TRTR (→ 1.0 = as useful as real) | 1.002 |
-| privacy: DCR median / p05 | 0.1086 / 0.0151 |
-| privacy: clone risk % | 7.62 |
+| privacy: DCR median / p05 | 0.0019 / 0 |
+| privacy: clone risk % | 93.62 |
 | privacy: verdict | review — some synthetic rows are close to real rows |
 <!-- sdf-validate:end -->
 
@@ -508,9 +508,71 @@ under [Reproducible numbers → Default world](#reproducible-numbers).
 
 **Synthetic-data privacy (B3)** — `validation/privacy.py` scores the `bootstrap-table`
 synthesizer's output on the retail feature table. Its DCR, clone risk and verdict
-for both bundled CSVs are under [Reproducible numbers](#reproducible-numbers)
-(the sample reads "low leakage risk"); the manual full-dataset run recorded
-clone-risk 9.5% ("review"). The metric discriminates and gates shareability.
+for both bundled CSVs are under [Reproducible numbers](#reproducible-numbers);
+the manual full-dataset run recorded clone-risk 9.5% ("review"), before column
+kinds. Since column kinds (algorithm phase 5) both CSVs read "review": read
+them against a real holdout, below.
+
+### Detection test (checklist B4, algorithm phase 5)
+
+A gradient-boosted classifier (`HistGradientBoostingClassifier`, 5-fold
+stratified cross-validation, seed 7) learns to tell the synthetic rows of the
+retail feature table from the real ones (3,000 of each):
+`sdf.validation.detection.detection_report`. Its AUC is 0.5 when the rows
+cannot be told apart and 1.0 when every row gives itself away; below 0.6
+reads "hard to distinguish", 0.6 to 0.8 "distinguishable", above 0.8 "easily
+distinguished". Every table evaluation reports it (`detection_auc`,
+`_low`, `_high` over the folds, `detection_verdict`,
+`detection_top_features`): `uv run sdf privacy [CSV] --synthesizer NAME`,
+`POST /api/v1/synthesis/runs` and the Synthesizers page's runs. It adds about
+1.5 s to each table evaluation. The classifier runs on one thread: on this
+small table that is faster than one thread per core (2.4 s on 4 cores), and
+it does not slow down when another program holds a core (one thread per core
+then took 11.6 s).
+
+The table synthesizers used to write every column as a decimal: a quantity of
+2.97, an hour of 13.4. Column kinds (`TableData.kinds`, applied by
+`sdf.synthesis.api.apply_kinds`) make an `integer` column whole and within
+its observed range, and a `category` column take only observed values. The
+retail feature table declares `qty` integer and `price`, `hour` and
+`weekday` categories: a catalogue's list prices make the price a category in
+effect.
+
+| source | synthesizer | no kinds | price as a real number | price as a category | columns that still tell |
+|---|---|---|---|---|---|
+| sample | bootstrap-table | 1.00 | 0.99 | **0.55** | price, weekday, hour |
+| sample | gaussian-copula | 1.00 | 0.99 | **0.62** | price, hour, weekday |
+| sample | *real columns shuffled independently* | | | 0.51 | |
+| sample | *half the real rows against the other half* | | | 0.49 | |
+| extract | bootstrap-table | 1.00 | 0.96 | **0.89** | price, qty, hour |
+| extract | gaussian-copula | 1.00 | 0.96 | **0.90** | price, qty, hour |
+| extract | *real columns shuffled independently* | | | 0.78 | |
+| extract | *half the real rows against the other half* | | | 0.49 | |
+
+- **Declaring the price a category is what counts.** With the price left a
+  real number, rounding the other columns only moves the AUC from 1.00 to
+  0.96–0.99: a price between two list prices gives the row away.
+- **On the sample, both built-ins are now hard to tell apart** (0.55) or
+  close to it (0.62).
+- **On the real extract, the target of 0.75 is not met** (0.89 and 0.90), and
+  column kinds cannot meet it: the real columns, each shuffled on its own,
+  score 0.78. The extract's price, quantity and hour depend on each other,
+  and `bootstrap-table` samples each column on its own by design. The
+  copula's linear correlations do no better. Getting under 0.78 needs a
+  synthesizer that learns the joint distribution (a Bayesian network, or
+  CTGAN once deep models are allowed); that is the next decision for
+  synthesis (checklist A1).
+- **The privacy numbers moved, on purpose.** With the kinds, the synthetic
+  rows take the real rows' values, so more of them lie next to a real row:
+  clone risk 4.38 % → 18.25 % on the sample and 7.62 % → 93.62 % on the
+  extract (DCR p05 0.0205 → 0 and 0.0151 → 0). Half the real rows scored
+  against the other half give 20.12 % and 98.5 %: on the extract, 3,000 rows
+  hold only 1,097 distinct combinations, so any realistic row is a near
+  duplicate of some real row. The synthetic rows are no nearer the rows they
+  were fitted on than rows they never saw (87 % against 88 % on the
+  extract). On a table this discrete, clone risk separates copying from
+  realism only against a real holdout; ALGORITHM-HOOK[B3]'s membership
+  inference is that test.
 
 **Scenario simulation** — `application/scenarios.py` (spec transforms in
 `synthesis/scenarios.py`): each scenario's safety stock versus baseline is in the
