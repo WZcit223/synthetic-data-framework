@@ -30,7 +30,7 @@ from .simulation.world import World
 from .synthesis.materialise import build_registry
 from .synthesis.registry import default_registry
 from .synthesis.spec import GenerationSpec
-from .validation.evaluation import NoUsableRows, evaluate
+from .validation.evaluation import NoUsableRows, RunFailed, evaluate
 from .validation.quality import structural_quality_check
 from .validation.tstr import tstr_report
 from .workflow import warehouse_pipeline
@@ -598,6 +598,9 @@ def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "b
         rep = evaluate(synthesizer, source=path, date_format=date_format).metrics
     except NoUsableRows as exc:
         rep = {"error": exc.reason}
+    except RunFailed as exc:  # the synthesizer's own failure: say so, without a traceback
+        click.echo(f"sdf privacy: {exc}", err=True)
+        return 1
     print("=" * 60)
     print("  Synthetic-data privacy (B3)")
     print("=" * 60)

@@ -11,20 +11,20 @@ synthesizer never saw.
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Sequence
 
 import numpy as np
+from threadpoolctl import threadpool_limits
 
 Row = Sequence[float]
 
 MAX_ROWS = 3000  # per side: the test compares as many real rows as synthetic ones
 MAX_FEATURES = 3  # the most telling columns reported
 MODEL = "HistGradientBoostingClassifier"
-# The classifier runs on one thread. On a few thousand rows that is faster than one per core (1.5 s against
-# 2.4 s for 3,000 rows a side on 4 cores), and it does not collapse when another process holds a core: with
-# one core busy, one thread per core took 11.6 s. The thread limit is process-wide, so one test runs at a time.
-_FIT_LOCK = threading.Lock()
+# The classifier's OpenMP threads (None: one per core). One thread is as fast as four on a few thousand rows,
+# and it does not stall when another program holds a core, as one thread per core does (docs/VALIDATION.md,
+# "Detection test"). The limit applies to the calling thread only, so concurrent tests do not affect each other.
+THREADS: int | None = 1
 
 
 def verdict(auc: float) -> str:
@@ -49,7 +49,6 @@ def detection_report(
     from sklearn.inspection import permutation_importance
     from sklearn.metrics import roc_auc_score
     from sklearn.model_selection import StratifiedKFold
-    from threadpoolctl import threadpool_limits
 
     rng = np.random.default_rng(seed)
     n = min(len(real), len(synth), MAX_ROWS)
@@ -67,7 +66,7 @@ def detection_report(
     x = np.vstack([a, b])
     y = np.r_[np.zeros(n), np.ones(n)]
     aucs, importance = [], np.zeros(x.shape[1])
-    with _FIT_LOCK, threadpool_limits(limits=1, user_api="openmp"):
+    with threadpool_limits(limits=THREADS, user_api="openmp"):
         for train, test in StratifiedKFold(folds, shuffle=True, random_state=seed).split(x, y):
             model = HistGradientBoostingClassifier(random_state=seed).fit(x[train], y[train])
             aucs.append(roc_auc_score(y[test], model.predict_proba(x[test])[:, 1]))
@@ -84,7 +83,7 @@ def detection_report(
         "n_synth": n,
         "model": f"{MODEL}, {folds}-fold",
         "top_features": [names[j] for j in ranked[:MAX_FEATURES] if importance[j] > 0],
-        "verdict": verdict(auc),
+        "verdict": verdict(round(auc, 4)),  # the AUC as reported: a shown 0.8 reads "distinguishable"
     }
 
 

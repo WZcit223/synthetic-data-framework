@@ -147,6 +147,12 @@ def evaluate(
         if real
         else []
     )
+    wrong = next((r for r in synth_rows if len(r) != len(FEATURE_COLUMNS)), None)
+    if wrong is not None:  # the synthesizer's fault: it was given 4 columns
+        raise RunFailed(
+            f"{synthesizer} failed while sampling from it: a row of {len(wrong)} values, "
+            f"not one per column {list(FEATURE_COLUMNS)}"
+        )
     metrics = privacy_report(real, synth_rows)
     if "error" in metrics:
         raise NoUsableRows(path, metrics["error"])

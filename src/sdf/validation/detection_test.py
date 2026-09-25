@@ -63,3 +63,49 @@ def test_the_verdicts_follow_the_published_bounds():
         "easily distinguished",
         "easily distinguished",
     ]
+
+
+def test_the_classifier_learns_from_balanced_classes_and_is_judged_on_held_out_rows(monkeypatch):
+    import sklearn.ensemble
+    import sklearn.inspection
+
+    fits, judged = [], []
+    real_classifier, real_importance = (
+        sklearn.ensemble.HistGradientBoostingClassifier,
+        sklearn.inspection.permutation_importance,
+    )
+
+    class Spy(real_classifier):
+        def fit(self, x, y):
+            fits.append((len(x), int(y.sum())))
+            return super().fit(x, y)
+
+    def importance(model, x, y, **kw):
+        judged.append(len(x))
+        return real_importance(model, x, y, **kw)
+
+    monkeypatch.setattr(sklearn.ensemble, "HistGradientBoostingClassifier", Spy)
+    monkeypatch.setattr(sklearn.inspection, "permutation_importance", importance)
+    rng = np.random.default_rng(2)
+    detection_report(rows(rng, 900), rows(rng, 400), columns=COLUMNS)
+    assert fits == [(640, 320)] * 5  # 400 of each side, 4 folds of 5 to learn from, half of them synthetic
+    assert judged == [160] * 5  # the fifth fold, never learnt from
+
+
+def test_the_classifier_runs_on_one_thread_and_the_setting_is_restored(monkeypatch):
+    from threadpoolctl import threadpool_info
+
+    from . import detection
+
+    limits = []
+    real_limits = detection.threadpool_limits
+
+    def spy(**kw):
+        limits.append(kw)
+        return real_limits(**kw)
+
+    monkeypatch.setattr(detection, "threadpool_limits", spy)
+    before = [(i["user_api"], i["num_threads"]) for i in threadpool_info()]
+    detection_report(rows(np.random.default_rng(0), 50), rows(np.random.default_rng(1), 50))
+    assert limits == [{"limits": 1, "user_api": "openmp"}]
+    assert [(i["user_api"], i["num_threads"]) for i in threadpool_info()] == before

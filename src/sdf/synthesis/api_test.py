@@ -83,3 +83,19 @@ def test_table_data_refuses_kinds_that_do_not_fit_its_columns():
         TableData(rows=[], columns=("a", "b"), kinds=("real",))
     with pytest.raises(ValueError, match=r"unknown column kinds \['text'\]"):
         TableData(rows=[], columns=("a",), kinds=("text",))
+
+
+def test_apply_kinds_keeps_integers_whole_leaves_nan_alone_and_refuses_a_row_of_the_wrong_width():
+    from .api import TableData, apply_kinds
+
+    nan = float("nan")
+    data = TableData(rows=[(0.5, 1.0), (3.7, nan), (nan, 3.0)], columns=("a", "b"), kinds=["integer", "category"])
+    assert data.kinds == ("integer", "category")  # a list is kept as a tuple
+    got = apply_kinds([(0.2, 2.4), (4.4, 0.0), (nan, nan)], data)
+    assert got[:2] == [(1.0, 3.0), (3.0, 1.0)]  # whole numbers within 0.5..3.7; nan is never an observed category
+    assert math.isnan(got[2][0]) and math.isnan(got[2][1])  # unknown stays unknown
+    assert apply_kinds([(2.0,)], TableData([(0.2,), (0.8,)], ("a",), ("integer",))) == [
+        (1.0,)
+    ]  # no whole number within
+    with pytest.raises(ValueError, match="a sampled row has 3 values for the 2 columns"):
+        apply_kinds([(1.0, 1.0, 1.0)], data)

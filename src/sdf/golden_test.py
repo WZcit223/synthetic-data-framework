@@ -192,7 +192,7 @@ def test_sample_csv(full_snapshot):
     assert tstr["TSTR_mae"] == approx(48.538)
     assert tstr["ratio_tstr_over_trtr"] == approx(0.905)
     # with column kinds (algorithm PR 5) the synthetic rows take the real rows' values: 0.0915 / 0.0205 / 4.38 %
-    # and "low leakage risk" before. Half the real rows against the other half score 20.12 %.
+    # and "low leakage risk" before. Half the real rows against the other half score 17.7 % (10 random halvings).
     assert privacy["dcr_median"] == approx(0.0932)
     assert privacy["dcr_p05"] == approx(0.0)
     assert privacy["clone_risk_pct"] == approx(18.25)
@@ -221,7 +221,7 @@ def test_real_10k_csv(full_snapshot):
     assert tstr["TSTR_mae"] == approx(2635.385)
     assert tstr["ratio_tstr_over_trtr"] == approx(1.002)
     # with column kinds (algorithm PR 5): 0.1086 / 0.0151 / 7.62 % before. Half the real rows against the other
-    # half score 98.5 %: on a table of 1,097 distinct rows in 3,000, a realistic row is near a real one.
+    # half score 96.3 % (10 random halvings): of 3,000 rows 1,097 are distinct, so a realistic row is near a real one.
     assert privacy["dcr_median"] == approx(0.0019)
     assert privacy["dcr_p05"] == approx(0.0)
     assert privacy["clone_risk_pct"] == approx(93.62)

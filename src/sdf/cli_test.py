@@ -71,6 +71,7 @@ def test_version():
         (("synth", SAMPLE_CSV), "fidelity score"),
         (("tstr", SAMPLE_CSV), "ratio TSTR/TRTR"),
         (("privacy", SAMPLE_CSV), "clone_risk_pct"),
+        (("privacy", SAMPLE_CSV), "telling columns : price"),
     ],
 )
 def test_commands_run(args, marker):
@@ -362,3 +363,27 @@ def test_anomalies_reports_a_detector_s_own_failure_without_a_traceback(monkeypa
     result = run("anomalies", "-d", "crashes")
     assert result.exit_code == 1 and "crashes failed: RuntimeError: out of memory" in result.output
     assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
+def test_privacy_reports_a_synthesizer_s_own_failure_without_a_traceback(monkeypatch, capsys):
+    from typing import ClassVar
+
+    from .cli import cmd_privacy
+    from .synthesis.api import SynthesizerInfo
+    from .synthesis.registry import default_registry
+
+    class Wide:
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("wide", "table", True, "one value too many per row")
+
+        def fit(self, data):
+            self._rows = data.rows
+            return self
+
+        def sample(self, n=None, *, seed=None):
+            return [(*r, 0.0) for r in self._rows]
+
+    reg = default_registry()
+    reg.register(Wide)
+    monkeypatch.setattr("sdf.validation.evaluation.default_registry", lambda: reg)
+    assert cmd_privacy(SAMPLE_CSV, synthesizer="wide") == 1
+    assert "wide failed while sampling from it: a row of 5 values" in capsys.readouterr().err

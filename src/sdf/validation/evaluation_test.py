@@ -107,6 +107,19 @@ def test_a_plug_in_that_ignores_column_kinds_still_evaluates_with_the_detection_
     assert evaluate("bootstrap-table", source="sample").metrics["detection_auc"] < 0.75  # the built-in honours them
 
 
+def test_a_row_of_the_wrong_width_is_the_synthesizer_s_failure():
+    class Wide(UnseededJitter):
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("wide", "table", True, "x")
+
+        def sample(self, n=None, *, seed=None):
+            return [(*r, 0.0) for r in self._rows]
+
+    reg = default_registry()
+    reg.register(Wide)
+    with pytest.raises(RunFailed, match=r"wide failed while sampling from it: a row of 5 values"):
+        evaluate("wide", source="sample", registry=reg)
+
+
 def test_a_run_without_a_seed_parameter_is_not_repeatable():
     class NoSeed(UnseededJitter):
         info: ClassVar[SynthesizerInfo] = SynthesizerInfo("no-seed", "table", True, "x")

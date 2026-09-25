@@ -22,9 +22,9 @@
 >   Synthesizers page.
 > - The recorded privacy numbers change more than foreseen: clone risk 4.38 %
 >   → 18.25 % on the sample and 7.62 % → 93.62 % on the extract, both now
->   "review". Half the real rows scored against the other half give 20.12 %
->   and 98.5 %, so on this discrete table the jump is realism, not copying;
->   `docs/VALIDATION.md` records both.
+>   "review". Half the real rows scored against the other half give 17.7 %
+>   and 96.3 % (the mean of 10 random halvings), so on this discrete table
+>   the jump is realism, not copying; `docs/VALIDATION.md` records both.
 
 Contract: [`interfaces.md`](interfaces.md) §7.
 
