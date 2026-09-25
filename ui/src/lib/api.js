@@ -9,6 +9,7 @@ export const API = globalThis.SDF_API_BASE ?? "/api/v1";
 export async function api(path, options) {
   const res = await fetch(API + path, options);
   if (!res.ok) {
+    /** @type {Error & {status?: number, detail?: string | null}} */
     const err = new Error(`${path}: ${res.status}`);
     err.status = res.status;
     try {

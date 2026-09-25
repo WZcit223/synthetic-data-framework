@@ -1,0 +1,44 @@
+/* The colour tokens of the rebuilt pages (docs/refactor/frontend/interfaces.md §4):
+   one set for the dark scheme (today's colours) and one for light, chosen by the
+   system setting. Components use only these names. */
+:root {
+  color-scheme: dark;
+  --page: #0d1117;
+  --surface: #161b22;
+  --surface-raised: #1c2430;
+  --ink: #e6edf3;
+  --ink-muted: #8b98a9;
+  --rule: #2a3441;
+  --accent: #4c9aff;
+  --good: #3fb950;
+  --warn: #e3b341;
+  --bad: #f85149;
+  --heat-0: #104281;
+  --heat-1: #1c5cab;
+  --heat-2: #256abf;
+  --heat-3: #3987e5;
+  --heat-4: #6da7ec;
+  --heat-5: #86b6ef;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --page: #f6f8fa;
+    --surface: #ffffff;
+    --surface-raised: #f6f8fa;
+    --ink: #1f2328;
+    --ink-muted: #59636e;
+    --rule: #d1d9e0;
+    --accent: #0969da;
+    --good: #1a7f37;
+    --warn: #9a6700;
+    --bad: #cf222e;
+    --heat-0: #dbe9fb;
+    --heat-1: #b4d1f6;
+    --heat-2: #86b6ef;
+    --heat-3: #5596e8;
+    --heat-4: #2f78d6;
+    --heat-5: #1c5cab;
+  }
+}

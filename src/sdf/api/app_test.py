@@ -335,7 +335,7 @@ def test_every_ui_path_is_in_the_openapi_schema(client):
     assert {"/synthesizers", "/synthesis/sources", "/synthesis/runs", "/world"} <= used
     assert {"/effects", "/estimators", "/causal/estimates"} <= used
     assert used <= schema_paths, used - schema_paths
-    assert re.findall(r'data-export="([a-z]+)"', (UI_DIR / "index.html").read_text(encoding="utf-8"))
+    assert "/export?entity=" in ui_scripts()["pages/dashboard/Controls.svelte"]
     assert "/export" in schema_paths  # the export links are built from API + "/export"
 
 
@@ -351,11 +351,14 @@ def test_ui_has_no_inline_event_handler():
     for path in sorted(UI_DIR.glob("*.html")) + sorted(UI_SRC.rglob("*.js")):
         text = path.read_text(encoding="utf-8")
         assert not re.findall(r"<[a-zA-Z][^>]*\son[a-z]+\s*=", text), path.name
+    nav = (UI_SRC / "components" / "Nav.svelte").read_text(encoding="utf-8")
     for page in PAGES:
         html = (UI_DIR / page).read_text(encoding="utf-8")
         assert re.search(r'<script type="module" src="src/[a-z/]+\.js">', html), page
-        for link in PAGES:  # the navigation bar
-            assert f'href="{link}"' in html, (page, link)
+        # the navigation bar: a rebuilt page mounts into #app under Nav.svelte; a page not yet rebuilt has its own
+        links = nav if '<div id="app"></div>' in html else html
+        for link in PAGES:
+            assert f'"{link}"' in links, (page, link)
 
 
 def built_ui() -> Path:

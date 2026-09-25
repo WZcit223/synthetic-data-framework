@@ -2,6 +2,8 @@
 // Contract: docs/refactor/explore/interfaces.md §3. It reshapes the rows the API
 // returned (group, filter, aggregate, share); it computes no business number.
 
+import { csvCell } from "./csv.js";
+
 export const GRAINS = ["day", "week", "month", "quarter", "year", "weekday"];
 export const AGGREGATIONS = ["sum", "count", "count_distinct", "mean", "median", "min", "max"];
 export const SHOW_AS = ["value", "share_of_total", "share_of_row", "share_of_column"];
@@ -44,7 +46,7 @@ export function timeKey(iso, grain = "day") {
       const t = utcDay(y, m, d);
       const thursday = new Date(t + (3 - ((new Date(t).getUTCDay() + 6) % 7)) * DAY_MS);
       const ty = thursday.getUTCFullYear();
-      const week = Math.floor((thursday - utcDay(ty, 1, 1)) / DAY_MS / 7) + 1;
+      const week = Math.floor((thursday.getTime() - utcDay(ty, 1, 1)) / DAY_MS / 7) + 1;
       return `${String(ty).padStart(4, "0")}-W${String(week).padStart(2, "0")}`;
     }
     default: throw new Error(`unknown time grain ${JSON.stringify(grain)}; choose from ${GRAINS.join(", ")}`);
@@ -175,7 +177,7 @@ export function pivot(table, view = {}, options = {}) {
     if (probe.columns.length > max) {
       const ranked = probe.columns
         .map((c, j) => ({ key: keyId(c.key), v: probe.totals.columns[j][0] }))
-        .sort((a, b) => (a.v == null) - (b.v == null) || Math.abs(b.v ?? 0) - Math.abs(a.v ?? 0));
+        .sort((a, b) => Number(a.v == null) - Number(b.v == null) || Math.abs(b.v ?? 0) - Math.abs(a.v ?? 0));
       fold = { keep: new Set(ranked.slice(0, max - 1).map(c => c.key)), count: ranked.length - (max - 1) };
     }
   }
@@ -267,7 +269,7 @@ export function pivot(table, view = {}, options = {}) {
     const m = new Map(list.map(n => [n, metric(n)]));
     return list.sort((a, b) => {
       const x = m.get(a), y = m.get(b);
-      if (x == null || y == null) return (x == null) - (y == null) || compareParts(a.key.at(-1), b.key.at(-1));
+      if (x == null || y == null) return Number(x == null) - Number(y == null) || compareParts(a.key.at(-1), b.key.at(-1));
       return dir * (x - y) || compareParts(a.key.at(-1), b.key.at(-1));
     });
   };
@@ -301,16 +303,6 @@ export function pivot(table, view = {}, options = {}) {
 
 // How a key part reads: a missing value is "(blank)", the folded column "Other".
 export const partLabel = part => (part === OTHER ? "Other" : part == null ? "(blank)" : String(part));
-
-// One CSV cell: quoted when needed, and a text that a spreadsheet would read as a
-// formula (=, +, -, @ first) is prefixed with ' so opening the file runs nothing.
-function csvCell(v) {
-  if (v == null) return "";
-  if (typeof v === "number") return String(v);
-  let s = String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
-  return /[",\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
-}
 
 /**
  * The result as CSV: one column per row field, then one per column and value,

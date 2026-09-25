@@ -1,6 +1,6 @@
 # F2 — Chart and table components, themes, page tests; the dashboard on them
 
-> Status: planned.
+> Status: implemented in this PR (F2).
 
 Contract: [`interfaces.md`](interfaces.md) §2, §3, §4, §5.2 and §5.3.
 

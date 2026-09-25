@@ -98,7 +98,12 @@ Each PR adds its part and empties `legacy/` of the page it rebuilds:
 ```
 ui/src/
   lib/csv.js  csv.test.js           F2 (§3.2)
-  components/charts/  tables/       F2 (§2.2, §3.2); PivotTable in F4
+  components/charts/  tables/       F2 (§2.2, §3.2); PivotTable in F4. In each folder, config.js is
+                                    the pure mapping from props to Chart.js or Tabulator options (tested
+                                    without a DOM); charts/Chart.svelte owns the one Chart.js instance
+                                    and charts/chartjs.js registers the parts used
+  components/theme.svelte.js        F2: the scheme as reactive state, and the colours charts read (§4)
+  app.css                           F2: the shared look of rebuilt pages, on the tokens
   components/Nav.svelte             F2: the shared navigation, used by each page once rebuilt
   pages/Dashboard.svelte ...        F2 the dashboard; F3 Synthesizers and Effects; F4 Explore
   pages/dashboard.js ...            one entry module per rebuilt page, with its component (below)
@@ -187,9 +192,11 @@ line, no bar, an empty cell; never a zero):
 // name, so a redraw does not move points. mean is required and is drawn as
 // given: on the Effects page it is the effect the API sends (`effect`); the
 // chart never computes a mean itself (AGENTS.md rule 7).
-/** @typedef {{row: string, column: string, value: number|null}} HeatCell */
-// HeatGrid: columns: string[] and rows: string[] give the order; a cell
-// missing from cells, or with value null, is drawn empty.
+/** @typedef {{row: string, column: string, value: number|null, label?: string, flag?: boolean}} HeatCell */
+// HeatGrid: columns: string[] and rows: string[] give the order, the first row
+// on top; a cell missing from cells, or with value null, is drawn empty. The
+// colour scales from the smallest to the largest value shown; `label` is the
+// cell's tooltip, and a flagged cell gets a ring in the theme's --bad colour.
 ```
 
 Each component's test (§5.2) builds its Chart.js datasets from these shapes,
@@ -223,12 +230,15 @@ subtotal groups, a 1,000-row budget, heat shading).
 ### 3.2 Target (after F2 and F4): `ui/src/components/tables/`
 
 ```svelte
-<DataTable  {fields} {rows} {format} {sort} {download} {height} />
+<DataTable  {fields} {rows} {format} {tone} {sort} {download} {height} {placeholder} />
 <PivotTable {result} {view} {heat} {collapsed} {maxHeight} onsort={…} ontoggle={…} />
 ```
 
-Optional: `format`, `sort` (the initial sort), `download` (`false`), `height`
-(the rows' natural height), `heat` (`false`) and `maxHeight` (`"70vh"`).
+Optional: `format`, `tone` (`{[name]: (value, record) => "good"|"warn"|"bad"|null}`,
+a cell's colour class, so a status reads in colour), `sort` (the initial sort,
+`{column, dir}`), `download` (`false`, or the CSV file's name), `height` (the
+rows' natural height), `placeholder` (the text of an empty table), `heat`
+(`false`) and `maxHeight` (`"70vh"`). A cell is always text, never HTML.
 `PivotTable` always has a bounded height: `maxHeight` has a default and
 cannot be unset, because Tabulator renders only the visible rows of a table
 whose height is bounded, and the pivot's row budget goes on that promise
@@ -285,11 +295,15 @@ and `collapsed`.
 
 - `ui/src/theme.css` defines the tokens as CSS custom properties, one set for
   `prefers-color-scheme: dark` (today's colours) and one for light:
-  `--surface`, `--surface-raised`, `--ink`, `--ink-muted`, `--rule`,
+  `--page`, `--surface`, `--surface-raised`, `--ink`, `--ink-muted`, `--rule`,
   `--accent`, `--good`, `--warn`, `--bad`, and the heat ramp `--heat-0` to
   `--heat-5`.
 - `lib/palette.js` stays the source of series colours and exports one set per
-  theme; today's tests keep checking the dark set, unchanged.
+  theme: `DARK` (today's constants, unchanged) and `LIGHT`, with
+  `paletteFor(scheme)`; `colorBook(series, other)` takes the set to assign
+  from. Today's tests keep checking the dark set, unchanged.
+- `components/theme.svelte.js` holds the scheme as reactive state, following
+  `prefers-color-scheme`, and `look(scheme)` gives a chart its colours.
 - Chart.js and Tabulator read the tokens at render time and redraw when the
   scheme changes.
 
