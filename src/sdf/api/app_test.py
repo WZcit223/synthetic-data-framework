@@ -1333,7 +1333,9 @@ def test_a_failing_forecaster_is_a_row_in_a_200():
 
     reg = default_forecasters()
     reg.register(Broken)
-    c = TestClient(create_app(forecasters=reg))
+    app = create_app(forecasters=reg)
+    assert app.state.forecasters is reg
+    c = TestClient(app)
     res = c.post(V1 + "/forecasts/backtest", json={"forecasters": ["broken", "mean"], "horizon": 7, "origins": 2})
     assert res.status_code == 200, res.text
     broken, mean = res.json()["scores"]["rows"]

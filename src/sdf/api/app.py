@@ -170,6 +170,7 @@ def create_app(
     estimator_reg = estimators if estimators is not None else default_estimators()
     forecaster_reg = forecasters if forecasters is not None else default_forecasters()
     app.state.estimators = estimator_reg
+    app.state.forecasters = forecaster_reg
     api = APIRouter(prefix=PREFIX)
 
     WorldRequest = create_model(  # noqa: N806 - a model class built from this app's limits

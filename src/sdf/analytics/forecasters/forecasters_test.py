@@ -338,6 +338,22 @@ def test_a_constructor_that_refuses_its_configuration_refuses_the_request():
         backtest(["picky"], table([1.0] * 60), horizon=5, origins=2, params={"picky": {"low": 3}}, registry=reg)
 
 
+def test_a_request_the_history_refuses_builds_no_forecaster():
+    built: list[str] = []
+
+    class Watched(MeanForecaster):
+        info: ClassVar[ForecasterInfo] = ForecasterInfo("watched", "records its construction")
+
+        def __init__(self) -> None:
+            built.append("watched")
+
+    reg = ForecasterRegistry()
+    reg.register(Watched)
+    with pytest.raises(ValueError, match="the history has 20 days"):
+        backtest(["watched"], table([1.0] * 20), horizon=5, origins=2, registry=reg)
+    assert built == []
+
+
 def test_each_origin_refits_a_fresh_instance_and_once_keeps_the_first():
     instances: list[int] = []
 

@@ -126,7 +126,6 @@ def backtest(
     """
     reg = registry if registry is not None else default_forecasters()
     names, levels, params = _checked_request(reg, forecasters, horizon, origins, step, quantiles, params, refit)
-    built = _built(reg, names, params)
     y = matrix(history)
     n = len(history.days)
     need = horizon + (origins - 1) * step + MIN_HISTORY
@@ -137,6 +136,7 @@ def backtest(
         )
     if not history.series:
         raise ValueError("the history has no SKU")
+    built = _built(reg, names, params)  # the last check: only a request that can run builds its forecasters
     starts = [n - horizon - (origins - 1 - j) * step for j in range(origins)]
     actual = np.stack([y[:, o : o + horizon] for o in starts])  # origins × SKUs × horizon
     reference = SeasonalNaive(7)
