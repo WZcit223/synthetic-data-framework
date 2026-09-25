@@ -169,7 +169,8 @@ class TrueDemand:
         plain = stats.nbinom.cdf(x[None, :], n, n / (n + c))
         lifted = stats.nbinom.cdf(x[None, :], n, n / (n + c * (1 + self.promo_uplift)))
         mixed = (1 - self.promo_rate) * plain + self.promo_rate * lifted
-        return self.zero[:, None] + (1 - self.zero[:, None]) * mixed
+        zero = np.where(x[None, :] >= 0, self.zero[:, None], 0.0)  # the structural zero adds nothing below 0
+        return zero + (1 - self.zero[:, None]) * mixed
 
     def quantiles(self, day: date, levels: Sequence[float]) -> dict[float, np.ndarray]:
         """The smallest count whose probability of not being exceeded reaches each level, per SKU."""

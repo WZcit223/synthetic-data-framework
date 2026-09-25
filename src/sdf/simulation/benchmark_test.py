@@ -217,6 +217,9 @@ def test_the_exact_quantiles_match_the_simulated_mixture():
         simulated = np.quantile(sims, lv, axis=1, method="inverted_cdf")
         assert np.abs(exact[lv] - simulated).max() <= 1, lv  # counts: at most one unit apart from sampling noise
     assert np.allclose(t.mean(day), sims.mean(axis=1), rtol=0.05)
+    cdf = t.cdf(day, np.array([-2, -1, 0, 10_000]))
+    assert (cdf[:, :2] == 0).all() and np.allclose(cdf[:, 3], 1.0)
+    assert np.allclose(cdf[:, 2], (sims == 0).mean(axis=1), atol=0.02)  # P(0) includes the structural zero
 
 
 def test_without_promotions_or_zeros_the_quantiles_are_the_negative_binomial_s():
