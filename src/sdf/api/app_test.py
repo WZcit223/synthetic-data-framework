@@ -114,6 +114,8 @@ def test_top_movers_and_demand_series(client):
     assert len(fc["days"]) == series["forecast_horizon_days"] == 14
     assert fc["days"][0]["date"] > series["history"][-1]["date"]
     assert all(0 <= d["low"] <= d["high"] for d in fc["days"])
+    days = [d["date"] for d in fc["days"]]
+    assert days == sorted(set(days))  # one row per day, in order
     assert get(client, "/demand-series?sku_id=nope")["forecast"]["days"] == []
 
 
@@ -143,6 +145,30 @@ def test_the_sku_forecast_is_fitted_once_per_world():
     assert len(fits) == 2 and fits[1] <= 30  # a new world: fitted again, on its own (30-day) history
     with pytest.raises(ValueError, match="forecaster 'nope' is not mounted"):
         create_app(forecasters=reg, forecaster="nope")
+
+
+def test_a_failing_default_forecaster_leaves_the_sku_chart_a_moving_average():
+    from sdf.analytics.forecasters import ForecasterInfo, ForecasterRegistry
+
+    class Broken:
+        info: ClassVar = ForecasterInfo("broken", "fails to fit")
+        calls = 0
+
+        def fit(self, history):
+            Broken.calls += 1
+            raise RuntimeError("no model today")
+
+        def forecast(self, history, *, horizon, quantiles):
+            raise AssertionError("not reached")
+
+    reg = ForecasterRegistry()
+    reg.register(Broken)
+    c = TestClient(create_app(forecasters=reg, forecaster="broken"))
+    sku = get(c, "/top-movers?n=1")[0]["sku_id"]
+    fc = get(c, f"/demand-series?sku_id={sku}")["forecast"]
+    assert fc["forecaster"] == "moving-average" and len(fc["days"]) == 14
+    get(c, f"/demand-series?sku_id={sku}")
+    assert Broken.calls == 1  # the failure is kept with the world, not retried on every request
 
 
 def test_vision(client):

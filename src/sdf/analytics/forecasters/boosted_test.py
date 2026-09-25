@@ -10,7 +10,7 @@ import pytest
 
 from sdf.analytics.demand import DemandTable
 from sdf.simulation.benchmark import DemandBenchmark
-from . import backtest, default_forecasters
+from . import backtest, boosted, default_forecasters
 from .boosted import FEATURES, WINDOW, GradientBoosting, features, first_sale
 from .builtin import MovingAverage
 from .core import matrix
@@ -135,3 +135,61 @@ def test_lightgbm_scores_within_five_percent_of_gradient_boosting_on_the_benchma
     result = backtest(["gradient-boosting", "lightgbm"], draw.table, truth=draw.truth)
     wapes = {r[0]: r[1] for r in result.scores.rows}
     assert abs(wapes["lightgbm"] - wapes["gradient-boosting"]) / wapes["gradient-boosting"] < 0.05
+
+
+def test_an_origin_without_a_full_window_is_refused_not_wrapped_round():
+    y = matrix(weekly_table(40))
+    with pytest.raises(ValueError, match="an origin needs 28 days of history before it, got 10"):
+        features(y, 0, np.array([0]), np.array([10]), np.array([1]))
+
+
+def test_every_training_row_lies_inside_the_history_from_an_age_forecast_models(monkeypatch):
+    seen = []
+    real = boosted.features
+
+    def spy(y, weekday0, sku, origin, ahead):
+        seen.append((y.shape[1], weekday0, sku.copy(), origin.copy(), ahead.copy()))
+        return real(y, weekday0, sku, origin, ahead)
+
+    monkeypatch.setattr(boosted, "features", spy)
+    rows = [list(r) for r in matrix(weekly_table(90, n_skus=4))]
+    rows[3] = [0.0] * 20 + rows[3][20:]  # first sold on day 20
+    start = date(2025, 1, 8)  # a Wednesday: the weekday of the first day is passed on, not assumed
+    history = table(rows, start=start)
+    GradientBoosting(max_iter=10, min_history=40).fit(history).forecast(history, horizon=7, quantiles=(0.5,))
+    (n, wd_train, sku, origin, ahead), (_, wd_forecast, *_rest) = seen
+    assert wd_train == wd_forecast == start.weekday() == 2
+    assert (origin + ahead - 1 < n).all()  # every target inside the history
+    assert origin[sku == 3].min() >= 20 + 40 and origin[sku != 3].min() >= 40  # from the age min_history
+
+
+def test_the_rows_are_capped_and_drawn_with_the_seed(monkeypatch):
+    monkeypatch.setattr(boosted, "MAX_ROWS", 300)
+    history = weekly_table(70, n_skus=6)
+    x1, t1 = GradientBoosting(seed=1).fit(history)._rows(7)
+    x2, _ = GradientBoosting(seed=1).fit(history)._rows(7)
+    x3, _ = GradientBoosting(seed=2).fit(history)._rows(7)
+    assert len(x1) == len(t1) == 300
+    assert np.array_equal(x1, x2) and not np.array_equal(x1, x3)
+
+
+def test_a_history_with_no_demand_to_learn_from_falls_back_instead_of_failing():
+    rows = [[5.0] + [0.0] * 59, [2.0] + [0.0] * 59]  # sold once, on the first day, then never again
+    history = table(rows)
+    fc = GradientBoosting(max_iter=10).forecast(history, horizon=7, quantiles=(0.1, 0.9))
+    assert fc.method == "2 SKU(s) moving-average: the history holds no demand to train a model on"
+    assert np.array_equal(fc.mean, MovingAverage().forecast(history, horizon=7, quantiles=(0.1, 0.9)).mean)
+
+
+def test_a_model_fitted_once_forecasts_from_later_origins():
+    history = weekly_table(98, n_skus=6)
+    result = backtest(
+        ["gradient-boosting"],
+        history,
+        horizon=7,
+        origins=3,
+        refit="once",
+        params={"gradient-boosting": {"max_iter": 30}},
+    )
+    (row,) = result.scores.rows
+    assert row[12] is None and row[1] < 0.1

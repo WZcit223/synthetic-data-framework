@@ -441,8 +441,8 @@ The contract is [`refactor/algorithms/interfaces.md`](refactor/algorithms/interf
 | moving-average | 68.9 % | 0.851 | -4.7 % | 0.753 | 37.7 % | 77.0 % | 6.47 |
 | seasonal-naive | 81.0 % | 1.000 | -4.7 % | 0.903 | 34.2 % | 79.7 % | 6.97 |
 | seasonal-linear | 70.5 % | 0.870 | 4.9 % | 0.772 | 38.9 % | 80.6 % | 6.92 |
-| gradient-boosting | **65.3 %** | **0.806** | -3.0 % | **0.668** | 39.6 % | 87.6 % | 6.55 |
-| lightgbm | 65.0 % | 0.803 | -3.2 % | 0.660 | 39.1 % | 86.9 % | 6.11 |
+| gradient-boosting | 65.3 % | 0.806 | -3.0 % | 0.668 | 39.6 % | 87.6 % | 6.55 |
+| lightgbm | **65.0 %** | **0.803** | -3.2 % | **0.660** | 39.1 % | 86.9 % | 6.11 |
 
 **Demand benchmark** (`uv run sdf forecast --benchmark`): 200 SKUs × 365 days
 from a declared process (weekday profile, trend, unannounced promotions,

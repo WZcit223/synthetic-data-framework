@@ -18,6 +18,7 @@ trained on the full dataset plugs in beside this one, on the same backtest.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any, ClassVar, Self
@@ -30,6 +31,9 @@ from .core import Forecast, ForecasterInfo, check_quantiles, matrix
 
 WINDOW = 28  # the days of history the features read: the first origin a SKU is modelled from
 MAX_ROWS = 60_000  # training rows (SKU, origin, days ahead) drawn at most; more cost time and add little
+# One boosted fit at a time in a process: each already uses every core, and two at once (a backtest
+# while the dashboard's forecast is fitted) slow each other far more than waiting in turn does.
+_FIT_LOCK = threading.Lock()
 FEATURES = ("last_1", "last_7", "last_14", "mean_7", "mean_28", "zero_share_28", "weekday", "days_ahead")
 
 
@@ -39,6 +43,8 @@ def features(y: np.ndarray, weekday0: int, sku: np.ndarray, origin: np.ndarray, 
     ``y`` is SKUs × days; ``weekday0`` the weekday of its first day (Monday 0). Every
     value is read from ``y[:, :origin]``: an origin needs at least ``WINDOW`` days before it.
     """
+    if len(origin) and int(np.min(origin)) < WINDOW:  # a negative index would wrap round to the last days
+        raise ValueError(f"an origin needs {WINDOW} days of history before it, got {int(np.min(origin))}")
     cs = np.concatenate([np.zeros((len(y), 1)), np.cumsum(y, axis=1)], axis=1)
     zeros = np.concatenate([np.zeros((len(y), 1)), np.cumsum(y == 0, axis=1)], axis=1)
     return np.column_stack(
@@ -106,32 +112,35 @@ class _Boosted:
             self.fit(history)
         y = matrix(history)
         n_skus, n = y.shape
-        modelled = (n - first_sale(y) >= self.min_history) & (n >= WINDOW)
-        short = int((~modelled).sum())
-        fallback = None
-        if short:
-            fallback = MovingAverage().forecast(history, horizon=horizon, quantiles=levels)
+        old_enough = (n - first_sale(y) >= self.min_history) & (n >= WINDOW)
+        trained = self._train(horizon, levels) if old_enough.any() else None
+        modelled = old_enough if trained is not None else np.zeros(n_skus, dtype=bool)
         mean = np.zeros((n_skus, horizon))
         q = {lv: np.zeros((n_skus, horizon)) for lv in levels}
-        trained = self._train(horizon, levels) if modelled.any() else None
-        if trained is None:
-            modelled[:] = False
-            short = n_skus
-            fallback = fallback or MovingAverage().forecast(history, horizon=horizon, quantiles=levels)
-        else:
+        if modelled.any():
             sku = np.repeat(np.flatnonzero(modelled), horizon)
             ahead = np.tile(np.arange(1, horizon + 1), int(modelled.sum()))
             x = features(y, history.days[0].weekday(), sku, np.full(len(sku), n), ahead)
             mean[modelled] = trained[None].predict(x).reshape(-1, horizon)
             for lv in levels:
                 q[lv][modelled] = trained[lv].predict(x).reshape(-1, horizon)
-        if fallback is not None:
+        if not modelled.all():
+            fallback = MovingAverage().forecast(history, horizon=horizon, quantiles=levels)
             mean[~modelled] = fallback.mean[~modelled]
             for lv in levels:
                 q[lv][~modelled] = fallback.quantiles[lv][~modelled]
-        method = f"one {self.info.name} model over {n_skus - short} SKU(s), quantile loss per level"
-        if short:
-            method += f"; {short} SKU(s) with less than {self.min_history} days since their first sale: moving-average"
+        notes = []
+        if modelled.any():
+            notes.append(f"one {self.info.name} model over {int(modelled.sum())} SKU(s), quantile loss per level")
+        young = int((~old_enough).sum())
+        if young:
+            notes.append(
+                f"{young} SKU(s) with less than {self.min_history} days since their first sale: moving-average"
+            )
+        untrained = int((old_enough & ~modelled).sum())
+        if untrained:
+            notes.append(f"{untrained} SKU(s) moving-average: the history holds no demand to train a model on")
+        method = "; ".join(notes)
         return Forecast(
             forecaster=self.info.name,
             origin=history.days[-1] + timedelta(days=1),
@@ -150,16 +159,19 @@ class _Boosted:
             if data is None:
                 return None
             x, target = data
-            for lv in missing:
-                model = self._model("poisson" if lv is None else "quantile", lv)
-                model.fit(x, target)
-                self._models[horizon, lv] = model
-                self.fits += 1
+            with _FIT_LOCK:
+                for lv in missing:
+                    model = self._model("poisson" if lv is None else "quantile", lv)
+                    model.fit(x, target)
+                    self._models[horizon, lv] = model
+                    self.fits += 1
         return {lv: self._models[horizon, lv] for lv in (None, *levels)}
 
     def _rows(self, horizon: int) -> tuple[np.ndarray, np.ndarray] | None:
         """Training rows from the kept history: every (SKU, origin, days ahead) whose features and target
-        lie inside a modelled SKU's selling life, at most ``MAX_ROWS`` of them, drawn with ``seed``."""
+        lie inside a modelled SKU's selling life, from an origin where the SKU is as old as one ``forecast``
+        models, at most ``MAX_ROWS`` of them, drawn with ``seed``; None when there is none, or no demand
+        in them (a Poisson model cannot fit all zeros)."""
         history = self._history
         y = matrix(history)
         n_skus, n = y.shape
@@ -167,7 +179,7 @@ class _Boosted:
         eligible = np.flatnonzero(n - first >= self.min_history)
         sku, origin, ahead = [], [], []
         for s in eligible:
-            origins = np.arange(max(WINDOW, first[s] + WINDOW), n)
+            origins = np.arange(first[s] + max(WINDOW, self.min_history), n)
             for h in range(1, horizon + 1):
                 o = origins[origins + h - 1 < n]
                 sku.append(np.full(len(o), s))
@@ -179,8 +191,10 @@ class _Boosted:
         if len(sku) > MAX_ROWS:
             pick = np.sort(np.random.default_rng(self.seed).choice(len(sku), MAX_ROWS, replace=False))
             sku, origin, ahead = sku[pick], origin[pick], ahead[pick]
-        x = features(y, history.days[0].weekday(), sku, origin, ahead)
-        return x, y[sku, origin + ahead - 1]
+        target = y[sku, origin + ahead - 1]
+        if not target.any():
+            return None
+        return features(y, history.days[0].weekday(), sku, origin, ahead), target
 
     def _model(self, loss: str, quantile: float | None) -> Any:
         raise NotImplementedError

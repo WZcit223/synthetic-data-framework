@@ -98,11 +98,12 @@ jobs:
           uv run python -c "import dowhy, econml"
           uv run pytest src/sdf/analytics/causal src/sdf/simulation/benchmark_test.py
       # The optional app extra mounts the lightgbm forecaster; without it, it is listed unavailable and
-      # its tests skip. One Python is enough: the forecaster is the same code on each.
+      # its tests skip. One Python is enough: the forecaster is the same code on each. The api extra
+      # comes too, so the catalogue test sees it mounted.
       - name: App extra (LightGBM forecaster)
         if: matrix.python == '3.13'
         run: |
-          uv sync --locked --extra app
+          uv sync --locked --extra app --extra api
           # fail here, not by a silent skip, if LightGBM does not import
           uv run python -c "import lightgbm"
-          uv run pytest src/sdf/analytics/forecasters
+          uv run pytest src/sdf/analytics/forecasters src/sdf/api/app_test.py -k "forecaster"

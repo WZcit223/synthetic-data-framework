@@ -66,7 +66,7 @@ test("choosing a SKU redraws its demand chart", async ({ page }) => {
   const meta = page.getByTestId("series-meta");
   await expect(meta).toContainText(`(${answer.history.length} days with demand in the history)`);
   // the fitted forecast the API returned, summed over its days
-  const total = Math.round(answer.forecast.days.reduce((s, d) => s + d.mean, 0)).toLocaleString();
+  const total = Math.round(answer.forecast.days.reduce((s, d) => s + d.mean, 0)).toLocaleString("en-US");
   await expect(meta).toContainText(`Forecast (${answer.forecast.forecaster}) ≈ ${total} units over the next ${answer.forecast.days.length} days`);
 });
 
