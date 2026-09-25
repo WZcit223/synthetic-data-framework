@@ -147,7 +147,9 @@ and owns every change it needs here: the HTML entry and its line in
 `vite.config.js`, a `pages/Forecasts.svelte`, the Forecasts link in the shared
 navigation component (`Nav.svelte`, one place, so every page gets it), the page's
 Playwright spec, and the new files in §1.3's layout. The contract needs
-no other change for it; F5 rewrites `06-pages.md` to say so.
+no other change for it, unless its charts need more than `LineChart` draws
+(a band in a colour of its own, a scale shared across small multiples): that
+PR then adds it to §2.2. F5 rewrote `06-pages.md` to say so.
 
 ---
 
