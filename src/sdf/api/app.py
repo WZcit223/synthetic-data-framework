@@ -43,6 +43,7 @@ from sdf.analytics.causal import (
     score,
 )
 from sdf.analytics.demand import DemandTable
+from sdf.analytics.detectors import MAX_DETECTORS, DetectorRegistry, default_detectors
 from sdf.analytics.forecast import build_series, compare_models, models_for
 from sdf.analytics.forecasters import (
     MAX_BACKTEST_SECONDS,
@@ -61,10 +62,18 @@ from sdf.application.economics import financial_impact
 from sdf.application.knowledge import KnowledgeQA
 from sdf.application.replenishment import sku_forecast
 from sdf.application.scenarios import run_scenarios
+from sdf.foundation.tables import Field as TableField
 from sdf.simulation import catalog
-from sdf.simulation.benchmark import QUESTION as BENCHMARK_QUESTION, DemandBenchmark, PromotionBenchmark
+from sdf.simulation.benchmark import (
+    ANOMALY_KINDS,
+    QUESTION as BENCHMARK_QUESTION,
+    AnomalyBenchmark,
+    DemandBenchmark,
+    PromotionBenchmark,
+)
 from sdf.simulation.effects import MAX_EFFECT_WORK, MAX_REPLICATES, EffectStudy
 from sdf.simulation.experiment import OUTCOME_FIELDS, Experiment
+from sdf.simulation.signals import SIGNALS, signal_frame
 from sdf.synthesis.materialise import WarehouseRefused
 from sdf.synthesis.registry import SynthesizerRegistry, default_registry
 from sdf.synthesis.spec import GenerationSpec
@@ -82,6 +91,13 @@ MAX_DATASET_ROWS = 250_000  # the most rows one dataset response carries
 # 6 s, and with the causal extra's two about 12 s, well within MAX_ESTIMATE_SECONDS.
 MAX_ESTIMATE_ROWS = 40_000
 SKU_LEVEL = 0.8  # the central interval of the dashboard's SKU forecast
+ANOMALY_FIELDS = (
+    TableField("sku_id", "SKU", "dimension"),
+    TableField("date", "Date", "time"),
+    TableField("score", "Score", "measure", aggregate="max"),
+    TableField("direction", "Direction", "dimension"),
+    TableField("signals", "Signals", "dimension"),
+)
 
 
 def _spec_dict(spec: GenerationSpec) -> dict:
@@ -147,6 +163,7 @@ def create_app(
     estimators: EstimatorRegistry | None = None,
     forecasters: ForecasterRegistry | None = None,
     forecaster: str = "gradient-boosting",
+    detectors: DetectorRegistry | None = None,
 ) -> FastAPI:
     """A new app with its own world store, dataset catalogue and synthesizer registry.
 
@@ -183,6 +200,8 @@ def create_app(
     if forecaster not in forecaster_reg.names():
         raise ValueError(f"forecaster {forecaster!r} is not mounted; mounted: {forecaster_reg.names()}")
     app.state.forecaster = forecaster
+    detector_reg = detectors if detectors is not None else default_detectors()
+    app.state.detectors = detector_reg
     api = APIRouter(prefix=PREFIX)
 
     WorldRequest = create_model(  # noqa: N806 - a model class built from this app's limits
@@ -657,6 +676,64 @@ def create_app(
                 "min_history": MIN_HISTORY,
             },
             "benchmark": {"params": [p.to_dict() for p in DemandBenchmark.params()]},
+        }
+
+    @api.get("/detectors", response_model=s.DetectorList)
+    def detectors_list():
+        """Every mounted detector with its parameters, the unavailable ones with the reason, and the benchmark."""
+        entries = [
+            {
+                "name": name,
+                "description": detector_reg.info(name).description,
+                "origin": detector_reg.origin(name),
+                "requires": list(detector_reg.info(name).requires),
+                "signals": list(detector_reg.info(name).signals),
+                "params": [p.to_dict() for p in detector_reg.params(name)],
+            }
+            for name in detector_reg.names()
+        ]
+        return {
+            "detectors": entries,
+            "unavailable": detector_reg.unavailable(),
+            "limits": {"max_detectors": MAX_DETECTORS},
+            "signals": list(SIGNALS),
+            "benchmark": {"params": [p.to_dict() for p in AnomalyBenchmark.params()], "kinds": list(ANOMALY_KINDS)},
+        }
+
+    @api.get(
+        "/anomalies",
+        response_model=s.AnomaliesResult,
+        responses={
+            422: {"description": "an unknown detector, or a result the registry refused"},
+            500: {"description": "the detector itself failed"},
+        },
+    )
+    def anomalies(detector: str = "seasonal-residual"):
+        """One detector's detections on the current world's daily signals per SKU (demand, and the stock and
+        receipts of the service-level policy replayed), highest score first."""
+        started = time.monotonic()
+        world = store.current.world
+        try:
+            model = detector_reg.create(detector)
+        except KeyError as exc:  # unknown or unavailable
+            raise HTTPException(status_code=422, detail=exc.args[0]) from exc
+        try:
+            _, found = detector_reg.run(model, signal_frame(world))
+        except ValueError as exc:  # the guard refused its result
+            raise HTTPException(status_code=422, detail=f"{detector}: {exc}") from exc
+        except Exception as exc:  # the detector's own failure, a KeyError included, is not an unknown detector
+            raise HTTPException(
+                status_code=500, detail=f"detector {detector} failed: {type(exc).__name__}: {exc}"
+            ) from exc
+        found.sort(key=lambda d: (-d.score, d.sku_id, d.day))
+        return {
+            "detector": detector,
+            "world": world.label,
+            "fields": [f.to_dict() for f in ANOMALY_FIELDS],
+            "rows": [
+                [d.sku_id, d.day.isoformat(), round(d.score, 4), d.direction, ", ".join(d.signals)] for d in found
+            ],
+            "elapsed_ms": round((time.monotonic() - started) * 1000),
         }
 
     @api.post(

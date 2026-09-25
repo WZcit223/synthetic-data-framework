@@ -540,7 +540,11 @@ class Detector(Protocol):
 be ranked apart from its threshold (§6.3's `top-k` cut); `detect` reports the
 points it would alarm on. The registry checks that `scores` has the frame's
 shape and finite values and that every detection names a SKU and day of the
-frame; otherwise the detector's result is refused and becomes an error row.
+frame, a direction of `DIRECTIONS`, a finite number as its score (passed on
+as a plain `float`) and, as its reasons, a tuple of the frame's signals;
+otherwise the detector's result is refused and becomes an error row, as does
+a detector that fails in its constructor or its run. In `GET /anomalies` a
+refused result is a 422 and a detector's own failure a 500 that names it.
 
 `ENTRY_POINT_GROUP = "sdf.detectors"`, `DetectorRegistry`,
 `default_detectors()` and `score_detectors` live in `sdf.analytics.detectors`
@@ -580,7 +584,7 @@ from sdf.simulation.signals import signal_frame
 
 bench = AnomalyBenchmark(rate=0.01, kinds=("spike", "drop", "shrinkage"), seed=7)
 frame, injected = bench.inject(signal_frame(world))   # injected: set of (sku_id, day, kind)
-scores = score_detectors(["seasonal-residual", "isolation-forest"], frame, injected)
+scores = score_detectors(["seasonal-residual", "isolation-forest"], frame, injected, kinds=bench.kinds)
 ```
 
 - `spike`: demand × U(3, 6) of the SKU's mean added; `drop`: demand set to 0 on
@@ -600,7 +604,7 @@ scores = score_detectors(["seasonal-residual", "isolation-forest"], frame, injec
   | `precision` | Precision | measure | share | mean |
   | `recall` | Recall | measure | share | mean |
   | `f1` | F1 | measure | share | mean |
-  | `flagged` | Flagged | measure | rows | sum |
+  | `flagged` | Flagged | measure | rows | max |
   | `seconds` | Run time | measure | s | sum |
   | `error` | Error | dimension | | |
 
@@ -609,7 +613,10 @@ scores = score_detectors(["seasonal-residual", "isolation-forest"], frame, injec
   order and then day, so the cut is reproducible. Both are reported so a detector is not
   judged by its threshold alone. `precision` is empty when nothing is
   flagged. Per kind, `precision` counts only detections at an injected
-  place of that kind or at no injected place.
+  place of that kind or at no injected place, so a false alarm counts in
+  every kind's row and `flagged` rows do not add up. Each injected place
+  holds one kind; the rows follow `kinds` (the benchmark's order), then
+  any other injected kind by name.
 - Spike, 400 injected spikes and drops, demand only: `seasonal-residual`
   precision 0.28 and recall 0.72 at its threshold (1,019 flagged);
   `isolation-forest` 0.21 and 0.53 at the same count.

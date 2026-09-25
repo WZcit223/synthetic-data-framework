@@ -17,6 +17,8 @@ class InventoryTrace:
     holding_unit_days: float
     orders: int
     total_demand: float
+    on_hand: tuple[float, ...] = ()  # end-of-day stock per day, with record=True
+    receipts: tuple[float, ...] = ()  # units arriving per day, with record=True
 
     @property
     def fill_rate(self) -> float:
@@ -24,10 +26,13 @@ class InventoryTrace:
         return 1.0 - self.unmet_units / self.total_demand if self.total_demand > 0 else 1.0
 
 
-def simulate_inventory(demand: Sequence[float], levels: Levels, *, lead_time_days: int) -> InventoryTrace:
+def simulate_inventory(
+    demand: Sequence[float], levels: Levels, *, lead_time_days: int, record: bool = False
+) -> InventoryTrace:
     """Start at S, serve each day's demand, reorder up to S when stock + inbound ≤ s.
 
     Orders arrive ``lead_time_days`` later; unmet demand is lost, not back-ordered.
+    With ``record``, the trace also holds each day's end-of-day stock and receipts.
     """
     s, S = levels.reorder_point, levels.order_up_to
     on_hand = S
@@ -35,12 +40,18 @@ def simulate_inventory(demand: Sequence[float], levels: Levels, *, lead_time_day
     unmet = 0.0
     holding_unit_days = 0.0
     orders = 0
+    stock: list[float] = []
+    received: list[float] = []
     for t, dmd in enumerate(demand):
-        on_hand += pipeline.pop(t, 0.0)
+        arriving = pipeline.pop(t, 0.0)
+        on_hand += arriving
         fill = min(on_hand, dmd)
         unmet += max(0.0, dmd - fill)
         on_hand -= fill
         holding_unit_days += on_hand
+        if record:
+            stock.append(on_hand)
+            received.append(arriving)
         inbound = sum(v for k, v in pipeline.items() if k > t)
         if on_hand + inbound <= s:
             qty = max(0.0, S - (on_hand + inbound))
@@ -48,7 +59,12 @@ def simulate_inventory(demand: Sequence[float], levels: Levels, *, lead_time_day
                 pipeline[t + lead_time_days] += qty
                 orders += 1
     return InventoryTrace(
-        unmet_units=unmet, holding_unit_days=holding_unit_days, orders=orders, total_demand=sum(demand)
+        unmet_units=unmet,
+        holding_unit_days=holding_unit_days,
+        orders=orders,
+        total_demand=sum(demand),
+        on_hand=tuple(stock),
+        receipts=tuple(received),
     )
 
 

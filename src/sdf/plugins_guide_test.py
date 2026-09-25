@@ -34,13 +34,14 @@ def example(tag: str) -> type:
 
 def test_the_guide_declares_its_examples_under_their_own_names():
     synth, dataset, estimator = example("synthesizer"), example("dataset"), example("estimator")
-    forecaster = example("forecaster")
+    forecaster, detector = example("forecaster"), example("detector")
     blocks = re.findall(r"```toml\n(.*?)```", GUIDE.read_text(encoding="utf-8"), re.S)
     toml = tomllib.loads(blocks[0])["project"]["entry-points"]
     assert toml["sdf.synthesizers"] == {synth.info.name: "my_plugins.series:MovingAverageSeries"}
     assert toml["sdf.datasets"] == {dataset.info.name: "my_plugins.tables:StockByZone"}
     assert toml["sdf.estimators"] == {estimator.info.name: "my_plugins.causal:MedianDifference"}
     assert toml["sdf.forecasters"] == {forecaster.info.name: "my_plugins.forecast:WeekdayMean"}
+    assert toml["sdf.detectors"] == {detector.info.name: "my_plugins.detect:StockBalance"}
 
 
 def test_the_synthesizer_example_mounts_publishes_its_parameters_and_runs():
@@ -108,6 +109,7 @@ def test_the_examples_are_served_by_the_api():
     from fastapi.testclient import TestClient
 
     from .analytics.causal import default_estimators
+    from .analytics.detectors import default_detectors
     from .analytics.forecasters import default_forecasters
     from .api.app import create_app
 
@@ -117,8 +119,16 @@ def test_the_examples_are_served_by_the_api():
     synthesizers.register(example("synthesizer"))
     datasets.register(example("dataset"))
     estimators.register(example("estimator"))
+    detectors = default_detectors()
+    detectors.register(example("detector"))
     client = TestClient(
-        create_app(synthesizers=synthesizers, datasets=datasets, estimators=estimators, forecasters=forecasters)
+        create_app(
+            synthesizers=synthesizers,
+            datasets=datasets,
+            estimators=estimators,
+            forecasters=forecasters,
+            detectors=detectors,
+        )
     )
     listed = {s["name"]: s for s in client.get("/api/v1/synthesizers").json()["synthesizers"]}
     assert [p["name"] for p in listed["moving-average"]["params"]] == ["seed", "window"]
@@ -135,3 +145,24 @@ def test_the_examples_are_served_by_the_api():
         "/api/v1/forecasts/backtest", json={"forecasters": ["weekday-mean"], "source": {"benchmark": {"n_skus": 20}}}
     )
     assert res.status_code == 200 and res.json()["scores"]["rows"][0][1] is not None
+    assert "stock-balance" in [d["name"] for d in client.get("/api/v1/detectors").json()["detectors"]]
+    res = client.get("/api/v1/anomalies?detector=stock-balance")
+    assert res.status_code == 200 and res.json()["rows"] == []  # the world's own stock is always accounted for
+
+
+def test_the_detector_example_mounts_and_finds_shrinkage_exactly(default_world):
+    from .analytics.detectors import default_detectors, score_detectors
+    from .simulation.benchmark import AnomalyBenchmark
+    from .simulation.signals import signal_frame
+    from .simulation.world import World
+
+    wh, reg, _ = default_world
+    world = World(registry=reg, warehouse=wh)
+    detectors = default_detectors()
+    detectors.register(example("detector"))
+    assert [p.name for p in detectors.params("stock-balance")] == ["tolerance"]
+    frame, injected = AnomalyBenchmark().inject(signal_frame(world))
+    table = score_detectors(["stock-balance"], frame, injected, registry=detectors)
+    names = [f.name for f in table.info.fields]
+    row = next(dict(zip(names, r)) for r in table.rows if r[1] == "shrinkage" and r[2] == "threshold")
+    assert (row["precision"], row["recall"]) == (1.0, 1.0)

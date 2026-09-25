@@ -13,6 +13,7 @@ import click
 
 from . import __version__, hooks
 from .analytics.causal import CausalQuestion, default_estimators, score
+from .analytics.detectors import default_detectors, score_detectors
 from .analytics.forecast import build_series, compare_models, models_for
 from .analytics.forecasters import TRUE_DISTRIBUTION, backtest as forecast_backtest
 from .application.agent import WarehouseAgent
@@ -22,8 +23,9 @@ from .application.scenarios import run_scenarios
 from .application.snapshot import render_markdown, replace_doc_block, snapshot
 from .foundation.adapters.retail_csv import load_online_retail_csv
 from .simulation import catalog
-from .simulation.benchmark import DemandBenchmark, PromotionBenchmark
+from .simulation.benchmark import AnomalyBenchmark, DemandBenchmark, PromotionBenchmark
 from .simulation.effects import EffectStudy
+from .simulation.signals import signal_frame
 from .simulation.world import World
 from .synthesis.materialise import build_registry
 from .synthesis.registry import default_registry
@@ -488,6 +490,68 @@ def cmd_forecast(
     return 0
 
 
+def cmd_anomalies(detectors: list[str], *, benchmark: bool = False, csv_path: str | None = None) -> int:
+    """Detectors on the default world's daily signals per SKU; with ``benchmark``, scored on injected anomalies."""
+    world = World.generate(GenerationSpec())
+    frame = signal_frame(world)
+    reg = default_detectors()
+    try:
+        if benchmark:
+            bench = AnomalyBenchmark()
+            frame, injected = bench.inject(frame)
+            table = score_detectors(detectors, frame, injected, kinds=bench.kinds, registry=reg)
+        else:
+            for name in detectors:
+                reg.check_params(name, {})
+    except (KeyError, ValueError) as exc:
+        click.echo(f"sdf anomalies: {exc.args[0] if isinstance(exc, KeyError) else exc}", err=True)
+        return 1
+    found = {}
+    for name in [] if benchmark else detectors:
+        try:
+            found[name] = reg.run(reg.create(name), frame)[1]
+        except Exception as exc:  # the detector's own failure, or a result the registry refused
+            click.echo(f"sdf anomalies: {name} failed: {type(exc).__name__}: {exc}", err=True)
+            return 1
+    n_skus, n_days = frame.shape
+    print(f"default world: {n_skus} SKUs × {n_days} days; signals {', '.join(sorted(frame.signals))}")
+    if benchmark:
+        kinds = [k for k in bench.kinds if any(kind == k for *_, kind in injected)]
+        counts = ", ".join(f"{sum(1 for *_, k in injected if k == kind)} {kind}" for kind in kinds)
+        print(f"injected {len(injected)} anomalies (rate {bench.rate:g}, seed 7): {counts}")
+        print(f"{'detector':<20}{'kind':<11}{'cut':<11}{'precision':>10}{'recall':>8}{'F1':>7}{'flagged':>9}")
+        for r in table.rows:
+            if r[8] is not None:
+                print(f"{r[0]:<20}error: {r[8]}")
+                continue
+
+            def share(v):
+                return "" if v is None else f"{v:.2f}"
+
+            print(f"{r[0]:<20}{r[1]:<11}{r[2]:<11}{share(r[3]):>10}{share(r[4]):>8}{share(r[5]):>7}{r[6]:>9}")
+        if csv_path:
+            with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+                writer = csv.writer(fh)
+                writer.writerow([f.name for f in table.info.fields])
+                writer.writerows(table.rows)
+            print(f"\nwrote {csv_path}")
+        return 0
+    for name, detections in found.items():
+        top = sorted(detections, key=lambda d: (-d.score, d.sku_id, d.day))
+        print(f"\n{name}: {len(top)} SKU-days flagged")
+        for d in top[:10]:
+            print(f"  {d.sku_id}  {d.day.isoformat()}  {d.direction:<6} score {d.score:.3g}  ({', '.join(d.signals)})")
+    if csv_path:
+        with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh)
+            writer.writerow(["detector", "sku_id", "date", "score", "direction", "signals"])
+            for name, detections in found.items():
+                for d in sorted(detections, key=lambda d: (-d.score, d.sku_id, d.day)):
+                    writer.writerow([name, d.sku_id, d.day.isoformat(), d.score, d.direction, " ".join(d.signals)])
+        print(f"\nwrote {csv_path}")
+    return 0
+
+
 def _forecaster_params(pairs: tuple[str, ...]) -> dict[str, dict[str, object]]:
     """``FORECASTER.NAME=VALUE`` pairs, as ``--param`` takes them; values read as JSON (numbers, true, null)."""
     out: dict[str, dict[str, object]] = {}
@@ -825,6 +889,30 @@ def forecast(
         params=_forecaster_params(params),
         csv_path=csv_path,
     )
+    if code:
+        raise click.exceptions.Exit(code)
+
+
+@main.command()
+@click.option(
+    "-d",
+    "--detector",
+    "detectors",
+    multiple=True,
+    default=("seasonal-residual", "isolation-forest"),
+    show_default=True,
+    help="A detector to run (repeatable); see GET /api/v1/detectors for what is mounted.",
+)
+@click.option("--benchmark", is_flag=True, help="Inject known anomalies and score each detector on them.")
+@click.option(
+    "--csv",
+    "csv_path",
+    type=click.Path(dir_okay=False, writable=True),
+    help="Also write the detections (or, with --benchmark, the scores) to this CSV file.",
+)
+def anomalies(detectors: tuple[str, ...], benchmark: bool, csv_path: str | None) -> None:
+    """Anomaly detectors on the default world's daily demand, stock and receipts per SKU."""
+    code = cmd_anomalies(list(detectors), benchmark=benchmark, csv_path=csv_path)
     if code:
         raise click.exceptions.Exit(code)
 

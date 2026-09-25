@@ -1,6 +1,6 @@
-# Plug-ins: your own synthesizer, dataset, estimator or forecaster
+# Plug-ins: your own synthesizer, dataset, estimator, forecaster or detector
 
-The framework has four plug-in points. All four are found through Python entry
+The framework has five plug-in points. All five are found through Python entry
 points, so a plug-in is an ordinary installed package; nothing in this
 repository changes when you add one.
 
@@ -10,6 +10,7 @@ repository changes when you add one.
 | A **dataset provider** (a table computed from the current world, for the Explore page) | `sdf.datasets` | `GET /api/v1/datasets`, the Explore page's source list |
 | An **estimator** (a method that estimates an average treatment effect from observed rows) | `sdf.estimators` | `GET /api/v1/estimators`, the Effects page's "Estimate from data" view, `sdf estimate --estimator NAME` |
 | A **forecaster** (a method that forecasts every SKU's daily demand, with quantiles) | `sdf.forecasters` | `GET /api/v1/forecasters`, `POST /api/v1/forecasts/backtest`, `sdf forecast -f NAME` |
+| A **detector** (a method that finds anomalous SKU-days in the daily demand, stock and receipts) | `sdf.detectors` | `GET /api/v1/detectors`, `GET /api/v1/anomalies?detector=NAME`, `sdf anomalies -d NAME` |
 
 The built-ins are declared the same way, in this repository's `pyproject.toml`.
 The contracts behind this guide are in
@@ -18,7 +19,8 @@ The contracts behind this guide are in
 §1 and §4 (datasets, parameters, runs) and
 [`refactor/causal/interfaces.md`](refactor/causal/interfaces.md) §3 (estimators) and
 [`refactor/algorithms/interfaces.md`](refactor/algorithms/interfaces.md) §1 to §3
-(forecasters, the backtest and the demand benchmark).
+(forecasters, the backtest and the demand benchmark) and §6 (detectors and the
+anomaly benchmark).
 
 ## A synthesizer
 
@@ -371,6 +373,87 @@ exact distribution the benchmark drew from, whose pinball loss no forecaster
 beats on average. A `relative_wape` below 1 means your forecaster beats
 seasonal naive on the same points.
 
+## A detector
+
+A detector finds anomalous SKU-days in a `SignalFrame`: `days`, `sku_ids`, and
+`signals`, a dict of arrays of SKUs × days. The world's frame
+(`sdf.simulation.signals.signal_frame`) has `demand`, and the `on_hand` and
+`receipts` of the service-level policy replayed on it. A detector is a class
+with an `info` class attribute and two methods:
+
+- `info = DetectorInfo(name, description, requires=(), signals=("demand",))`:
+  `signals` names the frame's columns it reads.
+- `scores(frame)` rates every SKU-day: an array of the frame's shape, finite,
+  larger meaning more anomalous. The benchmark ranks detectors by it, apart
+  from their threshold.
+- `detect(frame)` returns the points it would alarm on, as
+  `Detection(sku_id, day, score, direction, signals)`, `direction` being
+  `spike`, `drop` or `other`.
+
+The registry refuses scores of the wrong shape or with a non-finite value, a
+detection outside the frame and a frame without the signals the detector
+reads; in the benchmark, that detector becomes an error row.
+
+This example is a stock-balance rule: a day whose stock fell by more than its
+demand explains, with no receipt, has lost stock. It finds the benchmark's
+`shrinkage` exactly, which no demand-only detector can see. The test suite runs
+it as written:
+
+```python
+# plugins-example: detector
+from typing import ClassVar
+
+import numpy as np
+
+from sdf.analytics.detectors import Detection, DetectorInfo
+
+
+class StockBalance:
+    """Stock that went missing: today's stock below yesterday's plus receipts minus demand."""
+
+    info: ClassVar[DetectorInfo] = DetectorInfo(
+        "stock-balance", "Stock lost with no demand or receipt to explain it", signals=("demand", "on_hand", "receipts")
+    )
+    param_bounds: ClassVar[dict] = {"tolerance": (0.0, None)}
+
+    def __init__(self, tolerance: float = 1e-6):
+        self.tolerance = tolerance
+
+    def scores(self, frame):
+        on_hand = np.nan_to_num(frame.signals["on_hand"])
+        change = np.diff(on_hand, axis=1, prepend=on_hand[:, :1])
+        missing = -(change - np.nan_to_num(frame.signals["receipts"]) + np.nan_to_num(frame.signals["demand"]))
+        missing[:, 0] = 0.0
+        return np.maximum(missing, 0.0)
+
+    def detect(self, frame):
+        lost = self.scores(frame)
+        return [
+            Detection(frame.sku_ids[i], frame.days[t], float(lost[i, t]), "drop", ("on_hand",))
+            for i, t in zip(*np.nonzero(lost > self.tolerance))
+        ]
+```
+
+**Score it** on the anomaly benchmark, next to the built-ins:
+
+```python
+from sdf.analytics.detectors import default_detectors, score_detectors
+from sdf.simulation.benchmark import AnomalyBenchmark
+from sdf.simulation.signals import signal_frame
+from sdf.simulation.world import World
+from sdf.synthesis.spec import GenerationSpec
+
+detectors = default_detectors()
+detectors.register(StockBalance)
+bench = AnomalyBenchmark()
+frame, injected = bench.inject(signal_frame(World.generate(GenerationSpec())))
+scores = score_detectors(["stock-balance", "isolation-forest"], frame, injected, kinds=bench.kinds, registry=detectors)
+```
+
+`scores` has, per detector, anomaly kind (and `all`) and cut, the precision,
+the recall and the F1. `threshold` keeps what `detect` reports; `top-k` keeps
+as many SKU-days as were injected, ranked by `scores`.
+
 ## Declaring and installing a plug-in
 
 Put the class in a package and declare it in that package's `pyproject.toml`.
@@ -388,6 +471,9 @@ median-difference = "my_plugins.causal:MedianDifference"
 
 [project.entry-points."sdf.forecasters"]
 weekday-mean = "my_plugins.forecast:WeekdayMean"
+
+[project.entry-points."sdf.detectors"]
+stock-balance = "my_plugins.detect:StockBalance"
 ```
 
 Then add the package to the environment that runs the API or the CLI, for
@@ -399,6 +485,7 @@ For a quick experiment without packaging, register the class at runtime:
 
 ```python
 from sdf.analytics.causal import default_estimators
+from sdf.analytics.detectors import default_detectors
 from sdf.analytics.forecasters import default_forecasters
 from sdf.api.app import create_app
 from sdf.application.datasets import default_datasets
@@ -412,8 +499,10 @@ estimators = default_estimators()
 estimators.register(MedianDifference)
 forecasters = default_forecasters()
 forecasters.register(WeekdayMean)
+detectors = default_detectors()
+detectors.register(StockBalance)
 app = create_app(synthesizers=synthesizers, datasets=datasets, estimators=estimators,
-                 forecasters=forecasters)   # serve it with uvicorn
+                 forecasters=forecasters, detectors=detectors)   # serve it with uvicorn
 ```
 
 ## When a plug-in does not load

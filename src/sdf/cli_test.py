@@ -28,6 +28,7 @@ COMMANDS = [
     "effects",
     "estimate",
     "forecast",
+    "anomalies",
     "privacy",
     "validate",
     "hooks",
@@ -315,3 +316,49 @@ def test_forecast_takes_parameters_and_refuses_what_it_cannot_run():
     ):
         refused = run("forecast", *args)
         assert refused.exit_code != 0 and message in refused.output, refused.output
+
+
+def test_anomalies_scores_the_built_ins_on_injected_anomalies(tmp_path):
+    out = tmp_path / "scores.csv"
+    result = run("anomalies", "--benchmark", "--csv", str(out))
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert lines[0] == "default world: 200 SKUs × 90 days; signals demand, on_hand, receipts"
+    assert lines[1].startswith("injected 180 anomalies (rate 0.01, seed 7): ")
+    shrinkage = next(
+        line.split() for line in lines if line.startswith("isolation-forest") and " shrinkage  threshold" in line
+    )
+    assert float(shrinkage[4]) >= 0.8  # recall
+    assert (
+        out.read_text(encoding="utf-8").splitlines()[0] == "detector,kind,cut,precision,recall,f1,flagged,seconds,error"
+    )
+
+
+def test_anomalies_lists_detections_and_refuses_an_unknown_detector():
+    result = run("anomalies", "-d", "seasonal-residual")
+    assert result.exit_code == 0, result.output
+    assert "seasonal-residual: " in result.output and "SKU-days flagged" in result.output
+    bad = run("anomalies", "-d", "nope")
+    assert bad.exit_code == 1 and "unknown detector 'nope'" in bad.output
+
+
+def test_anomalies_reports_a_detector_s_own_failure_without_a_traceback(monkeypatch):
+    from typing import ClassVar
+
+    from .analytics.detectors import DetectorInfo, DetectorRegistry
+
+    class Crashes:
+        info: ClassVar[DetectorInfo] = DetectorInfo("crashes", "fails on every frame")
+
+        def scores(self, frame):
+            raise RuntimeError("out of memory")
+
+        def detect(self, frame):
+            return []
+
+    reg = DetectorRegistry()
+    reg.register(Crashes)
+    monkeypatch.setattr("sdf.cli.default_detectors", lambda: reg)
+    result = run("anomalies", "-d", "crashes")
+    assert result.exit_code == 1 and "crashes failed: RuntimeError: out of memory" in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)

@@ -417,6 +417,65 @@ value, expected value and robust-z are under
 [Reproducible numbers → Default world](#reproducible-numbers). Live in the dashboard.
 ALGORITHM-HOOK[C3]: Isolation Forest / autoencoder over multivariate state.
 
+### C3 — Anomaly detection on injected anomalies (algorithm phase 4)
+
+Detectors are plug-ins (`sdf.analytics.detectors`) over the daily signals of
+every SKU: `demand`, and the `on_hand` and `receipts` of the service-level
+policy replayed on it (`sdf.simulation.signals`). `AnomalyBenchmark` injects
+known anomalies into 1 % of the default world's SKU-days (seed 7): 91 demand
+`spike`s (U(3, 6) times the SKU's mean added), 29 `drop`s (a selling day set
+to 0) and 60 `shrinkage`s (2 to 5 days of mean demand taken from stock, with
+no demand or receipt to explain it). The stock follows the changed demand, so
+only shrinkage breaks the stock balance. `threshold` keeps each detector's own
+alarms; `top-k` keeps the 180 SKU-days it rates highest. Per kind, precision
+counts that kind's hits and the false alarms (`uv run sdf anomalies
+--benchmark`; the contract is
+[`refactor/algorithms/interfaces.md`](refactor/algorithms/interfaces.md) §6):
+
+| detector | kind | precision | recall | flagged (threshold) | recall (top-k) |
+|---|---|---|---|---|---|
+| seasonal-residual | spike | 0.05 | 0.44 | 821 | 0.23 |
+| seasonal-residual | drop | 0.00 | 0.00 | 781 | 0.00 |
+| seasonal-residual | shrinkage | 0.00 | 0.02 | 782 | 0.00 |
+| seasonal-residual | all | 0.05 | 0.23 | 822 | 0.12 |
+| isolation-forest | spike | 0.06 | 0.08 | 116 | 0.08 |
+| isolation-forest | drop | 0.04 | 0.14 | 113 | 0.14 |
+| isolation-forest | shrinkage | 0.36 | **1.00** | 169 | **1.00** |
+| isolation-forest | all | **0.39** | 0.39 | 180 | 0.39 |
+
+- `isolation-forest` finds every shrinkage (the target was a recall of at
+  least 0.8). `seasonal-residual` reads demand only, so it cannot see it: with
+  shrinkage alone injected, it reports exactly what it reported before. Its
+  0.02 is one shrinkage day that fell on one of its own alarms.
+- On demand, the single-series rule is the stronger one: 0.44 of the spikes at
+  its threshold against 0.08. The default world's demand is lumpy, so the rule
+  also raises 820 alarms of its own (5 % precision). Neither finds drops:
+  most SKUs already have many days without demand.
+- **What made the forest work.** The stock enters as the stock that went
+  missing, in days of the SKU's mean demand: 0 on every day stock is accounted
+  for. Each tree draws up to 8,192 SKU-days, not scikit-learn's 256: in a
+  sample of 256 that feature is 0 everywhere, so no tree split on it and
+  recall was 0. The stock and receipts series themselves, as features of
+  their own, are a policy's restocking cycle, and they cut shrinkage recall to
+  0.6 with more false alarms, so they are read through the stock balance only.
+- **Limit:** the forest isolates what is rare. With shrinkage on 1 % of the
+  SKU-days, as often as the share it flags, its shrinkage recall falls to 0.49.
+- **Why the forest's two cuts agree.** It flags its `contamination` share
+  (1 %) of the SKU-days, the same count the benchmark injects, so its
+  threshold and its top-k are the same 180 SKU-days. The top-k column tells
+  something new only for a detector, like the rule, that raises more or fewer
+  alarms than there are anomalies.
+- **Limit of the benchmark:** the stock is shifted, not replayed. The policy
+  does not reorder in answer to an injected anomaly, and a spike or a drop can
+  leave demand unmet on a day that ends with stock (7 SKU-days here), which a
+  replay never does. Only the stock balance is kept exact, and it is all the
+  forest reads of the stock.
+- **Time:** `isolation-forest` takes 1.1 s on the default world, 2.8 s on the
+  largest world the API allows (500 SKUs × 180 days); `seasonal-residual`
+  0.02 s and 0.16 s. `GET /api/v1/anomalies?detector=NAME` answers each
+  detector's alarms on the current world; `/api/v1/demand-anomalies` is
+  unchanged.
+
 **C6 — grounded knowledge Q&A** (`application/knowledge.py`): a natural-language
 interface that routes questions to computed facts and answers with real numbers —
 stockouts, (s,S) safety stock, forecast accuracy, anomalies, vision stocktake,
