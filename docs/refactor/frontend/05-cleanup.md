@@ -11,6 +11,8 @@ to be implemented are written for the new stack.
 
 ## Scope
 
+- Move `niceTicks` and its tests into `lib/format.js` and `format.test.js`,
+  unchanged, and point `effects-model.js` at it (§1.3).
 - Delete `ui/src/lib/chart.js` and `chart.test.js`, and the `ui/src/legacy/`
   folder (§1.3); `app.js`, `explore.js`, `synthesizers.js`, `effects.js`,
   `estimate.js` and their styles have left it in F2 to F4.

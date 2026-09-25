@@ -11,6 +11,8 @@ shared components, with every address and link unchanged.
 
 ## Scope
 
+- **Entry modules:** `pages/synthesizers.js` and `pages/effects.js` (§1.3),
+  each page under `Nav.svelte`.
 - **Synthesizers:** the catalogue and parameter form, the run, the real-versus-
   synthetic line chart and the per-measure histograms (`LineChart`, or
   `BarChart` for the histograms), the metrics table (`DataTable`), "Open in

@@ -98,13 +98,38 @@ Each PR adds its part and empties `legacy/` of the page it rebuilds:
 ui/src/
   lib/csv.js  csv.test.js           F2 (§3.2)
   components/charts/  tables/       F2 (§2.2, §3.2); PivotTable in F4
-  components/Nav.svelte             F2: the shared navigation, every page's links
+  components/Nav.svelte             F2: the shared navigation, used by each page once rebuilt
   pages/Dashboard.svelte ...        F2 the dashboard; F3 Synthesizers and Effects; F4 Explore
+  pages/dashboard.js ...            one entry module per rebuilt page, with its component (below)
   theme.css                         F2 (§4)
 ui/e2e/                             the behaviour specs of §5.3, one per page as it is rebuilt
 ```
 
-F5 deletes `legacy/` (empty by then), `lib/chart.js` and `lib/chart.test.js`.
+**Entry modules.** An HTML entry cannot mount a component by itself, and no
+page may carry an inline script (§5.4). Each rebuilt page therefore has a
+browser entry module next to its component, added by the PR that rebuilds the
+page (`pages/dashboard.js` in F2; `synthesizers.js` and `effects.js` in F3;
+`explore.js` in F4), and that PR points the page's
+`<script type="module" src>` from `src/legacy/…` to it:
+
+```js
+// ui/src/pages/dashboard.js
+import { mount } from "svelte";
+import "../theme.css";
+import Dashboard from "./Dashboard.svelte";
+
+mount(Dashboard, { target: document.getElementById("app") });
+```
+
+The page's HTML keeps its `<head>` and holds `<div id="app"></div>` in its
+body.
+
+**`niceTicks` outlives `chart.js`.** `effects-model.js` imports `niceTicks`
+from `chart.js` for its axis, and F3 uses `effects-model.js` as it is. F5
+moves `niceTicks` and its tests from `chart.js` and `chart.test.js` into
+`lib/format.js` and `format.test.js`, unchanged, points `effects-model.js`'s
+import there, and only then deletes `legacy/` (empty by then), `lib/chart.js`
+and `lib/chart.test.js`.
 
 ### 1.4 Adding a page (the algorithm phase's PR 6)
 
@@ -312,7 +337,7 @@ CI installs Chromium with `npx playwright install --with-deps chromium`.
 | every UI path is in the OpenAPI schema | `api("/…")` literals in `ui/*.js` | the same, in `ui/src/**/*.{js,svelte}` |
 | the UI reaches the backend only through `api()` | one `fetch(` in `common.js` | one `fetch(` in `ui/src/lib/api.js`, none elsewhere in `ui/src` |
 | no inline event handler | no `on…=` attribute in `ui/` | none in `ui/dist/*.html` and no inline `<script>` there |
-| every page links the others | in `ui/*.html` | the same after F1; from F2, in `components/Nav.svelte`, which every page uses |
+| every page links the others | in `ui/*.html` | the same after F1; from F2, each page not yet rebuilt still in its HTML, and each rebuilt page through `components/Nav.svelte`, which the test reads once for all of them; after F4 only `Nav.svelte` |
 | the UI folder is mounted | `ui/` | `ui/dist/`, skipped with the reason when it was not built; CI builds it first |
 
 ## 6. Compatibility

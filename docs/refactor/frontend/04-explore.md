@@ -11,6 +11,7 @@ set of Svelte components around the unchanged `pivot.js`.
 
 ## Scope
 
+- **Entry module:** `pages/explore.js` (§1.3), the page under `Nav.svelte`.
 - **State:** one view object (`source`, `view`, `display`), as today, held in
   Svelte state and written to the `#view=` address on every change; the
   address is read on load and on `hashchange`.

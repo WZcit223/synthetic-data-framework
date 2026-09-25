@@ -17,7 +17,8 @@ is a Svelte page whose charts are Chart.js and whose tables are Tabulator.
   `pivot.js` and the flat writer `tableCsv`.
 - **Theme:** `theme.css` with the light and dark sets; `palette.js` with a set
   per theme; today's palette tests unchanged.
-- **The dashboard** (`index.html`) as `pages/Dashboard.svelte` and its parts:
+- **The dashboard** (`index.html`) as `pages/Dashboard.svelte`, mounted by the
+  entry module `pages/dashboard.js` (§1.3) under `components/Nav.svelte`, and its parts:
   the ABC bars (`BarChart`), the SKU demand chart (`LineChart`, the forecast
   average as a second series), the shelf heatmap (`HeatGrid`), and its seven
   tables (`DataTable`, sortable). The CSV export links stay.
