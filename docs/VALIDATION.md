@@ -380,8 +380,9 @@ pair, and keeps the cheapest (holding + ordering + lost margin, priced as
   world. On the baseline worlds, `cost-based` saves 63,839 ± 3,415 (95 %
   interval, t over the 10 paired differences) of `service-level-95`'s 128,869,
   that is 49.5 %, and its fill rate is never below 99.5 %. Under the promotion
-  spike it saves 66,125 ± 4,557 (42 %). The study takes 10 s.
-- **Time:** planning all 200 SKUs takes 0.2 s (target under 2 s): the 40
+  spike it saves 66,125 ± 4,558 (42 %). The study takes 10 s.
+- **Time:** planning all 200 SKUs on the whole 90-day history takes 0.3 s
+  (target under 2 s; 0.2 s on the 60 fitting days): the 40
   candidate pairs of a SKU are replayed together (`simulate_candidates`, which
   gives exactly `simulate_inventory`'s numbers).
 - The default policy, `sdf demo`, `sdf impact` and every recorded number above

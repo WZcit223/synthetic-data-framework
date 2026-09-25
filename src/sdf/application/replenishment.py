@@ -77,7 +77,7 @@ def ss_policy(
 HOLDOUT_DAYS = 30  # the comparison's out-of-sample replay: levels from the days before, cost on these
 
 
-def policy_comparison(reg: DataSourceRegistry, *, service_level: float = 0.95) -> dict:
+def policy_comparison(reg: DataSourceRegistry, *, service_level: float = 0.95, cache: dict | None = None) -> dict:
     """Replay the demand history under a no-safety-stock policy, the (s,S) policy and the cost-based policy.
 
     One ``Experiment`` with ``NaivePolicy``, ``ServiceLevelPolicy`` and ``CostBasedPolicy``
@@ -87,6 +87,9 @@ def policy_comparison(reg: DataSourceRegistry, *, service_level: float = 0.95) -
     of those days (``holdout_*``). Each entry of ``policies`` holds one policy's metrics,
     so the dashboard can show what the safety stock buys (fewer unmet units for more
     units held) and what choosing the levels on cost saves on days they were not fitted on.
+    ``cache`` (policy name -> its row) keeps each policy's row for the registry it was
+    measured on: only the service-level row depends on ``service_level``, and the
+    cost-based row costs a search per SKU, so a later call for the same world reuses it.
     """
     world = World(registry=reg, label="policy_comparison")
     every_sku = len(world.demand().series)  # same scope as ReplenishmentNeed, unlike the economics cap
@@ -94,10 +97,17 @@ def policy_comparison(reg: DataSourceRegistry, *, service_level: float = 0.95) -
     outcomes = [ReplenishmentNeed(), SimulatedCost(CostModel(), max_skus=every_sku)]
     if len(world.demand().days) - HOLDOUT_DAYS >= MIN_FIT_DAYS:
         outcomes.append(SimulatedCost(CostModel(), max_skus=every_sku, holdout_days=HOLDOUT_DAYS, name="holdout"))
-    rows = Experiment(world=world, interventions=[Baseline()], policies=policies, outcomes=outcomes).run()
-    by_policy: dict[str, dict] = {p.name: {"policy": p.name} for p in policies}
-    for r in rows:
-        by_policy[r.policy][r.metric] = round(r.value, 4) if r.metric.endswith("fill_rate") else round(r.value)
+    by_policy: dict[str, dict] = {}
+    for policy in policies:  # one experiment per policy: its rows are the same as in one experiment for all
+        if cache is not None and policy.name in cache:
+            by_policy[policy.name] = cache[policy.name]
+            continue
+        row = {"policy": policy.name}
+        for r in Experiment(world=world, interventions=[Baseline()], policies=[policy], outcomes=outcomes).run():
+            row[r.metric] = round(r.value, 4) if r.metric.endswith("fill_rate") else round(r.value)
+        by_policy[policy.name] = row
+        if cache is not None:
+            cache[policy.name] = row
     return {
         "service_level": service_level,
         "horizon_days": len(world.demand().days),

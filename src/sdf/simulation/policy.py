@@ -133,6 +133,8 @@ class CostBasedPolicy:
     pair whose replay of ``item.history`` costs least (holding + ordering + lost margin, as
     ``SimulatedCost`` prices them) wins; ties go to the smaller ``s``, then the smaller order.
     The grid is fixed, so the levels are reproducible; nothing beyond ``item.history`` is read.
+    The policy prices with its own ``cost_model``: an outcome scoring it under other costs
+    scores levels tuned for these.
     ALGORITHM-HOOK[C2]: lead times are fixed and demand is replayed as it happened; stochastic
     lead times and a fitted lead-time demand distribution replace the replay.
     """
@@ -149,7 +151,8 @@ class CostBasedPolicy:
         raise TypeError("cost-based needs a SKU's costs and history: call levels_for(policy, PolicyInput(...))")
 
     def order_quantity(self, item: PolicyInput) -> float:
-        """``Q``: the economic order quantity, at most one order for the whole history."""
+        """``Q``: the economic order quantity, at most one order for the whole history; 0 when ordering is
+        free (which wins when holding is free too), the cap when only holding is free."""
         cm = self.cost_model
         mu = item.profile.mean
         cap = mu * len(item.history)

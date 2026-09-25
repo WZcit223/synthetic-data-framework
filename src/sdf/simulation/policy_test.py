@@ -129,13 +129,35 @@ def test_the_search_finds_what_a_brute_force_over_the_same_grid_finds(costs):
     assert (lv.reorder_point, lv.order_up_to) == (s, big_s)
 
 
-def test_ties_go_to_the_smaller_levels_and_nothing_beyond_the_history_is_read():
-    # a constant history that no candidate can run short on: every s costs holding, so the smallest wins
-    flat = item(history=(5.0,) * 60, unit_price=2.0)
-    lv = CostBasedPolicy(cost_model=CostModel(holding_cost_annual_rate=0.0, order_fixed_cost=0.0)).levels_for(flat)
-    assert lv.reorder_point == 5.0 * 14 and lv.order_up_to == lv.reorder_point  # z = 0, order size 0: all tie
-    # the item is all a policy sees: two SKUs with the same item get the same levels
-    assert levels_for(CostBasedPolicy(), item()) == levels_for(CostBasedPolicy(), item())
+def test_the_grid_is_the_contract_s():
+    assert CostBasedPolicy.Z_GRID == (0.0, 0.5, 1.0, 1.28, 1.645, 2.0, 2.5, 3.0)
+    assert CostBasedPolicy.LOT_GRID == (0.5, 1.0, 1.5, 2.0, 3.0)
+    assert (CostBasedPolicy().name, CostBasedPolicy().lead_time_days, CostBasedPolicy().review_days) == (
+        "cost-based",
+        7,
+        7,
+    )
+
+
+def test_ties_go_to_the_smaller_reorder_point_then_the_smaller_order():
+    # no margin and free holding: only orders cost. From 1.5 times one order for the whole history, the
+    # stock never falls to s, so every such candidate costs 0 at every z; smaller orders reorder.
+    it = item(unit_cost=3.0, unit_price=3.0)
+    policy = CostBasedPolicy(cost_model=CostModel(holding_cost_annual_rate=0.0))
+    q = policy.order_quantity(it)
+    assert q == it.profile.mean * len(it.history) and it.profile.variability > 0
+    lv = policy.levels_for(it)
+    s0 = it.profile.mean * 14  # z = 0: the smallest reorder point
+    assert (lv.reorder_point, lv.order_up_to) == (s0, s0 + 1.5 * q)  # of the 24 zero-cost ties, the first
+
+
+def test_the_levels_come_from_the_item_alone():
+    it = item()
+    assert levels_for(CostBasedPolicy(), it) == levels_for(
+        CostBasedPolicy(), PolicyInput("other", it.profile, it.history, 2.0, 5.0)
+    )
+    longer = PolicyInput("S", DemandProfile.of(HISTORY + (100.0,) * 7), HISTORY + (100.0,) * 7, 2.0, 5.0)
+    assert levels_for(CostBasedPolicy(), longer) != levels_for(CostBasedPolicy(), it)  # the history is what it reads
 
 
 def test_free_ordering_orders_up_to_s_and_free_holding_orders_once():
@@ -180,6 +202,8 @@ def test_the_holdout_replay_fits_on_the_days_before_and_scores_the_last_ones(wor
         == out["holdout_holding_cost"] + out["holdout_order_cost"] + out["holdout_lost_margin"]
     )
     days = len(world.demand().days)
+    with pytest.raises(ValueError, match=f"holdout_days {days} is not shorter than the history's {days} days"):
+        SimulatedCost(CostModel(), holdout_days=days).measure(world, ServiceLevelPolicy(0.95))
     with pytest.raises(ValueError, match=f"holdout_days {days - 10} leaves 10 of the history's {days} days to fit on"):
         SimulatedCost(CostModel(), holdout_days=days - 10).measure(world, ServiceLevelPolicy(0.95))
     with pytest.raises(ValueError, match="holdout_days must be a whole number of days"):
@@ -192,3 +216,29 @@ def test_on_the_default_world_the_cost_based_policy_costs_far_less_out_of_sample
     cb = outcome.measure(world, CostBasedPolicy())
     assert cb["holdout_total_cost"] <= 0.7 * sl["holdout_total_cost"]  # at least 30 % less
     assert cb["holdout_fill_rate"] >= 0.99
+
+
+@dataclass(frozen=True)
+class SeesWhatItGets:
+    """Records what levels_for is given."""
+
+    seen: list
+    lead_time_days: int = 7
+    name: str = "spy"
+
+    def levels(self, profile):
+        raise AssertionError("levels_for is asked, not levels")
+
+    def levels_for(self, item):
+        self.seen.append(item)
+        return ServiceLevelPolicy(0.95).levels(item.profile)
+
+
+def test_the_holdout_levels_see_only_the_days_before_the_held_out_ones(world):
+    seen = []
+    SimulatedCost(CostModel(), holdout_days=30).measure(world, SeesWhatItGets(seen))
+    table = world.demand()
+    for it in seen:
+        fit = table.series[it.sku_id][:-30]
+        assert it.history == tuple(fit) and it.profile == DemandProfile.of(fit)
+    assert seen and all(len(it.history) == len(table.days) - 30 for it in seen)

@@ -83,7 +83,9 @@ class SimulatedCost:
     ``holdout_days``, each SKU's levels come from the days before the last ``holdout_days``
     and the replay runs on those last days only (out of sample); the metrics are then
     named ``holdout_…``, with their total, so both can be measured in one study, and a SKU
-    with no demand in its fitting days is left out, as a SKU with no demand always is.
+    with no demand in its fitting days is left out, as a SKU with no demand always is: the
+    same SKUs for every policy, but a SKU launched inside the held-out days is not counted
+    (none is in the default world).
     ALGORITHM-HOOK[C2]: the replay is deterministic on history; a stochastic
     lead-time and demand model gives distributions instead of one number.
     """
@@ -106,6 +108,8 @@ class SimulatedCost:
         table = world.demand()
         skus = {s.sku_id: s for s in world.stream("SKU")}
         holdout = self.holdout_days
+        if holdout is not None and holdout >= len(table.days):
+            raise ValueError(f"holdout_days {holdout} is not shorter than the history's {len(table.days)} days")
         if holdout is not None and len(table.days) - holdout < MIN_FIT_DAYS:
             raise ValueError(
                 f"holdout_days {holdout} leaves {len(table.days) - holdout} of the history's {len(table.days)} days"

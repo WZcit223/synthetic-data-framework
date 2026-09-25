@@ -91,6 +91,30 @@ def test_replenishment_comparison_on_a_short_history_has_no_holdout(small_client
     body = get(small_client, "/replenishment/comparison")
     assert body["horizon_days"] < 58 and body["holdout_days"] is None
     assert all(p["holdout_total_cost"] is None for p in body["policies"])
+    # an experiment asking for the held-out cost of that short history is refused with the reason
+    body = {"interventions": ["baseline"], "policies": [{"kind": "cost-based"}], "outcomes": ["simulated_cost_holdout"]}
+    res = small_client.post(V1 + "/experiments", json=body)
+    assert res.status_code == 422 and res.json()["detail"].startswith("holdout_days 30 ")
+
+
+def test_the_comparison_keeps_each_policy_s_row_for_its_world(monkeypatch):
+    from sdf.application import replenishment
+    from sdf.simulation import experiment
+
+    runs = []
+    real = experiment.Experiment.run
+
+    def counting(self):
+        runs.append([p.name for p in self.policies])
+        return real(self)
+
+    monkeypatch.setattr(experiment.Experiment, "run", counting)
+    c = TestClient(create_app())
+    first = get(c, "/replenishment/comparison?service_level=0.95")
+    assert get(c, "/replenishment/comparison?service_level=0.95") == first
+    get(c, "/replenishment/comparison?service_level=0.99")
+    assert runs == [["naive"], ["service-level-95"], ["cost-based"], ["service-level-99"]]
+    assert replenishment.policy_comparison(c.app.state.store.current.world.registry) == first  # uncached: same rows
 
 
 def test_replenishment(client):
