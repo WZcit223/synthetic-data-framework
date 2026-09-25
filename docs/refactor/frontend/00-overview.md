@@ -1,6 +1,7 @@
 # Frontend refactor — overview
 
-Status: proposed on 2026-09-25. On 2026-09-25 the project lead asked, before
+Status: approved on 2026-09-25, with the recommended answer to D1 to D4 and
+without accessibility work (see Non-goals). On 2026-09-25 the project lead asked, before
 the algorithm phase continues past its PR 1, for the frontend to be rebuilt on
 mature libraries: a charting library instead of the hand-written chart code, a
 table library instead of the hand-written tables, and, if it helps, a UI
@@ -54,9 +55,7 @@ right while the UI was small. It no longer is:
    legends, responsive resizing and animation built in. Two maintained MIT
    plug-ins cover the rest: `chartjs-chart-error-bars` for the interval
    (forest) plots of effects and estimators, and `chartjs-chart-matrix` for the
-   shelf-occupancy heatmap. Charts draw on canvas, so every chart keeps its
-   table view (the pages already have one) and gets a text summary for screen
-   readers. *Alternative:* d3.js. A toolkit for building charts rather than a
+   shelf-occupancy heatmap. *Alternative:* d3.js. A toolkit for building charts rather than a
    chart library: scales, axes, tooltips and legends would still be our code,
    which is what this sequence removes. (Decision D2; "3d.js" in the request
    is read as d3.js.)
@@ -93,10 +92,13 @@ right while the UI was small. It no longer is:
    are rewritten to read `ui/src` and the built `ui/dist`.
 8. **Light and dark themes.** Colours move to CSS custom properties with a
    light and a dark set, chosen by `prefers-color-scheme`; `palette.js` stays
-   the one source of series colours, checked for contrast on both surfaces.
+   the one source of series colours, with a set per theme.
    Today the UI is dark only.
 
 ## Decisions for the project lead
+
+All four answered on 2026-09-25 with the recommended option: Svelte 5,
+Chart.js, Tabulator, and the build output not committed.
 
 - **D1. The framework:** Svelte 5 (recommended), React 19, or none.
 - **D2. The chart library:** Chart.js (recommended) or d3.js. The request says
@@ -133,6 +135,12 @@ light and dark, with screenshots in the PR.
 | F5 | [`05-cleanup.md`](05-cleanup.md) | The hand-written chart and table code removed, the docs and the algorithm plan's PR 6 updated | none |
 
 ## Non-goals
+
+- **No accessibility work** (the project lead, 2026-09-25): no screen-reader
+  text for charts, no table view added only to mirror a chart, no keyboard
+  alternatives to drag and drop, no contrast checks for the new light palette.
+  What the libraries do by default stays; nothing is added for it. Today's
+  palette tests move unchanged.
 
 - **No API change** and no change to any Python behaviour or recorded number.
 - **No new page and no new feature** beyond the light theme and the table

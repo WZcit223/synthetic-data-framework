@@ -133,11 +133,11 @@ One Svelte component per kind of chart; each owns one Chart.js instance,
 updates it when its props change, and destroys it when it leaves the page.
 
 ```svelte
-<LineChart     {series} {labels} {yLabel} {format} {summary} {band} />     <!-- lines; gaps at null; filled band -->
-<BarChart      {series} {labels} {format} {summary} {stacked} {horizontal} />
-<IntervalChart {rows} {format} {summary} {reference} />                   <!-- point + interval per row; reference line -->
-<StripChart    {groups} {format} {summary} />                             <!-- jittered points per group, with its mean -->
-<HeatGrid      {cells} {columns} {rows} {format} {summary} />             <!-- a value per cell on the sequential ramp -->
+<LineChart     {series} {labels} {yLabel} {format} {band} />     <!-- lines; gaps at null; filled band -->
+<BarChart      {series} {labels} {format} {stacked} {horizontal} />
+<IntervalChart {rows} {format} {reference} />                   <!-- point + interval per row; reference line -->
+<StripChart    {groups} {format} />                             <!-- jittered points per group, with its mean -->
+<HeatGrid      {cells} {columns} {rows} {format} />             <!-- a value per cell on the sequential ramp -->
 ```
 
 Optional props, which may be left out: `band` (no band), `stacked` and
@@ -176,16 +176,8 @@ null and interval cases included.
   `valueFormatter`), used by the ticks and the tooltip alike.
 - **`band`** is `{low, high, name}` for PR 6 of the algorithm phase (forecast
   intervals).
-- **`summary`** is required on every chart: a sentence rendered for screen
-  readers (`aria-label` on the canvas, `role="img"`). A chart without one is a
-  `svelte-check` error (the prop has no default). Every chart is followed by
-  a table view of the same numbers (a `DataTable`, folded under a "Show as
-  table" disclosure where the page has none today); no number is shown only
-  in a chart. The PR that rebuilds a page adds the views its charts lack: F2
-  the dashboard's three charts: the ABC bars, the SKU demand and the shelf
-  heatmap (the policy comparison is already a table).
 - Tooltips, legends and hover use Chart.js's own, styled by the theme (§4).
-  Keyboard access to data points comes from the table view.
+  No accessibility layer is added (overview, Non-goals).
 
 `IntervalChart` replaces the forest plots of `effects.js` and `estimate.js`
 (`chartjs-chart-error-bars`, scatter with x error bars); `StripChart` the
@@ -271,7 +263,7 @@ and `collapsed`.
   `--accent`, `--good`, `--warn`, `--bad`, and the heat ramp `--heat-0` to
   `--heat-5`.
 - `lib/palette.js` stays the source of series colours and exports one set per
-  theme; its tests check contrast against both surfaces.
+  theme; today's tests keep checking the dark set, unchanged.
 - Chart.js and Tabulator read the tokens at render time and redraw when the
   scheme changes.
 
@@ -290,8 +282,7 @@ new in F2 (§3.2).
 
 ### 5.2 Components (F2 to F4)
 
-Vitest with Testing Library in jsdom: a component renders its table view with
-the right numbers, a chart receives the datasets its props describe (the
+Vitest with Testing Library in jsdom: a table renders the right numbers, a chart receives the datasets its props describe (the
 Chart.js instance is inspected, not the canvas pixels), a link's view restores
 the component's state.
 

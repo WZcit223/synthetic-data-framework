@@ -15,7 +15,7 @@ set of Svelte components around the unchanged `pivot.js`.
   Svelte state and written to the `#view=` address on every change; the
   address is read on load and on `hashchange`.
 - **Field shelf and drop zones:** Rows, Columns, Values and Filters, with
-  drag and drop (native HTML5, as today) and keyboard alternatives.
+  drag and drop (native HTML5, as today).
 - **Menus:** aggregation, time grain and filter values, as Svelte popovers.
 - **Presets**, the source picker (catalogue datasets and the link sources of
   `sources.js`), CSV download and copy link.
