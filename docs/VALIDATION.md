@@ -116,6 +116,7 @@ Policy comparison (demand replayed over 90 days, default `CostModel`, 95 % servi
 |---|---|---|---|---|---|---|
 | naive | 2 | 0 | 5,269 | 0.9128 | 41,509 | 40,600 |
 | service-level-95 | 62 | 4,541 | 0 | 1 | 122,435 | 229,125 |
+| cost-based | 16 | 139 | 1 | 1 | 104,852 | 30,350 |
 
 Economics (counterfactual, default `CostModel`):
 
@@ -344,6 +345,48 @@ forecasting remains the model-based replacement (ALGORITHM-HOOK[C2]).
 service level from 90→99 % lifts the total safety stock by roughly 80 %. ALGORITHM-HOOK[C2]: a
 cost-based newsvendor with a fitted lead-time-demand distribution replaces the
 normal approximation.
+
+### C2 — Replenishment out of sample (algorithm phase 3)
+
+The (s, S) numbers above replay each SKU's history under levels computed from
+that same history. `SimulatedCost(holdout_days=30)` (the outcome
+`simulated_cost_holdout`) sets each SKU's levels on all but the last 30 days
+and prices only those last 30 days, so a policy is judged on days it was not
+fitted on. `cost-based` (`sdf.simulation.policy.CostBasedPolicy`) chooses both
+levels per SKU. It tries 8 reorder points (`z` from 0 to 3) and 5 order sizes
+(0.5 to 3 economic order quantities), replays the SKU's fitting days under each
+pair, and keeps the cheapest (holding + ordering + lost margin, priced as
+`SimulatedCost` prices them). The contract is
+[`refactor/algorithms/interfaces.md`](refactor/algorithms/interfaces.md) §5.
+
+**Default world**, levels set on the first 60 days, cost of the last 30
+(`GET /api/v1/replenishment/comparison`, default `CostModel`):
+
+| policy | total cost | holding | ordering | lost margin | unmet units | fill rate |
+|---|---|---|---|---|---|---|
+| naive (no safety stock) | 357,198 | 15,170 | 13,425 | 328,603 | 2,032 | 90.3 % |
+| service-level-95 (today) | 119,633 | 40,298 | 78,000 | 1,335 | 7 | 99.97 % |
+| cost-based | **60,452** | 36,215 | 9,875 | 14,362 | 71 | 99.66 % |
+
+- `cost-based` costs 49 % less than `service-level-95` on days it did not see
+  (the target was at least 30 %), with a fill rate of 99.66 % (target at least
+  99 %). The saving is in the order size: `service-level-95` orders up to its
+  reorder point at every review (78,000 in order costs), while the economic
+  order quantity places a quarter of the orders. It gives up a little fill
+  rate: margins are high, so the search keeps some lost sales where more stock
+  would cost more to hold.
+- **Replicated:** an effect study (10 paired replicate worlds of the default
+  spec, `promo_spike` against the baseline) measures both policies on each
+  world. On the baseline worlds, `cost-based` saves 63,839 ± 3,415 (95 %
+  interval, t over the 10 paired differences) of `service-level-95`'s 128,869,
+  that is 49.5 %, and its fill rate is never below 99.5 %. Under the promotion
+  spike it saves 66,125 ± 4,557 (42 %). The study takes 10 s.
+- **Time:** planning all 200 SKUs takes 0.2 s (target under 2 s): the 40
+  candidate pairs of a SKU are replayed together (`simulate_candidates`, which
+  gives exactly `simulate_inventory`'s numbers).
+- The default policy, `sdf demo`, `sdf impact` and every recorded number above
+  still use `service-level-95`; making `cost-based` the default is a separate
+  decision, taken on these numbers.
 
 ### B2 — TSTR: train on synthetic, test on real
 

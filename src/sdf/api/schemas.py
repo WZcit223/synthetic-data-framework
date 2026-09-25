@@ -128,11 +128,21 @@ class PolicyMetrics(Model):
     holding_cost: float
     order_cost: float
     lost_margin: float
+    # out of sample: levels from all but the last `holdout_days`, costs on those days; absent on a short history
+    holdout_unmet_units: float | None = None
+    holdout_fill_rate: float | None = None
+    holdout_holding_cost: float | None = None
+    holdout_order_cost: float | None = None
+    holdout_lost_margin: float | None = None
+    holdout_total_cost: float | None = None
 
 
 class ReplenishmentComparison(Model):
     service_level: float
     horizon_days: int
+    holdout_days: int | None = Field(
+        None, description="the days the holdout_* metrics are measured on; null when the history is too short"
+    )
     policies: list[PolicyMetrics]
 
 
@@ -370,11 +380,11 @@ class DatasetTable(Model):
 
 
 class PolicyChoice(BaseModel):
-    """A built-in policy: ``naive`` or ``service-level`` (with its service level)."""
+    """A built-in policy: ``naive``, ``service-level`` (with its service level) or ``cost-based``."""
 
     model_config = ConfigDict(extra="forbid")
 
-    kind: Literal["naive", "service-level"]
+    kind: Literal["naive", "service-level", "cost-based"]
     service_level: float = Field(0.95, gt=0.5, lt=1.0)
     lead_time_days: int = Field(7, ge=1, le=90)
     review_days: int = Field(7, ge=1, le=90)

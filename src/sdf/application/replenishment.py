@@ -14,8 +14,8 @@ from sdf.analytics.forecasters import Forecast
 from sdf.foundation.registry import DataSourceRegistry
 from sdf.simulation.experiment import Experiment
 from sdf.simulation.intervention import Baseline
-from sdf.simulation.outcome import CostModel, ReplenishmentNeed, SimulatedCost
-from sdf.simulation.policy import NaivePolicy, ServiceLevelPolicy, plan_orders
+from sdf.simulation.outcome import MIN_FIT_DAYS, CostModel, ReplenishmentNeed, SimulatedCost
+from sdf.simulation.policy import CostBasedPolicy, NaivePolicy, ServiceLevelPolicy, plan_orders
 from sdf.simulation.world import World
 
 
@@ -74,30 +74,34 @@ def ss_policy(
     }
 
 
-def policy_comparison(reg: DataSourceRegistry, *, service_level: float = 0.95) -> dict:
-    """Replay the demand history under a no-safety-stock policy and the (s,S) policy.
+HOLDOUT_DAYS = 30  # the comparison's out-of-sample replay: levels from the days before, cost on these
 
-    One ``Experiment`` with ``NaivePolicy`` and ``ServiceLevelPolicy`` measured by
-    ``ReplenishmentNeed`` and ``SimulatedCost`` (default ``CostModel``), both over
-    every SKU with demand. Each entry of ``policies`` holds one policy's metrics,
-    so the dashboard can show what the safety stock buys: fewer unmet units for
-    more units held.
+
+def policy_comparison(reg: DataSourceRegistry, *, service_level: float = 0.95) -> dict:
+    """Replay the demand history under a no-safety-stock policy, the (s,S) policy and the cost-based policy.
+
+    One ``Experiment`` with ``NaivePolicy``, ``ServiceLevelPolicy`` and ``CostBasedPolicy``
+    measured by ``ReplenishmentNeed`` and ``SimulatedCost`` (default ``CostModel``), both
+    over every SKU with demand, in sample; and, when the history leaves enough days to
+    fit on, out of sample: levels from all but the last ``HOLDOUT_DAYS`` days, the cost
+    of those days (``holdout_*``). Each entry of ``policies`` holds one policy's metrics,
+    so the dashboard can show what the safety stock buys (fewer unmet units for more
+    units held) and what choosing the levels on cost saves on days they were not fitted on.
     """
     world = World(registry=reg, label="policy_comparison")
     every_sku = len(world.demand().series)  # same scope as ReplenishmentNeed, unlike the economics cap
-    policies = [NaivePolicy(), ServiceLevelPolicy(service_level=service_level)]
-    rows = Experiment(
-        world=world,
-        interventions=[Baseline()],
-        policies=policies,
-        outcomes=[ReplenishmentNeed(), SimulatedCost(CostModel(), max_skus=every_sku)],
-    ).run()
+    policies = [NaivePolicy(), ServiceLevelPolicy(service_level=service_level), CostBasedPolicy()]
+    outcomes = [ReplenishmentNeed(), SimulatedCost(CostModel(), max_skus=every_sku)]
+    if len(world.demand().days) - HOLDOUT_DAYS >= MIN_FIT_DAYS:
+        outcomes.append(SimulatedCost(CostModel(), max_skus=every_sku, holdout_days=HOLDOUT_DAYS, name="holdout"))
+    rows = Experiment(world=world, interventions=[Baseline()], policies=policies, outcomes=outcomes).run()
     by_policy: dict[str, dict] = {p.name: {"policy": p.name} for p in policies}
     for r in rows:
-        by_policy[r.policy][r.metric] = round(r.value, 4) if r.metric == "fill_rate" else round(r.value)
+        by_policy[r.policy][r.metric] = round(r.value, 4) if r.metric.endswith("fill_rate") else round(r.value)
     return {
         "service_level": service_level,
         "horizon_days": len(world.demand().days),
+        "holdout_days": HOLDOUT_DAYS if len(outcomes) == 3 else None,
         "policies": list(by_policy.values()),
     }
 

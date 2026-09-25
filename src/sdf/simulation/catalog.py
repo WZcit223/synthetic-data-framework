@@ -7,14 +7,19 @@ from collections.abc import Callable
 from sdf.synthesis.scenarios import SCENARIOS
 from .intervention import Baseline, Intervention, SpecIntervention
 from .outcome import ActiveStockouts, CostModel, Outcome, ReplenishmentNeed, SimulatedCost
-from .policy import NaivePolicy, Policy, ServiceLevelPolicy
+from .policy import CostBasedPolicy, NaivePolicy, Policy, ServiceLevelPolicy
+
+HOLDOUT_DAYS = 30  # the last days of the history simulated_cost_holdout replays; the levels come from the rest
 
 OUTCOMES: dict[str, Callable[[], Outcome]] = {
     "replenishment_need": ReplenishmentNeed,
     "active_stockouts": ActiveStockouts,
     "simulated_cost": lambda: SimulatedCost(CostModel()),
+    "simulated_cost_holdout": lambda: SimulatedCost(
+        CostModel(), holdout_days=HOLDOUT_DAYS, name="simulated_cost_holdout"
+    ),
 }
-POLICY_KINDS = ("naive", "service-level")
+POLICY_KINDS = ("naive", "service-level", "cost-based")
 
 
 def intervention_names() -> list[str]:
@@ -35,6 +40,8 @@ def policy(kind: str, *, service_level: float = 0.95, lead_time_days: int = 7, r
         return NaivePolicy(lead_time_days=lead_time_days, review_days=review_days)
     if kind == "service-level":
         return ServiceLevelPolicy(service_level=service_level, lead_time_days=lead_time_days, review_days=review_days)
+    if kind == "cost-based":
+        return CostBasedPolicy(lead_time_days=lead_time_days, review_days=review_days)
     raise KeyError(f"unknown policy kind {kind!r}; choose from {list(POLICY_KINDS)}")
 
 

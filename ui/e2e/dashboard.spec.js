@@ -107,7 +107,7 @@ test("each slider's label and the regenerate request say what the slider holds",
 test("a table header from the API is shown as text", async ({ page }) => {
   await page.goto("/index.html", { waitUntil: "networkidle" });
   const titles = card(page, /Policy comparison/).locator(".tabulator-col-title");
-  await expect(titles).toHaveText(["Metric", "naive", "service-level-95"]);
+  await expect(titles).toHaveText(["Metric", "naive", "service-level-95", "cost-based"]);
 });
 
 test("at 390 px the dashboard does not overflow sideways", async ({ page }) => {

@@ -93,7 +93,11 @@ def _spec_dict(spec: GenerationSpec) -> dict:
 
 def _policy_params(kind: str) -> list[dict]:
     """The form parameters of a policy kind, with the bounds ``POST /experiments`` enforces."""
-    names = ("lead_time_days", "review_days") if kind == "naive" else ("service_level", "lead_time_days", "review_days")
+    names = (
+        ("service_level", "lead_time_days", "review_days")
+        if kind == "service-level"
+        else ("lead_time_days", "review_days")
+    )
     params = []
     for name in names:
         info = s.PolicyChoice.model_fields[name]

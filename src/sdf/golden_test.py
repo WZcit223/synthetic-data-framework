@@ -65,7 +65,9 @@ def test_replenishment_comparison(world):
     # "closed loop" (stockouts 2 → 0), removed in structure PR 3.
     cmp = world["replenishment_comparison"]
     assert (cmp["service_level"], cmp["horizon_days"]) == (0.95, 90)
-    naive, ours = cmp["policies"]
+    # the cost-based policy is a third row (algorithm PR 3); the first two are the recorded ones, unchanged
+    naive, ours, cost_based = cmp["policies"]
+    assert cost_based["policy"] == "cost-based"
     expected = {
         "naive": (2, 0, 5269, 0.9128, 41509, 40600),
         "service-level-95": (62, 4541, 0, 1.0, 122435, 229125),

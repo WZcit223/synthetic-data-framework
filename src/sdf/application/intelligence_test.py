@@ -12,7 +12,11 @@ def test_application_layer_runs():
     intel = WarehouseIntelligence(reg)
     k = intel.kpis()
     assert k.total_skus == 60
-    assert [p["policy"] for p in intel.replenishment_comparison()["policies"]] == ["naive", "service-level-95"]
+    assert [p["policy"] for p in intel.replenishment_comparison()["policies"]] == [
+        "naive",
+        "service-level-95",
+        "cost-based",
+    ]
     assert len(intel.insights()) >= 3
 
 

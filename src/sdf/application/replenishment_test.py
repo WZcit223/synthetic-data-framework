@@ -15,8 +15,10 @@ def test_policies_on_the_default_world(default_world):
 def test_policy_comparison_on_the_default_world(default_world):
     _, reg, _ = default_world
     res = policy_comparison(reg, service_level=0.95)
-    naive, ours = res["policies"]
-    assert (naive["policy"], ours["policy"], res["horizon_days"]) == ("naive", "service-level-95", 90)
+    naive, ours, cost_based = res["policies"]
+    assert (naive["policy"], ours["policy"], cost_based["policy"]) == ("naive", "service-level-95", "cost-based")
+    assert (res["horizon_days"], res["holdout_days"]) == (90, 30)
+    assert cost_based["holdout_total_cost"] < 0.7 * ours["holdout_total_cost"]
     assert (naive["unmet_units"], ours["unmet_units"]) == (5269, 0)
     assert (naive["safety_stock_units"], ours["safety_stock_units"]) == (0, 4541)
     assert ours["skus_needing_order"] == 62

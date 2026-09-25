@@ -1,6 +1,11 @@
 # PR 3 — Cost-based replenishment, scored out of sample
 
-> Status: planned.
+> Status: implemented. The numbers are in `docs/VALIDATION.md` ("C2 —
+> Replenishment out of sample"); every acceptance target is met. Two details
+> the plan left open: the holdout outcome names its metrics `holdout_…` (with a
+> `holdout_total_cost`), since an effect study refuses two outcomes reporting
+> the same metric; and the comparison endpoint reports the holdout metrics for
+> every row, not only the new one, so the three can be compared.
 
 Contract: [`interfaces.md`](interfaces.md) §5.
 
