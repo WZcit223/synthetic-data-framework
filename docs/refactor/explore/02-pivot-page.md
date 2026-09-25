@@ -115,6 +115,7 @@ both pages.
 
 - No backend change; the tables come from PR 1.
 - No frontend framework, bundler or npm dependency; plain ES modules.
+  (Superseded on 2026-09-25 by the [frontend refactor](../frontend/00-overview.md): the UI now has a Vite build and npm dependencies, and moves onto Svelte, Chart.js and Tabulator.)
 - No saved views on the server and no view sharing beyond the link.
 - No editing of data: the page reads tables and shows derived views only.
 

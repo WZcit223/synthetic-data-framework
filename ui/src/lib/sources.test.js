@@ -1,6 +1,6 @@
-// Tests for the sources an Explore link may name: node --test ui/*.test.js
+// Tests for the sources an Explore link may name: npm test
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 import { sourceError } from "./sources.js";
 

@@ -1,6 +1,6 @@
-// Tests for the Effects page's helpers: node --test ui/*.test.js
+// Tests for the Effects page's helpers: npm test
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 import {
   amount, axisFor, budgetView, byMetric, COVERS, coversZero, defaultRequest, exploreLink, fitRequest, intervalText, nextPolicy,

@@ -75,6 +75,19 @@ uv run pytest                  # tests
 uv run sdf validate --update-doc docs/VALIDATION.md   # after a change that moves a recorded number
 ```
 
+For a change under `ui/` (Node 22), from `ui/`:
+
+```bash
+npm ci                         # dependencies, locked to package-lock.json
+npm run check                  # svelte-check
+npm test                       # unit tests (Vitest)
+npm run build                  # ui/dist, which the API tests and the page tests use
+npm run e2e                    # page tests in Chromium (Playwright)
+```
+
+UI dependencies change only through `npm install` in `ui/`, so
+`package-lock.json` stays current.
+
 Enable the versioned pre-commit hook once per clone with
 `git config core.hooksPath .githooks`; it formats and lints staged Python files.
 Dependencies are managed only through uv: add them with `uv add` (or

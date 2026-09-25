@@ -1,6 +1,6 @@
-// Tests for the Synthesizers page helpers: node --test ui/*.test.js
+// Tests for the Synthesizers page helpers: npm test
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 import { boundsText, column, exploreLink, histogram, readParam } from "./synthesis.js";
 

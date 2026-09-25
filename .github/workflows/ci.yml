@@ -16,8 +16,34 @@ permissions:
   contents: read
 
 jobs:
+  # The UI (ui/): Svelte and Vite on Node 22. It type-checks, runs the unit tests of the pure
+  # modules, and builds ui/dist, which the Python job below serves and tests.
+  ui:
+    name: UI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
+          retention-days: 1
+
   check:
     name: Check (${{ matrix.python }})
+    needs: ui
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -25,6 +51,11 @@ jobs:
         python: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
+      # the built UI, for the tests that mount and read it (src/sdf/api/app_test.py)
+      - uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: ui/dist
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.12.10"
@@ -34,10 +65,23 @@ jobs:
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run pytest
-      # The UI's pivot engine, chart colours and formatting are plain ES modules; Node (preinstalled on
-      # the runners) tests them. A shell glob, because `node --test ui/` does not search a folder on Node 22.
-      - run: node --version && node --test ui/*.test.js
       - run: uv run sdf demo
+      # Page tests: Playwright in Chromium against ui/dist served by the API (the api extra is
+      # installed at this point). Once, on one Python version; the pages do not depend on it.
+      - name: Node for the page tests
+        if: matrix.python == '3.13'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Page tests (Playwright)
+        if: matrix.python == '3.13'
+        working-directory: ui
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run e2e
       - run: git diff --exit-code
       # The optional synthesis extra mounts the gaussian-copula plug-in; its tests skip without it.
       - name: Synthesis extra (gaussian-copula plug-in)

@@ -54,18 +54,35 @@ for reading.
 
 ```bash
 uv sync --extra api
-SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app --reload
-# open http://127.0.0.1:8000           → the dashboard, served from ui/
+(cd ui && npm ci && npm run build)   # Node 22; writes ui/dist
+SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app --reload
+# open http://127.0.0.1:8000           → the dashboard, served from ui/dist
 #      http://127.0.0.1:8000/api/v1/docs → the API and its OpenAPI schema
 ```
 
 The backend is a JSON-only API under `/api/v1`; its OpenAPI schema
-(`/api/v1/openapi.json`) is the contract with any UI. The UI in `ui/` is plain
-HTML/JS (`index.html`, `app.js`, `style.css`) and reaches the backend only
-through the `api()` helper in `app.js`. `SDF_UI_DIR=ui` (or
-`create_app(ui_dir="ui")`) serves it at `/` for development; it can be hosted
-anywhere else by setting `window.SDF_API_BASE` before `app.js` loads and allowing
-its origin with `SDF_CORS_ORIGINS=https://ui.example` (comma-separated).
+(`/api/v1/openapi.json`) is the contract with any UI. The UI in `ui/` is built
+with Vite (Svelte is set up; the pages are being moved onto it, see
+[`refactor/frontend/`](refactor/frontend/00-overview.md)) and reaches the
+backend only through the `api()` helper in `ui/src/lib/api.js`.
+`SDF_UI_DIR=ui/dist` (or `create_app(ui_dir="ui/dist")`) serves the built UI at
+`/`; it can be hosted anywhere else by setting `window.SDF_API_BASE` before the
+page's script loads and allowing its origin with
+`SDF_CORS_ORIGINS=https://ui.example` (comma-separated).
+
+Working on the UI, in `ui/`:
+
+```bash
+npm ci              # once, and after package-lock.json changes
+npm run dev         # http://127.0.0.1:5173, /api proxied to the API on port 8000
+npm test            # unit tests of the pure modules (Vitest)
+npm run check       # svelte-check
+npm run build       # ui/dist
+npm run e2e         # page tests in Chromium; starts the API itself on ui/dist
+```
+
+`npm run e2e` needs Playwright's Chromium (`npx playwright install chromium`);
+`SDF_E2E_CHROMIUM=/path/to/chrome` uses an installed one instead.
 
 The API is stateful: `POST /api/v1/world` (JSON body: `n_skus`, `horizon_days`,
 `daily_orders_per_a_sku`, `stockout_pressure`, `seed`) re-drives the synthetic

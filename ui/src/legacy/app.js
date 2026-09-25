@@ -1,9 +1,11 @@
-// The dashboard. It reaches the backend only through api() (ui/common.js), so the
+// The dashboard. It reaches the backend only through api() (ui/src/lib/api.js), so the
 // base URL is configurable and every path it uses can be checked against the
 // OpenAPI schema.
 // UI rule: reshape what the API returned (sort, filter, group, pivot, chart);
 // never compute a business number here.
-import { $, API, api, esc, fmt } from "./common.js";
+import { $ } from "./dom.js";
+import { API, api } from "../lib/api.js";
+import { esc, fmt } from "../lib/format.js";
 
 const CAPS = [
   {h:"Data management", p:"Multi-source overlay via the DataSourceRegistry; canonical entities keep synthetic & real interchangeable.", t:"Foundation Layer"},

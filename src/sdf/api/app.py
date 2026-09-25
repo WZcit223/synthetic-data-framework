@@ -1,8 +1,9 @@
 """The versioned JSON API (``/api/v1``); its OpenAPI schema is the contract with any UI.
 
     uv sync --extra api
-    SDF_UI_DIR=ui uv run uvicorn sdf.api.app:app --reload
-    # open http://127.0.0.1:8000 (the dashboard from ui/) or /api/v1/docs
+    (cd ui && npm ci && npm run build)
+    SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app --reload
+    # open http://127.0.0.1:8000 (the dashboard from ui/dist) or /api/v1/docs
 
 ``create_app()`` builds an app with its own ``WorldStore`` (``app.state.store``),
 dataset catalogue (``app.state.datasets``) and synthesizer registry

@@ -1,6 +1,6 @@
 # F1 — Vite and Svelte in `ui/`, with nothing visible changed
 
-> Status: planned.
+> Status: implemented in this PR (F1).
 
 Contract: [`interfaces.md`](interfaces.md) §1, §5.1 and §5.4.
 

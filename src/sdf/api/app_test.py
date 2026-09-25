@@ -28,6 +28,8 @@ from .state import GenerateLimits  # noqa: E402
 V1 = "/api/v1"
 ROOT = Path(__file__).resolve().parents[3]
 UI_DIR = ROOT / "ui"
+UI_SRC = UI_DIR / "src"
+UI_DIST = UI_DIR / "dist"  # built by `npm run build` in ui/; CI builds it before the tests
 
 
 @pytest.fixture(scope="module")
@@ -305,14 +307,16 @@ def test_reads_never_see_a_mixed_world():
 
 
 def ui_scripts() -> dict[str, str]:
-    """Every page script in ui/ (the Node tests aside), by file name."""
+    """Every script and component under ui/src (the tests aside), by path relative to ui/src."""
     return {
-        p.name: p.read_text(encoding="utf-8") for p in sorted(UI_DIR.glob("*.js")) if not p.name.endswith(".test.js")
+        p.relative_to(UI_SRC).as_posix(): p.read_text(encoding="utf-8")
+        for p in sorted(UI_SRC.rglob("*"))
+        if p.suffix in (".js", ".svelte") and not p.name.endswith(".test.js")
     }
 
 
 def ui_paths() -> set[str]:
-    """Every path a ui/*.js script passes to api(), without its query string; ``${…}`` reads as ``{}``."""
+    """Every path a ui/src script passes to api(), without its query string; ``${…}`` reads as ``{}``."""
     paths = set()
     for js in ui_scripts().values():
         for m in re.findall(r"""api\(\s*["'`](/[^"'`]*)""", js):
@@ -337,21 +341,36 @@ def test_every_ui_path_is_in_the_openapi_schema(client):
 
 def test_ui_reaches_the_backend_only_through_api():
     scripts = ui_scripts()
-    assert sum(js.count("fetch(") for js in scripts.values()) == 1  # the one inside api(), in common.js
-    assert "fetch(" in scripts["common.js"]
-    assert 'export const API = globalThis.SDF_API_BASE ?? "/api/v1";' in scripts["common.js"]
+    assert sum(js.count("fetch(") for js in scripts.values()) == 1  # the one inside api(), in lib/api.js
+    assert "fetch(" in scripts["lib/api.js"]
+    assert 'export const API = globalThis.SDF_API_BASE ?? "/api/v1";' in scripts["lib/api.js"]
 
 
 def test_ui_has_no_inline_event_handler():
     """The pages are ES modules, whose functions are not globals: every handler is registered in a script."""
-    for path in sorted(UI_DIR.glob("*.html")) + sorted(UI_DIR.glob("*.js")):
+    for path in sorted(UI_DIR.glob("*.html")) + sorted(UI_SRC.rglob("*.js")):
         text = path.read_text(encoding="utf-8")
         assert not re.findall(r"<[a-zA-Z][^>]*\son[a-z]+\s*=", text), path.name
     for page in PAGES:
         html = (UI_DIR / page).read_text(encoding="utf-8")
-        assert re.search(r'<script type="module" src="[a-z]+\.js">', html), page
+        assert re.search(r'<script type="module" src="src/[a-z/]+\.js">', html), page
         for link in PAGES:  # the navigation bar
             assert f'href="{link}"' in html, (page, link)
+
+
+def built_ui() -> Path:
+    """The built UI; its tests skip, saying why, when it was not built."""
+    if not (UI_DIST / "index.html").is_file():
+        pytest.skip("ui/dist is not built: run `npm ci && npm run build` in ui/")
+    return UI_DIST
+
+
+def test_built_ui_has_no_inline_script_or_handler():
+    for path in sorted(built_ui().glob("*.html")):
+        html = path.read_text(encoding="utf-8")
+        assert not re.findall(r"<[a-zA-Z][^>]*\son[a-z]+\s*=", html), path.name
+        for attrs in re.findall(r"<script\b([^>]*)>", html):
+            assert "src=" in attrs, (path.name, attrs)  # every script is a file, none inline
 
 
 def test_the_python_package_contains_no_html():
@@ -367,17 +386,19 @@ def test_openapi_describes_the_fields(client):
     assert {"proposed_action", "status", "sku_id", "quantity"} <= set(schemas["ProposedAction"]["properties"])
 
 
-def test_ui_dir_is_mounted_for_development_hosting():
-    client = TestClient(create_app(ui_dir=UI_DIR))
+def test_built_ui_is_mounted_for_hosting():
+    client = TestClient(create_app(ui_dir=built_ui()))
     page = client.get("/")
-    assert page.status_code == 200 and '<script type="module" src="app.js">' in page.text
+    assert page.status_code == 200 and re.search(
+        r'<script type="module" crossorigin src="\./assets/index-[^"]+\.js">', page.text
+    )
     for url in ("/", *(f"/{page}" for page in PAGES[1:])):
         html = client.get(url).text
-        for asset in re.findall(r'(?:href|src)="([^":#]+)"', html):  # every local file the page loads or links
+        for asset in re.findall(r'(?:href|src)="(?:\./)?([^":#]+)"', html):  # every local file the page loads or links
             assert client.get("/" + asset).status_code == 200, (url, asset)
-        for js in re.findall(r'src="([^"]+\.js)"', html):  # and every module those scripts import
-            for module in re.findall(r'from "\./([^"]+)"', client.get("/" + js).text):
-                assert client.get("/" + module).status_code == 200, (js, module)
+        for js in re.findall(r'src="\./(assets/[^"]+\.js)"', html):  # and every chunk those scripts import
+            for chunk in re.findall(r'from\s*"\./([^"]+\.js)"', client.get("/" + js).text):
+                assert client.get("/assets/" + chunk).status_code == 200, (js, chunk)
     assert 'rel="icon" href="favicon.svg"' in page.text
     assert client.get(V1 + "/health").json() == {"status": "ok"}  # API routes still win
 

@@ -57,6 +57,7 @@ users:
    built-in test runner in CI. *Alternative rejected:* a frontend framework or
    a third-party pivot library. It would add a toolchain the repository does
    not have, for a view this sequence can build and test directly.
+   (Superseded on 2026-09-25 by the [frontend refactor](../frontend/00-overview.md): the UI now has a Vite build and npm dependencies, and moves onto Svelte, Chart.js and Tabulator.)
 
 ## Sequence
 
