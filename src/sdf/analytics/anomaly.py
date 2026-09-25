@@ -43,19 +43,31 @@ def residual_scale(resid: list[float], *, min_scale: float = 1.0) -> tuple[float
     return min_scale, "floor"
 
 
-def seasonal_residual_anomalies(
-    values: list[float], period: int, k: float = 3.5, *, min_scale: float = 1.0
-) -> list[dict]:
-    """Flag points whose seasonal residual exceeds ``k`` robust-z."""
+def seasonal_residual_z(
+    values: list[float], period: int, *, min_scale: float = 1.0
+) -> tuple[list[float], list[float]] | None:
+    """Every point's robust z and the seasonal profile it was measured against; None when the series is
+    too short for the rule (fewer than two cycles, or eight points)."""
     if len(values) < max(2 * period, 8):
-        return []
+        return None
     profile = _profile_median(values, period)
     resid = [v - profile[i % period] for i, v in enumerate(values)]
     med = statistics.median(resid)
     scale, _method = residual_scale(resid, min_scale=min_scale)
+    return [(r - med) / scale for r in resid], profile
+
+
+def seasonal_residual_anomalies(
+    values: list[float], period: int, k: float = 3.5, *, min_scale: float = 1.0
+) -> list[dict]:
+    """Flag points whose seasonal residual exceeds ``k`` robust-z."""
+    measured = seasonal_residual_z(values, period, min_scale=min_scale)
+    if measured is None:
+        return []
+    zs, profile = measured
     out: list[dict] = []
-    for i, (v, r) in enumerate(zip(values, resid)):
-        z = (r - med) / scale  # robust z-score
+    for i, (v, z) in enumerate(zip(values, zs)):
+        r = v - profile[i % period]
         if abs(z) >= k:
             out.append(
                 {

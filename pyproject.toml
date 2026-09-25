@@ -7,7 +7,7 @@ module-name = "sdf"
 
 [project]
 name = "synthetic-data-framework"
-version = "1.11.0"
+version = "1.12.0"
 description = "Three-layer industrial-AI framework with synthetic-data-driven AI warehouse demo"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
@@ -58,6 +58,11 @@ moving-average = "sdf.analytics.forecasters.builtin:MovingAverage"
 naive = "sdf.analytics.forecasters.builtin:NaiveForecaster"
 seasonal-linear = "sdf.analytics.forecasters.builtin:SeasonalLinear"
 seasonal-naive = "sdf.analytics.forecasters.builtin:SeasonalNaive"
+
+# Anomaly detectors (docs/refactor/algorithms/interfaces.md §6).
+[project.entry-points."sdf.detectors"]
+isolation-forest = "sdf.analytics.detectors.builtin:IsolationForestDetector"
+seasonal-residual = "sdf.analytics.detectors.builtin:SeasonalResidual"
 
 # Causal effect estimators (docs/refactor/causal/interfaces.md §3). The PyWhy two need the causal extra.
 [project.entry-points."sdf.estimators"]

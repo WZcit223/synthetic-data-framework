@@ -264,3 +264,88 @@ class DemandBenchmark:
         table = DemandTable(days=days, series={s: tuple(float(v) for v in units[i]) for i, s in enumerate(sku_ids)})
         truth = TrueDemand(days, sku_ids, component, zero, self.promo_rate, self.promo_uplift, self.dispersion)
         return DemandDraw(table, truth)
+
+
+ANOMALY_KINDS = ("spike", "drop", "shrinkage")
+
+
+@dataclass(frozen=True)
+class AnomalyBenchmark:
+    """Known anomalies injected into a frame of daily signals, so every detector can be scored on them.
+
+    A share ``rate`` of the SKU-days (of SKUs with demand) gets one anomaly, the kinds in
+    turn: a ``spike`` adds U(3, 6) times the SKU's mean to the day's demand; a ``drop``
+    sets a selling day's demand to 0; ``shrinkage`` takes 2 to 5 days of mean demand out
+    of stock from that day on, with no demand or receipt to explain it. The stock follows
+    the demand a spike or a drop changed (the units served leave, or stay on, the shelf),
+    so only shrinkage breaks the stock balance, on its day only: nothing is taken that a
+    later day does not have, so stock never goes below 0. A SKU-day without that much
+    stock gets a spike instead, as does a drop on a day without demand, when spikes are
+    among the ``kinds``; otherwise it gets nothing, so fewer than ``rate`` of the SKU-days
+    may hold an anomaly. A stock-balance
+    rule finds shrinkage exactly: it is here to check that a detector reads more than one
+    signal. The contract is ``docs/refactor/algorithms/interfaces.md`` §6.3.
+    """
+
+    rate: float = 0.01
+    kinds: tuple[str, ...] = ANOMALY_KINDS
+    seed: int | None = None  # empty: 7
+
+    param_bounds: ClassVar[dict[str, tuple[float | None, float | None]]] = {"rate": (0.001, 0.05), "seed": (0, None)}
+
+    @classmethod
+    def params(cls) -> tuple[Param, ...]:
+        return constructor_params(cls)
+
+    def __post_init__(self) -> None:
+        for p in self.params():
+            problem = p.check(getattr(self, p.name))
+            if problem:
+                raise ValueError(f"{p.name} {problem}")
+        unknown = [k for k in self.kinds if k not in ANOMALY_KINDS]
+        if unknown or not self.kinds or len(set(self.kinds)) != len(self.kinds):
+            raise ValueError(f"kinds must be distinct names from {list(ANOMALY_KINDS)}, got {list(self.kinds)}")
+
+    def inject(self, frame) -> tuple:
+        """A copy of ``frame`` with the anomalies, and the set of ``(sku_id, day, kind)`` injected (at most
+        ``rate`` of the SKU-days)."""
+        from sdf.analytics.detectors import SignalFrame
+
+        rng = np.random.default_rng(7 if self.seed is None else self.seed)
+        signals = {k: np.array(v, dtype=float, copy=True) for k, v in frame.signals.items()}
+        demand = signals["demand"]
+        on_hand = signals.get("on_hand")
+        mean = demand.mean(axis=1)
+        n_skus, n_days = demand.shape
+        candidates = [(i, t) for i in np.flatnonzero(mean > 0) for t in range(1, n_days)]
+        count = min(len(candidates), round(self.rate * n_skus * n_days))
+        chosen = rng.choice(len(candidates), size=count, replace=False) if count else []
+        injected = set()
+        for j, pick in enumerate(sorted(chosen)):  # in day order per SKU: each change sees the ones before it
+            i, t = candidates[pick]
+            kind = self.kinds[j % len(self.kinds)]
+            size = rng.uniform(3, 6) if kind == "spike" else rng.uniform(2, 5)
+            stock = on_hand is not None and not np.isnan(on_hand[i, t])
+            # stock that every later day keeps: what can leave the shelf without any day going below 0
+            spare = float(on_hand[i, t:].min()) if stock else 0.0
+            if (kind == "shrinkage" and (not stock or spare < size * mean[i])) or (
+                kind == "drop" and demand[i, t] <= 0
+            ):
+                if "spike" not in self.kinds:
+                    continue  # not enough stock to lose, or nothing sold to drop, and no spike asked for
+                kind, size = "spike", rng.uniform(3, 6)  # a demand anomaly instead
+            if kind == "spike":
+                extra = size * mean[i]
+                demand[i, t] += extra
+                if stock:
+                    served = min(extra, spare)  # the extra units served leave the shelf; the rest is unmet
+                    on_hand[i, t:] -= served
+            elif kind == "drop":
+                if stock:
+                    previous = on_hand[i, t - 1] + np.nan_to_num(signals["receipts"][i, t])
+                    on_hand[i, t:] += min(demand[i, t], previous)  # what was served stays on the shelf
+                demand[i, t] = 0.0
+            else:
+                on_hand[i, t:] -= size * mean[i]
+            injected.add((frame.sku_ids[i], frame.days[t], kind))
+        return SignalFrame(days=frame.days, sku_ids=frame.sku_ids, signals=signals), injected

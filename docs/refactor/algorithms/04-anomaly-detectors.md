@@ -1,6 +1,22 @@
 # PR 4 — Anomaly detector plug-ins, measured on injected anomalies
 
-> Status: planned.
+> Status: implemented. The numbers are in `docs/VALIDATION.md` ("C3 — Anomaly
+> detection on injected anomalies"); the acceptance target is met
+> (`isolation-forest`'s shrinkage recall 1.0). Where the implementation departs
+> from the contract, and why:
+>
+> - `isolation-forest` reads the stock and receipts through the missing stock
+>   only (in days of the SKU's mean demand), not as series of their own: as
+>   features they only added false alarms and cut the shrinkage recall to 0.6.
+>   Each tree draws up to 8,192 SKU-days instead of scikit-learn's 256, without
+>   which the missing stock, 0 almost everywhere, was never split on.
+> - The benchmark keeps the stock consistent with the changed demand and never
+>   takes stock a later day does not have, so only shrinkage breaks the stock
+>   balance; a SKU-day that cannot hold its kind gets a spike, or nothing when
+>   spikes are not among the kinds.
+> - `GET /api/v1/anomalies` answers 422 for a detector the guard refuses (a
+>   single detector: there is no other row to show); in `score_detectors` a
+>   failing detector is an error row, as planned.
 
 Contract: [`interfaces.md`](interfaces.md) §6.
 

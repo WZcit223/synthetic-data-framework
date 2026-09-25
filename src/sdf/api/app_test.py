@@ -1496,3 +1496,55 @@ def test_a_failing_forecaster_is_a_row_in_a_200():
     assert res.status_code == 200, res.text
     broken, mean = res.json()["scores"]["rows"]
     assert broken[-1] == "RuntimeError: no forecast today" and mean[-1] is None
+
+
+# -- anomaly detectors (docs/refactor/algorithms/interfaces.md §6) ------------------------------------
+
+
+def test_the_detector_catalogue_publishes_parameters_signals_and_the_benchmark(client):
+    body = get(client, "/detectors")
+    names = [d["name"] for d in body["detectors"]]
+    assert {"seasonal-residual", "isolation-forest"} <= set(names)
+    iso = next(d for d in body["detectors"] if d["name"] == "isolation-forest")
+    assert iso["signals"] == ["demand", "on_hand", "receipts"] and iso["origin"] == "builtin"
+    assert [p["name"] for p in iso["params"]] == ["contamination", "seed"]
+    assert body["limits"] == {"max_detectors": 6}
+    assert body["benchmark"]["kinds"] == ["spike", "drop", "shrinkage"]
+    assert [p["name"] for p in body["benchmark"]["params"]] == ["rate", "seed"]
+
+
+def test_anomalies_answers_one_detector_s_detections_on_the_world(client):
+    from sdf.analytics.detectors import default_detectors
+    from sdf.simulation.signals import signal_frame
+
+    body = get(client, "/anomalies?detector=seasonal-residual")
+    assert [f["name"] for f in body["fields"]] == ["sku_id", "date", "score", "direction", "signals"]
+    reg = default_detectors()
+    _, expected = reg.run(reg.create("seasonal-residual"), signal_frame(client.app.state.store.current.world))
+    assert len(body["rows"]) == len(expected) > 0
+    scores = [r[2] for r in body["rows"]]
+    assert scores == sorted(scores, reverse=True)
+    assert get(client, "/anomalies")["detector"] == "seasonal-residual"  # the default
+
+
+def test_anomalies_refuses_an_unknown_detector_and_a_result_the_guard_refuses():
+    from sdf.analytics.detectors import Detection, DetectorInfo, DetectorRegistry
+
+    class OutOfFrame:
+        info: ClassVar = DetectorInfo("out-of-frame", "reports a SKU the world does not have")
+
+        def scores(self, frame):
+            import numpy as np
+
+            return np.zeros(frame.shape)
+
+        def detect(self, frame):
+            return [Detection("nope", frame.days[0], 1.0, "spike")]
+
+    reg = DetectorRegistry()
+    reg.register(OutOfFrame)
+    c = TestClient(create_app(detectors=reg))
+    unknown = c.get(V1 + "/anomalies?detector=nope")
+    assert unknown.status_code == 422 and "unknown detector 'nope'" in unknown.json()["detail"]
+    refused = c.get(V1 + "/anomalies?detector=out-of-frame")
+    assert refused.status_code == 422 and "not in the frame" in refused.json()["detail"]

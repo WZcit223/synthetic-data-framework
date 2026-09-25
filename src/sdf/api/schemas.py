@@ -686,3 +686,42 @@ class ForecastBacktestResult(Model):
     world: str | None  # the label of the world the demand came from; null for the benchmark
     skus: int  # SKUs scored
     elapsed_ms: int
+
+
+# -- anomaly detectors (docs/refactor/algorithms/interfaces.md §6) ------------------------------------
+
+
+class DetectorEntry(Model):
+    name: str
+    description: str
+    origin: Literal["builtin", "plugin", "runtime"]
+    requires: list[str]  # modules it needs; already importable, since it is mounted
+    signals: list[str]  # the signals of the frame it reads
+    params: list[ParamModel]
+
+
+class DetectorLimits(Model):
+    max_detectors: int  # detectors one benchmark scoring takes
+
+
+class AnomalyBenchmarkSpec(Model):
+    params: list[ParamModel]  # with the bounds AnomalyBenchmark checks
+    kinds: list[str]  # the anomalies it can inject
+
+
+class DetectorList(Model):
+    detectors: list[DetectorEntry]
+    unavailable: dict[str, str]
+    limits: DetectorLimits
+    signals: list[str]  # the signals of the world's frame
+    benchmark: AnomalyBenchmarkSpec
+
+
+class AnomaliesResult(Model):
+    """One detector's detections on the current world's frame, highest score first."""
+
+    detector: str
+    world: str
+    fields: list[FieldModel]
+    rows: list[list[Any]]  # sku_id, date, score, direction, signals
+    elapsed_ms: int
