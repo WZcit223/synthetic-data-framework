@@ -9,6 +9,7 @@ export default defineConfig({
   testDir: "e2e",
   forbidOnly: !!process.env.CI,
   retries: 0,
+  workers: 1, // one API server for every test: a slow study in one test would time another out
   reporter: process.env.CI ? "list" : "line",
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,

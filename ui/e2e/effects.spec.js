@@ -35,11 +35,12 @@ test("a study runs and shows the effects the API returned", async ({ page }) => 
 });
 
 test("a link with a study in its address runs that study", async ({ page }) => {
-  const done = page.waitForResponse(r => r.url().endsWith("/api/v1/effects") && !r.request().postData().includes("check_only"));
+  const runs = [];
+  page.on("request", r => r.url().endsWith("/api/v1/effects") && !r.postData().includes("check_only") && runs.push(r));
   await page.goto("/effects.html#request=" + encodeURIComponent(JSON.stringify(STUDY)));
-  const request = JSON.parse((await done).request().postData());
-  expect(request).toEqual(STUDY);
   await expect(page.locator(".headline")).toBeVisible();
+  await page.waitForTimeout(1000); // a repeated run would have started by now
+  expect(runs.map(r => JSON.parse(r.postData()))).toEqual([STUDY]); // once, and exactly the linked study
   await expect(page.locator("#replicates")).toHaveValue("4");
 });
 
@@ -72,10 +73,31 @@ test("a link with an estimation in its address runs it", async ({ page }) => {
     question: { ...catalog.benchmark.question, covariates: [] },
     confidence: 0.9,
   };
-  const done = page.waitForResponse(r => r.url().endsWith("/api/v1/causal/estimates"));
+  const runs = [];
+  page.on("request", r => r.url().endsWith("/api/v1/causal/estimates") && runs.push(r));
+  // a new address in the same document, with the catalogue already loaded
   await page.goto("/effects.html#estimate=" + encodeURIComponent(JSON.stringify(request)));
-  expect(JSON.parse((await done).request().postData())).toEqual(request);
   await expect(page.locator("#estimateView .tabulator-row")).toHaveCount(1);
+  await page.waitForTimeout(1000); // a repeated estimation would have started by now
+  expect(runs.map(r => JSON.parse(r.postData()))).toEqual([request]); // once, and exactly the linked request
+
+  // the tabs return to this address, and an edit is not reset by the view
+  await page.getByRole("tab", { name: "Simulate an action" }).click();
+  await page.getByRole("tab", { name: "Estimate from data" }).click();
+  await expect(page.locator("#estimateConfidence")).toHaveValue("0.9");
+  await page.locator("#estimateConfidence").selectOption("0.99");
+  await page.waitForTimeout(500);
+  await expect(page.locator("#estimateConfidence")).toHaveValue("0.99");
+  expect(runs.length).toBe(1);
+});
+
+test("the Estimate tab keeps the address the page opened on, even when it did not run", async ({ page }) => {
+  const link = "#estimate=" + encodeURIComponent(JSON.stringify({ estimators: ["no-such-estimator"] }));
+  await page.goto("/effects.html" + link, { waitUntil: "networkidle" });
+  await expect(page.locator("#estimateView .notice.bad")).toContainText("no-such-estimator");
+  await page.getByRole("tab", { name: "Simulate an action" }).click();
+  await page.getByRole("tab", { name: "Estimate from data" }).click();
+  await expect(page.locator("#estimateView .notice.bad")).toContainText("no-such-estimator");
 });
 
 test("at 390 px the Effects page does not overflow sideways", async ({ page }) => {

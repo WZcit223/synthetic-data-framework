@@ -12,7 +12,7 @@
   let tick = $state(0);
   let estimating = $state(readEstimateHash(location.hash) !== null);
   let simulateHref = $state("#");
-  let estimateHref = $state("#estimate");
+  let estimateHref = $state(readEstimateHash(location.hash) !== null ? location.hash : "#estimate");
 
   function route() {
     estimating = readEstimateHash(location.hash) !== null;

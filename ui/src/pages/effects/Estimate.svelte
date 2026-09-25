@@ -5,6 +5,8 @@
   server. The address (#estimate=) keeps the request.
 -->
 <script>
+  import { untrack } from "svelte";
+
   import IntervalChart from "../../components/charts/IntervalChart.svelte";
   import LineChart from "../../components/charts/LineChart.svelte";
   import DataTable from "../../components/tables/DataTable.svelte";
@@ -36,6 +38,7 @@
   let seq = 0; // the latest estimation; an older answer is dropped
   let sweepSeq = 0;
   let written = ""; // the last #estimate= this view wrote
+  let routeSeq = 0; // the latest route; one that waited on the catalogue behind a newer one stops
   /** @type {Promise<any> | null} */
   let loading = null;
 
@@ -99,9 +102,16 @@
   }
 
   // Shown, or its address changed: load the catalogue once, then the address unless this view wrote it.
+  // Only `tick` and `active` start a route: what the route reads and writes (the form, the result) is
+  // untracked, or loading an address would rewrite the form, re-run this effect, and load it again.
   $effect(() => {
     tick;
     if (!active) return;
+    untrack(route);
+  });
+
+  function route() {
+    const mine = ++routeSeq;
     (async () => {
       if (!catalog) {
         loading ??= api("/estimators");
@@ -114,12 +124,12 @@
           return;
         }
         if (!catalog) catalog = loaded;
-        if (!active) return; // the user left this view while it loaded
+        if (mine !== routeSeq || !active) return; // a newer address took over, or the user left this view
       }
       if (location.hash === written && result) return; // the address this view wrote itself
       loadFromAddress();
     })();
-  });
+  }
 
   async function run() {
     const request = readForm();

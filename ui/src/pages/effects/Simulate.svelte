@@ -6,6 +6,8 @@
   address (#request=) keeps the request, so a link reproduces the study.
 -->
 <script>
+  import { untrack } from "svelte";
+
   import IntervalChart from "../../components/charts/IntervalChart.svelte";
   import StripChart from "../../components/charts/StripChart.svelte";
   import DataTable from "../../components/tables/DataTable.svelte";
@@ -39,6 +41,7 @@
   let loadSeq = 0; // the latest address loaded; a slower earlier one never runs
   let timer = 0;
   let written = ""; // the last #request= this view wrote
+  let routeSeq = 0; // the latest route; one that waited on the catalogue behind a newer one stops
   /** @type {Promise<any> | null} */
   let catalogLoad = null;
 
@@ -151,9 +154,16 @@
   }
 
   // Shown, or its address changed: load the catalogue once, then the address unless this view wrote it.
+  // Only `tick` and `active` start a route: what the route reads and writes (the form, the result) is
+  // untracked, or loading an address would rewrite the form, re-run this effect, and load it again.
   $effect(() => {
     tick;
     if (!active) return;
+    untrack(route);
+  });
+
+  function route() {
+    const mine = ++routeSeq;
     (async () => {
       if (!catalog) {
         catalogLoad ??= api("/experiments/catalog");
@@ -165,15 +175,14 @@
           message = { bad: true, lead: "Could not load the catalogue.", text: err.detail ?? err.message };
           return;
         }
-        if (catalog) return;
-        catalog = loaded;
-        if (!active) return; // the user moved to the other view while it loaded
+        if (!catalog) catalog = loaded;
+        if (mine !== routeSeq || !active) return; // a newer address took over, or the user moved to the other view
         loadFromAddress();
       } else if (location.hash !== written) {
         loadFromAddress();
       }
     })();
-  });
+  }
 
   // -- editing ----------------------------------------------------------------------------------
 
