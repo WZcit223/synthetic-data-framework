@@ -128,6 +128,30 @@ updates it when its props change, and destroys it when it leaves the page.
 <HeatGrid      {cells} {columns} {rows} {format} {summary} />    <!-- a value per cell on the sequential ramp -->
 ```
 
+The props, in JSDoc types (`number | null` is a missing value: a gap in a
+line, no bar, an empty cell; never a zero):
+
+```js
+/** @typedef {{name: string, values: (number|null)[], color?: string}} Series */
+// LineChart, BarChart: labels: string[]; every series' values has labels.length entries.
+/** @typedef {{name: string, low: (number|null)[], high: (number|null)[]}} Band */
+// LineChart's band: low and high have labels.length entries; the fill is drawn
+// between them, and not where either is null. low > high is a caller error.
+/** @typedef {{label: string, estimate: number, low: number|null, high: number|null, group?: string}} IntervalRow */
+// IntervalChart: one row per line, top to bottom in the given order; a null
+// low or high draws the point with no interval; group picks the colour by name.
+// reference: number | null, a vertical line (0 for effects).
+/** @typedef {{name: string, values: number[], mean?: number}} StripGroup */
+// StripChart: one row of points per group; jitter is seeded by the group's
+// name, so a redraw does not move points; mean defaults to the values' mean.
+/** @typedef {{row: string, column: string, value: number|null}} HeatCell */
+// HeatGrid: columns: string[] and rows: string[] give the order; a cell
+// missing from cells, or with value null, is drawn empty.
+```
+
+Each component's test (§5.2) builds its Chart.js datasets from these shapes,
+null and interval cases included.
+
 - **`series`** is `[{name, values, color?}]`. A colour is never chosen by
   position on screen: it comes from `palette.colorBook()` by the series' name,
   as today, so a series keeps its colour when others are filtered out.
@@ -191,8 +215,11 @@ subtotal groups, a 1,000-row budget, heat shading).
   Tabulator's virtual rendering draws only the visible rows, so the row
   budget and its "Show all" button go; the 400-column cut stays, as a limit
   of what a person can read.
-- Sorting and collapsing stay in the view state (`view.sort`, collapsed
-  groups), so a link still restores them.
+- Sorting stays in `view.sort`, so a link restores it, as today. Collapsed
+  groups stay page state, as today: they are not in the link (whose shape,
+  `{source, view, display}`, does not change) and they clear when the row
+  fields change. Clicking a Tabulator header or group toggle updates this
+  state; Tabulator never keeps a sort or a collapse of its own.
 
 ---
 

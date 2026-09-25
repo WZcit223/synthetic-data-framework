@@ -28,7 +28,8 @@ set of Svelte components around the unchanged `pivot.js`.
 ## Tests
 
 - `pivot.test.js` unchanged.
-- Component tests: a view restores its shelves, sort and collapsed groups; the
+- Component tests: a view restores its shelves and sort; collapsed groups
+  clear when the row fields change, as today; the
   pivot's column groups and totals match `pivot()`'s result.
 - Playwright: every preset renders; a pivot built by dragging fields; the chart
   view; a link from each source kind (dataset, synthesis run, effects,

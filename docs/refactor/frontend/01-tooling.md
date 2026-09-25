@@ -19,7 +19,11 @@ every page looks and works exactly as before.
   modules move to `ui/src/lib/` (`common.js` splits into `api.js` and
   `format.js`; `chart.js` moves too, until F5 deletes it) and the page
   scripts and styles to `ui/src/legacy/` (§1.2), with the imports updated and
-  no logic changed.
+  no logic changed. In the four HTML entries the only change is the path of
+  each `<script type="module" src>` and `<link rel="stylesheet" href>`
+  (`app.js` becomes `src/legacy/app.js`, `style.css` `src/legacy/style.css`,
+  and so on), which Vite then rewrites to the hashed assets of `ui/dist`; the
+  markup, the page URLs and the favicon link stay as they are.
 - **Tests:** all seven `ui/*.test.js` files (`chart`, `common`,
   `effects-model`, `palette`, `pivot`, `sources`, `synthesis`) move next to
   their modules and run on Vitest (§5.1), assertions unchanged; `npm run check` runs `svelte-check`.
