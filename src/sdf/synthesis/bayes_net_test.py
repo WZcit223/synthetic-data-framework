@@ -87,3 +87,49 @@ def test_edge_cases_are_plain():
         BayesianNetworkTable().sample()
     with pytest.raises(ValueError, match="has a nan"):
         BayesianNetworkTable().fit(TableData(rows=[(1.0,), (float("nan"),)], columns=("a",)))
+
+
+def test_a_heavily_tied_column_leaves_no_empty_bin_to_draw_from():
+    x = [1.0] * 800 + [float(v) for v in range(2, 202)]  # one value holds most quantile edges
+    data = TableData(rows=[(v,) for v in x], columns=("qty",))
+    model = BayesianNetworkTable(seed=0, bins=10).fit(data)
+    assert all(len(values) for values in model._values[0])
+    assert len(model.sample(20_000)) == 20_000
+
+
+def test_a_pair_never_seen_keeps_one_row_s_worth_of_chance_spread_over_the_bins():
+    rows = [(0.0, 0.0)] * 30 + [(1.0, 1.0)] * 10 + [(1.0, 2.0)] * 10  # 0 is never seen with 1 or 2
+    model = BayesianNetworkTable().fit(TableData(rows, ("a", "b"), ("category", "category")))
+    child = 1 if model._parent[1] == 0 else 0
+    parent_bin = 0  # the parent's value 0.0, seen 30 times, always with 0.0
+    table = model._tables[child][parent_bin]
+    assert table[1] == table[2] == pytest.approx((1 / 3) / (30 + 1))
+
+
+def test_values_within_a_bin_are_drawn_as_often_as_they_occur():
+    x = [1.0] * 300 + [1.5] * 100 + [float(v) for v in np.linspace(10, 20, 400)]
+    data = TableData(rows=[(v,) for v in x], columns=("price",))
+    drawn = [r[0] for r in BayesianNetworkTable(seed=4, bins=2).fit(data).sample(20_000) if r[0] < 5]
+    assert sum(v == 1.0 for v in drawn) / len(drawn) == pytest.approx(0.75, abs=0.02)
+
+
+def test_a_negative_seed_is_refused_as_a_bad_parameter():
+    from sdf.validation.evaluation import evaluate
+
+    with pytest.raises(ValueError, match="bayesian-network: seed must be from 0"):  # a request error, not a failed run
+        evaluate("bayesian-network", source="sample", params={"seed": -1})
+
+
+def test_a_failed_fit_leaves_the_instance_as_it_was():
+    model = BayesianNetworkTable(seed=1).fit(TableData([(1.0, 2.0)] * 5, ("a", "b")))
+    with pytest.raises(ValueError, match="has a nan"):
+        model.fit(TableData([(1.0, 2.0, float("nan"))], ("a", "b", "c")))
+    assert model.sample(2) == [(1.0, 2.0)] * 2
+    with pytest.raises(ValueError, match="has a nan"):
+        BayesianNetworkTable().fit(TableData([(float("nan"),)], ("a",)))
+
+
+def test_no_rows_asked_or_no_columns_give_plain_answers():
+    model = BayesianNetworkTable().fit(linked(50))
+    assert model.sample(-1) == []
+    assert BayesianNetworkTable().fit(TableData([(), ()], ())).sample(3) == [(), (), ()]

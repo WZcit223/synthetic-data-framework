@@ -676,7 +676,7 @@ the privacy metrics, under the metric names `detection_auc`,
 Spike (with integer columns rounded): 0.68 for `bootstrap-table` and 0.67 for
 `gaussian-copula` on the real extract. *As built (PR 5):* 0.89 and 0.90 on the
 extract and 0.55 and 0.62 on the sample, and a new `bayesian-network`
-synthesizer (a Chow–Liu tree over binned columns) 0.54 and 0.47; the column names come in as
+synthesizer (a Chow–Liu tree over binned columns) 0.53 and 0.49; the column names come in as
 `columns=`, and a fifth metric, `detection_top_features`, joins them by commas
 (`docs/VALIDATION.md`, "Detection test").
 

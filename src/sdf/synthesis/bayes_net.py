@@ -35,7 +35,8 @@ class BayesianNetworkTable:
         needs_fit=True,
         description="A Chow–Liu tree over binned columns: each column drawn given the column it depends on most",
     )
-    param_bounds: ClassVar[dict[str, tuple[float | None, float | None]]] = {"bins": (2, 100)}
+    # numpy refuses a negative seed: the bound makes it a refused request, not a failed run
+    param_bounds: ClassVar[dict[str, tuple[float | None, float | None]]] = {"seed": (0, None), "bins": (2, 100)}
 
     def __init__(self, *, seed: int = 7, bins: int = 20) -> None:
         self.bins = bins
@@ -47,31 +48,31 @@ class BayesianNetworkTable:
         self._values: list[list[np.ndarray]] = []  # column -> bin -> the real values in it
 
     def fit(self, data: TableData) -> BayesianNetworkTable:
-        """Learn the tree and its distributions from ``data``; ``ValueError`` for a ``nan`` in it."""
-        self._data = data
+        """Learn the tree and its distributions from ``data``; ``ValueError`` for a ``nan`` in it, and the
+        instance is then left as it was. A category column gets one bin per observed value: ``bins`` does not
+        cap it, so an ID-like category column makes a large model."""
         rows = np.asarray(data.rows, dtype=float).reshape(len(data.rows), len(data.columns))
         if np.isnan(rows).any():
             raise ValueError("bayesian-network: the table has a nan; fill or drop it first")
-        if not len(rows):
-            return self
         kinds = data.kinds or ("real",) * len(data.columns)
-        codes, self._values = [], []
-        for j, kind in enumerate(kinds):
-            code, values = _binned(rows[:, j], self.bins, kind == "category")
+        codes, values = [], []
+        for j, kind in enumerate(kinds if len(rows) else ()):
+            code, held = _binned(rows[:, j], self.bins, kind == "category")
             codes.append(code)
-            self._values.append(values)
-        self._parent, self._order = _chow_liu([(c, len(v)) for c, v in zip(codes, self._values)])
-        self._tables = {}
-        for j in self._order:
-            size = len(self._values[j])
-            p = self._parent[j]
+            values.append(held)
+        parent, order = _chow_liu([(c, len(v)) for c, v in zip(codes, values)])
+        tables = {}
+        for j in order:
+            size = len(values[j])
+            p = parent[j]
             if p is None:
                 counts = np.bincount(codes[j], minlength=size)[None, :].astype(float)
             else:
-                counts = np.zeros((len(self._values[p]), size))
+                counts = np.zeros((len(values[p]), size))
                 np.add.at(counts, (codes[p], codes[j]), 1.0)
             counts += SMOOTHING / size
-            self._tables[j] = counts / counts.sum(axis=1, keepdims=True)
+            tables[j] = counts / counts.sum(axis=1, keepdims=True)
+        self._data, self._values, self._parent, self._order, self._tables = data, values, parent, order, tables
         return self
 
     def sample(self, n: int | None = None, *, seed: int | None = None) -> list[tuple[float, ...]]:
@@ -79,7 +80,7 @@ class BayesianNetworkTable:
         if self._data is None:
             raise RuntimeError("bayesian-network: call fit() before sample()")
         n = len(self._data.rows) if n is None else n
-        if not self._data.rows or n == 0:
+        if not self._data.rows or n <= 0:
             return []
         rng = np.random.default_rng(seed) if seed is not None else self._rng
         width = len(self._data.columns)
@@ -90,9 +91,10 @@ class BayesianNetworkTable:
             size = len(self._values[j])
             if p is None:
                 bins[:, j] = rng.choice(size, size=n, p=self._tables[j][0])
-            else:  # each row's own distribution, given its parent's bin: inverse-CDF draws, one per row
-                cdf = np.cumsum(self._tables[j][bins[:, p]], axis=1)
-                bins[:, j] = np.minimum((rng.random(n)[:, None] > cdf).sum(axis=1), size - 1)
+            else:  # the rows of each parent bin together, from that bin's distribution
+                for pb in np.unique(bins[:, p]):
+                    rows = np.flatnonzero(bins[:, p] == pb)
+                    bins[rows, j] = rng.choice(size, size=len(rows), p=self._tables[j][pb])
             for b, values in enumerate(self._values[j]):
                 picked = bins[:, j] == b
                 if picked.any():
@@ -118,6 +120,8 @@ def _chow_liu(columns: list[tuple[np.ndarray, int]]) -> tuple[dict[int, int | No
     """The maximum spanning tree of the columns' pairwise mutual information, rooted at column 0: each column's
     parent, and the columns in an order where every parent comes first."""
     k = len(columns)
+    if not k:
+        return {}, []
     mi = np.zeros((k, k))
     for a in range(k):
         for b in range(a + 1, k):
@@ -126,7 +130,7 @@ def _chow_liu(columns: list[tuple[np.ndarray, int]]) -> tuple[dict[int, int | No
     order = [0]
     best = {j: (mi[0, j], 0) for j in range(1, k)}
     while best:
-        j = max(best, key=lambda c: (best[c][0], -c))  # ties go to the earlier column: the tree is repeatable
+        j = max(best, key=lambda c: best[c][0])  # ties go to the earlier column, first in `best`: repeatable
         parent[j] = best.pop(j)[1]
         order.append(j)
         for c in best:

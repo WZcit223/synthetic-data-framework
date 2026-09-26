@@ -10,7 +10,7 @@
 > the project lead's decision, this PR adds `bayesian-network`: a tree-shaped
 > Bayesian network over binned columns, written against the public plug-in
 > contract only, to check that a user's own synthesizer runs through every
-> part of the framework. It scores 0.54 on the extract and 0.47 on the
+> part of the framework. It scores 0.53 on the extract and 0.49 on the
 > sample. Where the
 > implementation departs from the contract, and why:
 >
@@ -106,4 +106,5 @@ themselves away by writing whole numbers as decimals.
 ## Version
 
 `Version: MINOR 1.12.0 → 1.13.0` — the detection test in every table
-evaluation, and column kinds in the table synthesis contract.
+evaluation, column kinds in the table synthesis contract, and a new table
+synthesizer, `bayesian-network`.

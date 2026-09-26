@@ -543,12 +543,12 @@ effect.
 |---|---|---|---|---|---|
 | sample | bootstrap-table | 1.00 | 0.99 | **0.55** | price, weekday, hour |
 | sample | gaussian-copula | 1.00 | 0.99 | **0.62** | price, hour, weekday |
-| sample | bayesian-network | | | **0.47** | none |
+| sample | bayesian-network | | | **0.49** | price, hour |
 | sample | *real columns shuffled independently* | | | 0.51 | |
 | sample | *half the real rows against the other half* | | | 0.50 | |
 | extract | bootstrap-table | 1.00 | 0.96 | **0.89** | price, qty, hour |
 | extract | gaussian-copula | 1.00 | 0.96 | **0.90** | price, qty, hour |
-| extract | bayesian-network | | | **0.54** | qty, hour, price |
+| extract | bayesian-network | | | **0.53** | hour, qty |
 | extract | *real columns shuffled independently* | | | 0.78 | |
 | extract | *half the real rows against the other half* | | | 0.50 | |
 
@@ -563,12 +563,14 @@ effect.
   `bootstrap-table` samples each column on its own by design, and the
   copula's linear correlations do no better.
 - **A synthesizer that learns how the columns depend meets it:**
-  `bayesian-network` scores 0.54 on the extract and 0.47 on the sample
+  `bayesian-network` scores 0.53 on the extract and 0.49 on the sample
   ("hard to distinguish"). It links the columns in a Chow–Liu tree over
-  binned values and draws each column given its parent's bin. On the sample
-  no column tells its rows apart any more. Its clone risk is that of the
-  real data against itself: 19.38 % against 17.7 % on the sample, and 96.12 %
-  against 96.3 % on the extract (`uv run sdf privacy [CSV] --synthesizer
+  binned values and draws each column given its parent's bin. An AUC just
+  under 0.5 (the sample's folds run from 0.47 to 0.50) is chance, not rows
+  more real than the real ones: on a table this discrete, a held-out row's
+  duplicates sit in the other folds. Its clone risk is that of the real data
+  against itself: 18.62 % against 17.7 % on the sample, and 97.0 % against
+  96.3 % on the extract (`uv run sdf privacy [CSV] --synthesizer
   bayesian-network`).
 - **The privacy numbers moved, on purpose.** With the kinds, the synthetic
   rows take the real rows' values, so more of them lie next to a real row:

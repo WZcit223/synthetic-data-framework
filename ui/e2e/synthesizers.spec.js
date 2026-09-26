@@ -21,8 +21,8 @@ test("a run shows the scores the API returned and opens in Explore", async ({ pa
 });
 
 test("a table synthesizer mounted as a plug-in runs from the page and opens in Explore", async ({ page }) => {
-  // bayesian-network is mounted from the entry-point group like any installed plug-in: nothing in the page
-  // names it, so the catalogue, the run form, the scores and Explore all come from the API
+  // bayesian-network is written as a plug-in and declared in the entry-point group: nothing in the page names
+  // it, so the catalogue, the run form, the scores and Explore all come from the API
   test.slow(); // two server runs, each with the detection test
   await page.goto("/synthesizers.html#bayesian-network", { waitUntil: "networkidle" });
   await expect(page.locator(".scard[aria-current=true] .name")).toHaveText("bayesian-network");
@@ -32,6 +32,9 @@ test("a table synthesizer mounted as a plug-in runs from the page and opens in E
   const run = await (await answer).json();
   expect(run.params).toEqual({ seed: 7, bins: 12 });
   await expect(page.locator(".tile", { hasText: "Clone risk" })).toBeVisible();
+  const href = await page.getByRole("link", { name: "Open in Explore" }).getAttribute("href");
+  const view = JSON.parse(decodeURIComponent(href.replace("explore.html#view=", "")));
+  expect(view.source.synthesis).toEqual({ synthesizer: "bayesian-network", source: run.source, params: run.params });
   await page.getByRole("link", { name: "Open in Explore" }).click();
   await expect(page.locator(".result .tabulator-tableholder .tabulator-row")).toHaveCount(2, { timeout: 30_000 });
 });
