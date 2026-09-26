@@ -148,6 +148,31 @@ class MovingAverageSeries:
         return out
 ```
 
+**A table synthesizer, worked in full.** `bayesian-network`
+(`src/sdf/synthesis/bayes_net.py`) is written the way a plug-in author
+would write one. It imports nothing from the framework but
+`sdf.synthesis.api`, and a test keeps it that way. It is mounted from the
+`sdf.synthesizers` entry-point group, and it honours `seed`, `param_bounds`
+and the column kinds. Nothing else in the repository names it: the catalogue,
+`sdf privacy --synthesizer`, `POST /api/v1/synthesis/runs`, the Synthesizers
+page, Explore and the detection test all pick it up from the group.
+
+**What a synthesizer is evaluated on today.** Mounting, parameters and runs
+work for any synthesizer. The data they are evaluated on does not yet vary:
+
+- a table synthesizer is evaluated on one table, the retail feature table
+  (`qty`, `price`, `hour`, `weekday`), read from a CSV in the Online Retail II
+  layout (a bundled sample, or a path with the same columns), with its column
+  kinds fixed by the framework;
+- a series synthesizer is evaluated on the hourly or daily demand series of
+  the same kind of CSV.
+
+To use a synthesizer on a table of your own, call it and the checks from
+Python: `fit(TableData(rows, columns, kinds))`, `sample()`, then
+`sdf.validation.detection.detection_report` and
+`sdf.validation.privacy.privacy_report`. The API, the command line and the
+pages cannot yet take your own table or its column kinds.
+
 ## A dataset provider
 
 A dataset provider publishes a table computed from the current world, one row

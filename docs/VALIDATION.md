@@ -543,10 +543,12 @@ effect.
 |---|---|---|---|---|---|
 | sample | bootstrap-table | 1.00 | 0.99 | **0.55** | price, weekday, hour |
 | sample | gaussian-copula | 1.00 | 0.99 | **0.62** | price, hour, weekday |
+| sample | bayesian-network | | | **0.47** | none |
 | sample | *real columns shuffled independently* | | | 0.51 | |
 | sample | *half the real rows against the other half* | | | 0.50 | |
 | extract | bootstrap-table | 1.00 | 0.96 | **0.89** | price, qty, hour |
 | extract | gaussian-copula | 1.00 | 0.96 | **0.90** | price, qty, hour |
+| extract | bayesian-network | | | **0.54** | qty, hour, price |
 | extract | *real columns shuffled independently* | | | 0.78 | |
 | extract | *half the real rows against the other half* | | | 0.50 | |
 
@@ -555,14 +557,19 @@ effect.
   0.96–0.99: a price between two list prices gives the row away.
 - **On the sample, both built-ins are now hard to tell apart** (0.55) or
   close to it (0.62).
-- **On the real extract, the target of 0.75 is not met** (0.89 and 0.90), and
-  column kinds cannot meet it: the real columns, each shuffled on its own,
-  score 0.78. The extract's price, quantity and hour depend on each other,
-  and `bootstrap-table` samples each column on its own by design. The
-  copula's linear correlations do no better. Getting under 0.78 needs a
-  synthesizer that learns the joint distribution (a Bayesian network, or
-  CTGAN once deep models are allowed); that is the next decision for
-  synthesis (checklist A1).
+- **On the real extract, column kinds alone cannot meet the target of 0.75**
+  (0.89 and 0.90): the real columns, each shuffled on its own, score 0.78.
+  The extract's price, quantity and hour depend on each other;
+  `bootstrap-table` samples each column on its own by design, and the
+  copula's linear correlations do no better.
+- **A synthesizer that learns how the columns depend meets it:**
+  `bayesian-network` scores 0.54 on the extract and 0.47 on the sample
+  ("hard to distinguish"). It links the columns in a Chow–Liu tree over
+  binned values and draws each column given its parent's bin. On the sample
+  no column tells its rows apart any more. Its clone risk is that of the
+  real data against itself: 19.38 % against 17.7 % on the sample, and 96.12 %
+  against 96.3 % on the extract (`uv run sdf privacy [CSV] --synthesizer
+  bayesian-network`).
 - **The privacy numbers moved, on purpose.** With the kinds, the synthetic
   rows take the real rows' values, so more of them lie next to a real row:
   clone risk 4.38 % → 18.25 % on the sample and 7.62 % → 93.62 % on the

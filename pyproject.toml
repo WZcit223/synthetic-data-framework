@@ -39,6 +39,7 @@ sdf = "sdf.cli:main"
 # Synthesis algorithms are plug-ins. The built-ins are declared here like any
 # third-party plug-in; sdf.synthesis.registry.default_registry() mounts the group.
 [project.entry-points."sdf.synthesizers"]
+bayesian-network = "sdf.synthesis.bayes_net:BayesianNetworkTable"
 bootstrap-table = "sdf.synthesis.bootstrap:BootstrapTable"
 gaussian-copula = "sdf.synthesis.sdv_synth:GaussianCopulaTable"
 seasonal-profile = "sdf.synthesis.fit:FittedSeasonalDemand"

@@ -72,6 +72,7 @@ def test_version():
         (("tstr", SAMPLE_CSV), "ratio TSTR/TRTR"),
         (("privacy", SAMPLE_CSV), "clone_risk_pct"),
         (("privacy", SAMPLE_CSV), "telling columns : price"),
+        (("privacy", SAMPLE_CSV, "--synthesizer", "bayesian-network"), "synthesizer     : bayesian-network"),
     ],
 )
 def test_commands_run(args, marker):

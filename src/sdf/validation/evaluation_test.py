@@ -107,6 +107,12 @@ def test_a_plug_in_that_ignores_column_kinds_still_evaluates_with_the_detection_
     assert evaluate("bootstrap-table", source="sample").metrics["detection_auc"] < 0.75  # the built-in honours them
 
 
+def test_the_bayesian_network_meets_the_detection_target_on_the_real_extract():
+    # plan 05's acceptance: under 0.75 on the extract, which no per-column synthesizer can reach (0.78 at best)
+    metrics = evaluate("bayesian-network", source="retail-10k").metrics
+    assert metrics["detection_auc"] < 0.75 and metrics["detection_verdict"] == "hard to distinguish"
+
+
 def test_a_row_of_the_wrong_width_is_the_synthesizer_s_failure():
     class Wide(UnseededJitter):
         info: ClassVar[SynthesizerInfo] = SynthesizerInfo("wide", "table", True, "x")

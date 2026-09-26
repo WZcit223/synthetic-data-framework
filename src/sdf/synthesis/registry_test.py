@@ -15,7 +15,7 @@ from .registry import SynthesizerRegistry, default_registry
 from .spec import GenerationSpec
 from .warehouse import SyntheticWarehouse
 
-BUILT_INS = ["bootstrap-table", "seasonal-profile", "warehouse-spec"]
+BUILT_INS = ["bayesian-network", "bootstrap-table", "seasonal-profile", "warehouse-spec"]
 SERIES = [10.0 + (i % 7) + (i * 37 % 11) for i in range(42)]
 ROWS = [(float(i % 7), float(i % 5) + 0.5, float(i % 24), float(i % 7)) for i in range(60)]
 
@@ -181,7 +181,7 @@ def test_info_describes_each_built_in():
         needs_fit=True,
         description="Per-cycle mean profile × resampled multiplicative residuals",
     )
-    assert [reg.info(n).produces for n in BUILT_INS] == ["table", "series", "warehouse"]
+    assert [reg.info(n).produces for n in BUILT_INS] == ["table", "table", "series", "warehouse"]
     assert reg.info("warehouse-spec").needs_fit is False
 
 
@@ -256,7 +256,9 @@ def test_a_class_without_info_is_rejected():
 
 
 def test_unknown_name_lists_the_valid_ones():
-    with pytest.raises(KeyError, match=r"unknown synthesizer 'nope'; choose from \['bootstrap-table'"):
+    with pytest.raises(
+        KeyError, match=r"unknown synthesizer 'nope'; choose from \['bayesian-network', 'bootstrap-table'"
+    ):
         default_registry().create("nope")
     with pytest.raises(KeyError, match="unknown synthesizer"):
         default_registry().info("nope")
