@@ -1,9 +1,10 @@
 # Your own data — overview
 
 Status: proposed on 2026-09-26, at the project lead's request ("user's own
-data, first"). Waiting for the project lead's approval of the plan and of
-decisions E1 to E3 (E3 includes the committed table's size); E4 was left to
-me and is decided below.
+data, first"), and approved by the project lead the same day with the
+recommended decisions: E1 (a), E2 as stated, and E3 (UCI Online Retail II
+first, then M5; the committed daily table keeps 200 SKUs, about 4 MB). E4
+was left to me and is decided below.
 
 The interface contract every PR follows is [`interfaces.md`](interfaces.md).
 Each PR has its own plan file (the sequence table's "Plan" column).
