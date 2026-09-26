@@ -19,3 +19,6 @@ out/
 
 # Full raw dataset (too large to commit; download from UCI)
 data/_full/
+
+# Users' own data sources (sdf data add, POST /api/v1/sources); never committed
+data/sources/

@@ -95,25 +95,28 @@ SourceSchema(
 ```python
 from sdf.foundation.sources import SourceStore, SourceLimits
 
-store = SourceStore(root="data/sources", bundled=BUNDLED, limits=SourceLimits())
+store = default_store()                     # $SDF_DATA_DIR/sources, and the bundled files in $SDF_DATA_DIR
+store = SourceStore(root, bundled={name: (path, schema)}, limits=SourceLimits())
 store.list() -> list[SourceEntry]          # bundled first, then the user's, by name
-store.get(name) -> SourceEntry              # schema, row count, date range, load report, origin ("bundled" | "user")
-store.add(stream, *, name, schema=None) -> SourceEntry            # schema None: inferred; ValueError with the reason
+store.get(name) -> SourceEntry              # schema, report (rows, dates, what could not be read), origin, path
+store.add(path_or_binary_file, *, name, schema=None) -> SourceEntry   # schema None: inferred
+store.begin(name) -> Upload                 # upload.write(chunk)…; upload.commit(schema=None); upload.discard()
 store.update_schema(name, schema) -> SourceEntry                  # re-checked; bundled sources are read-only
 store.remove(name)                          # user sources only
-store.rows(name, *, columns=None, limit=None, seed=None) -> Table  # typed values; limit with seed: a uniform sample
-store.orders(name) -> tuple[list[SKU], list[OutboundOrder]]         # needs time, item and quantity
+store.preview(name, rows=50) -> list[list[str]]                   # the first rows as the file holds them
+store.rows(name, *, columns=None, limit=None, seed=None) -> Table  # the dataset view (below); with seed: a uniform sample
+store.orders(name) -> tuple[list[SKU], list[OutboundOrder]]         # needs the time and quantity roles
 ```
 
-The store is in the foundation layer, so it returns only foundation types
-(tables, and the `SKU` and `OutboundOrder` entities). Demand is built one
-layer up, in `sdf.analytics.demand`:
+`ValueError` names what is wrong; `SourceTooLarge` (over a limit) and
+`SourceConflict` (a name taken or reserved, the store full, a bundled source
+changed) are its subclasses. The store is in the foundation layer, so it
+returns only foundation types (tables, and the `SKU` and `OutboundOrder`
+entities). Demand is built from the orders one layer up, where it is read:
+`DemandTable.from_orders(store.orders(name)[1])` (U3).
 
-```python
-source_demand(store, name) -> DemandTable    # DemandTable.from_orders over store.orders(name)
-```
-
-- One folder per user source: `<root>/<name>/data.csv` and `schema.json`.
+- One folder per user source: `<root>/<name>/data.csv`, `schema.json` and
+  `report.json`.
 - **Names.** The name is checked against `^[a-z0-9]+(-[a-z0-9]+)*$`, at most
   40 characters, so no path is ever built from user text. The names of the
   bundled sources (`sample`, `retail-10k`, and from U6 `uci-retail-daily`) are
@@ -121,7 +124,8 @@ source_demand(store, name) -> DemandTable    # DemandTable.from_orders over stor
   the page proposes one from the file name.
 - **Bundled sources** are the two sample files, with declared schemas. They
   are read-only.
-- **Limits** (`SourceLimits`, decision E2):
+- **Limits** (`SourceLimits`, decision E2; an app takes a store with its own
+  limits, `create_app(sources=SourceStore(root, limits=…))`):
   - an upload is at most 200 MB and 2,000,000 rows;
   - at most 64 columns;
   - at most 20 user sources.
@@ -133,20 +137,25 @@ source_demand(store, name) -> DemandTable    # DemandTable.from_orders over stor
   add of a name already present is refused.
 - **Orders and demand.** `orders` reads lines as the retail adapter does: a
   negative quantity is a return, kept as a cancelled line; a zero quantity
-  is skipped. A source without `item` gives one SKU, `all`. `source_demand`
-  sums the orders that are not cancelled by SKU and day, into the daily
-  `DemandTable` every forecaster and detector already reads.
+  is skipped; a real quantity is rounded to whole units. A source without
+  `item` gives one SKU, `all`. A SKU's unit price is the median positive price
+  of its lines (0 without a price role) and its unit cost the median positive
+  cost, else 0.6 × the price. `DemandTable.from_orders` sums the lines that
+  are not cancelled by SKU and day, into the daily table every forecaster and
+  detector already reads.
 
 ### 1.3 HTTP
 
 ```
 GET    /api/v1/sources                     → {sources: [SourceEntry], limits: SourceLimits}
-GET    /api/v1/sources/{name}              → SourceEntry + {preview: {fields, rows}} (first 50 rows)
+GET    /api/v1/sources/{name}              → SourceEntry + {preview: {header, rows}} (first 50 rows as text)
 POST   /api/v1/sources?name=my-sales       body: the CSV (text/csv), streamed
-                                           → 201 SourceEntry (schema inferred) | 409 name taken or reserved
-                                             | 413 over a limit | 422 unreadable
-PUT    /api/v1/sources/{name}/schema       body: SourceSchema → SourceEntry (re-checked) | 422 with the report
-DELETE /api/v1/sources/{name}              → 204 | 404 | 409 (bundled, or read by the current world: checked by the API, which holds the world)
+                                           → 201 SourceEntry (schema inferred) | 409 name taken or reserved,
+                                             or the store holds its most user sources
+                                             | 413 over the byte, row or column limit | 422 unreadable
+PUT    /api/v1/sources/{name}/schema       body: SourceSchema → SourceEntry (re-checked) | 422 naming the problem
+DELETE /api/v1/sources/{name}              → 204 | 404 | 409 (bundled; from U4 also: read by the current world,
+                                             checked by the API, which holds the world)
 ```
 
 - The served app's CORS setting allows `PUT` and `DELETE` as well as `GET`
@@ -169,15 +178,18 @@ DELETE /api/v1/sources/{name}              → 204 | 404 | 409 (bundled, or read
     wide source returns fewer rows; a larger source answers a seeded uniform
     sample, and the answer says so, with the source's row count.
   - **One merge.** The catalogue's datasets and the store's are merged by one
-    function in the application layer, `datasets(catalogue, store)`, which
-    the API and the command line both call.
+    class in the application layer, `Datasets(catalogue, store)` (`names`,
+    `info`, `origin`, `head`, `read`), which the API reads through and the
+    command line will (U7). A source whose schema has problems to settle is
+    not a dataset until they are settled.
   - **Causal estimation.** `POST /causal/estimates` reads the merged list,
     so a source is also an estimation dataset, within the estimators' own
     limits (at most `MAX_ESTIMATE_ROWS`, 40,000 rows, and a two-valued
     treatment). U7 uses this for the demo's effect step.
-- `GET /api/v1/synthesis/sources` is kept and lists the same sources. The API
-  is published as v1, so removing it would be a MAJOR change; the pages move
-  to `/sources` in U5.
+- `GET /api/v1/synthesis/sources` is kept. Until U2 it lists the bundled
+  files only, since only they can be evaluated; from U2 it lists every
+  source. The API is published as v1, so removing it would be a MAJOR change;
+  the pages move to `/sources` in U5.
 - **Exports.** Server-side CSV (`/export`, `sdf export`, every `--csv`
   option) prefixes a text cell that starts with `=`, `+`, `-`, `@`, a tab or
   a carriage return with `'`, the same characters the pages' `csvCell`

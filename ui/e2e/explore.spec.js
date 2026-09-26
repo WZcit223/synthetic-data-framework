@@ -185,3 +185,16 @@ test("at 390 px the Explore page does not overflow sideways", async ({ page }) =
   const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(scroll).toBeLessThanOrEqual(inner);
 });
+
+test("a data source is a dataset, pivoted without a world", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", e => errors.push(String(e)));
+  const view = { rows: [{ field: "country" }], values: [{ field: "quantity", agg: "sum" }] };
+  const link = source => "/explore.html#view=" + encodeURIComponent(JSON.stringify({ source, view }));
+  await page.goto(link({ dataset: "source-retail-10k" }), { waitUntil: "networkidle" });
+  await expect(page.locator(".result .tabulator-row", { hasText: "United Kingdom" })).toBeVisible();
+  await expect(page.locator('.field[data-field="invoice_date_hour"]')).toBeVisible(); // the hour of a timestamp
+  await expect(page.locator(".muted", { hasText: "bundled data source retail-10k" })).toContainText("10,000 rows");
+  await expect(page.getByText(/world /)).toHaveCount(0); // a source's rows are its file's, not the world's
+  expect(errors).toEqual([]);
+});

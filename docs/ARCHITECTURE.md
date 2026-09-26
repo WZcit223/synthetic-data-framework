@@ -64,6 +64,18 @@ at runtime), keeps the built-ins' names reserved, and lists what a declared
 plug-in could not mount with the reason. The synthesizer registry and the
 dataset catalogue are its subclasses, adding only their own checks and methods.
 
+`sdf.foundation.sources` opens the data half: a **data source** is a CSV plus
+a `SourceSchema` (each column's kind, and the roles time, item, quantity,
+price and cost). `infer_schema` proposes one, `check` reads every row under it
+and reports what it could not read, and `SourceStore` keeps the bundled files
+and the user's own sources (one folder each, uploads streamed to disk under a
+byte limit and moved into place in one step). A source is served as a checked
+`Table` or as `SKU` and `OutboundOrder` entities, so the layers above read a
+user's file through the same contracts as the generator's output. The
+application layer's `Datasets` merges the catalogue's datasets with the
+sources' (`source-<name>`), and the API and the command line both read
+through it. Contract: [`refactor/userdata/interfaces.md`](refactor/userdata/interfaces.md) §1.
+
 ### Synthesis / Prediction Layer
 Turns a declarative `GenerationSpec` (the *reference dataset + generation
 requirements*) into a full dataset. In the framework this is a seeded stdlib sampler.

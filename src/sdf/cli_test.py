@@ -32,6 +32,7 @@ COMMANDS = [
     "privacy",
     "validate",
     "hooks",
+    "data",
 ]
 
 
@@ -388,3 +389,23 @@ def test_privacy_reports_a_synthesizer_s_own_failure_without_a_traceback(monkeyp
     monkeypatch.setattr("sdf.validation.evaluation.default_registry", lambda: reg)
     assert cmd_privacy(SAMPLE_CSV, synthesizer="wide") == 1
     assert "wide failed while sampling from it: a row of 5 values" in capsys.readouterr().err
+
+
+def test_data_add_list_show_remove(tmp_path, monkeypatch):
+    monkeypatch.setenv("SDF_DATA_DIR", str(tmp_path))
+    path = tmp_path / "in.csv"
+    path.write_text("Date,Item,Units\n03/04/2024,a,1\n05/06/2024,b,2\n", encoding="utf-8")
+    res = run("data", "add", str(path), "--name", "uk")
+    assert res.exit_code == 1 and "ambiguous" in res.output and "Date='%d/%m/%Y' (day first)" in res.output
+    res = run("data", "add", str(path), "--name", "uk", "--time-format", "Date=%d/%m/%Y", "--kind", "Units=real")
+    assert res.exit_code == 0, res.output
+    assert "Units                    real  <- quantity" in res.output and "2024-04-03 to 2024-06-05" in res.output
+    listed = run("data", "list").output
+    assert "uk " in listed and "user" in listed
+    shown = run("data", "show", "uk", "--rows", "1").output
+    assert "03/04/2024,a,1" in shown and "05/06/2024" not in shown
+    assert run("data", "add", str(path), "--name", "uk", "--role", "time=Nope").exit_code == 1
+    assert "no column 'Nope'" in run("data", "add", str(path), "--name", "x", "--role", "time=Nope").output
+    assert "already exists" in run("data", "add", str(path), "--name", "uk", "--time-format", "Date=%d/%m/%Y").output
+    assert run("data", "remove", "uk").exit_code == 0
+    assert "no source 'uk'" in run("data", "show", "uk").output

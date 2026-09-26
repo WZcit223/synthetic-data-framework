@@ -23,6 +23,19 @@ from datetime import datetime
 from sdf.foundation.registry import DataSourceRegistry
 from sdf.foundation.schema import SKU, OutboundOrder
 
+# The InvoiceDate formats tried in order when none is given: month-first before day-first.
+DATE_FORMATS = (
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d %H:%M",
+    "%m/%d/%Y %H:%M",
+    "%d/%m/%Y %H:%M",
+    "%m/%d/%y %H:%M",
+    "%d/%m/%y %H:%M",  # 2-digit year (UCI export)
+    "%m/%d/%Y",
+    "%m/%d/%y",
+    "%Y-%m-%d",
+)
+
 
 def _parse_dt(s: str, date_format: str | None = None) -> datetime:
     """Parse an InvoiceDate. With ``date_format`` only that format is accepted.
@@ -34,17 +47,7 @@ def _parse_dt(s: str, date_format: str | None = None) -> datetime:
     s = (s or "").strip()  # a truncated CSV row yields None
     if date_format is not None:
         return datetime.strptime(s, date_format)
-    for fmt in (
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%d %H:%M",
-        "%m/%d/%Y %H:%M",
-        "%d/%m/%Y %H:%M",
-        "%m/%d/%y %H:%M",
-        "%d/%m/%y %H:%M",  # 2-digit year (UCI export)
-        "%m/%d/%Y",
-        "%m/%d/%y",
-        "%Y-%m-%d",
-    ):
+    for fmt in DATE_FORMATS:
         try:
             return datetime.strptime(s, fmt)
         except ValueError:

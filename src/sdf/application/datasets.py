@@ -28,6 +28,7 @@ from sdf.foundation.plugins import (
     PluginRegistry,
     Registration as Registration,
 )
+from sdf.foundation.sources import DATASET_PREFIX, SourceStore, dataset_info
 from sdf.foundation.tables import DatasetInfo, Field, Table
 from sdf.simulation.policy import ServiceLevelPolicy, plan_orders
 from sdf.simulation.world import World
@@ -199,9 +200,11 @@ class DatasetCatalog(PluginRegistry[DatasetProvider]):
     made_by: ClassVar[str] = "build(name)"
 
     def check(self, cls: type[DatasetProvider]) -> None:
-        """A ``rows(world)`` method and constructor defaults."""
+        """A ``rows(world)`` method, constructor defaults, and a name outside the sources' ``source-`` prefix."""
         if not callable(getattr(cls, "rows", None)) or not _takes_world(cls):
             raise TypeError(f"{cls.info.name}: a dataset provider needs a rows(world) method")
+        if cls.info.name.startswith(DATASET_PREFIX):
+            raise ValueError(f"{cls.info.name}: the prefix {DATASET_PREFIX!r} is reserved for data sources")
         super().check(cls)
 
     def info(self, name: str) -> DatasetInfo:
@@ -256,6 +259,67 @@ class DatasetCatalog(PluginRegistry[DatasetProvider]):
         if deadline is not None and time.monotonic() > deadline:
             raise late  # the provider took too long to finish after its last row
         return Table(cls.info, kept), more
+
+
+class Datasets:
+    """The catalogue's datasets and every readable data source's, as one list.
+
+    A source ``name`` is the dataset ``source-<name>``; its rows come from the store, not the
+    world. The API and the command line read datasets through this one merge
+    (``docs/refactor/userdata/interfaces.md`` §1.3). The catalogue and the store are read on
+    every call, so a provider registered or a source added later is served.
+    """
+
+    def __init__(self, catalogue: DatasetCatalog, sources: SourceStore) -> None:
+        self.catalogue = catalogue
+        self.sources = sources
+
+    def _source(self, name: str) -> str | None:
+        return name[len(DATASET_PREFIX) :] if name.startswith(DATASET_PREFIX) else None
+
+    def names(self) -> list[str]:
+        ready = [DATASET_PREFIX + e.name for e in self.sources.list() if not e.schema.problems]
+        return self.catalogue.names() + ready
+
+    def info(self, name: str) -> DatasetInfo:
+        """``KeyError`` for an unknown dataset, and for a source whose schema has problems to settle."""
+        source = self._source(name)
+        if source is None:
+            return self.catalogue.info(name)
+        entry = self.sources.get(source)
+        if entry.schema.problems:
+            raise KeyError(f"source {source} cannot be read yet: " + "; ".join(entry.schema.problems))
+        return dataset_info(entry)
+
+    def origin(self, name: str) -> str:
+        return "source" if self._source(name) is not None else self.catalogue.origin(name)
+
+    def unavailable(self) -> dict[str, str]:
+        return self.catalogue.unavailable()
+
+    def head(self, name: str, world: World, limit: int, *, seed: int = 0) -> tuple[Table, int, bool]:
+        """At most ``limit`` rows, the dataset's total row count, and whether the rows are a sample.
+
+        A catalogue dataset gives its first rows; a larger source gives a uniform sample drawn with ``seed``.
+        """
+        source = self._source(name)
+        if source is None:
+            table, total = self.catalogue.head(name, world, limit)
+            return table, total, False
+        total = self.sources.get(source).report.rows_kept
+        sampled = total > limit
+        return self.sources.rows(source, limit=limit, seed=seed if sampled else None), total, sampled
+
+    def read(self, name: str, world: World, *, limit: int, deadline: float | None = None) -> tuple[Table, bool]:
+        """At most ``limit`` rows and whether there were more, as ``DatasetCatalog.read``."""
+        source = self._source(name)
+        if source is None:
+            return self.catalogue.read(name, world, limit=limit, deadline=deadline)
+        more = self.sources.get(source).report.rows_kept > limit
+        table = self.sources.rows(source, limit=limit)
+        if deadline is not None and time.monotonic() > deadline:
+            raise ReadDeadline(f"dataset {name} did not deliver its rows in time")
+        return table, more
 
 
 def _takes_world(cls: type) -> bool:

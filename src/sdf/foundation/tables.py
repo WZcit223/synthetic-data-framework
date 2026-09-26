@@ -110,6 +110,15 @@ class Table:
                     raise ValueError(f"dataset {self.info.name}: row {i}, field {field.name}: {problem}")
 
 
+def csv_cell(value: Any) -> Any:
+    """``value`` for a CSV cell: text that a spreadsheet would run as a formula gets a leading ``'``.
+
+    Text starting with ``=``, ``+``, ``-``, ``@``, a tab or a carriage return is guarded, as the
+    pages' ``csvCell`` does; numbers and everything else are returned unchanged.
+    """
+    return "'" + value if isinstance(value, str) and value.startswith(("=", "+", "-", "@", "\t", "\r")) else value
+
+
 def _is_iso_date(text: str) -> bool:
     if not _ISO_DATE.fullmatch(text):
         return False

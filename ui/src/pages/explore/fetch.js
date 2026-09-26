@@ -7,7 +7,9 @@ export async function fetchSource(source, datasets) {
   if (source.dataset != null) {
     const d = await api(`/datasets/${encodeURIComponent(source.dataset)}`);
     const entry = datasets.find(e => e.name === d.name);
-    return { payload: d, meta: { title: d.label, description: entry?.description ?? "", world: d.world, total: d.total_rows, truncated: d.truncated } };
+    // a data source's rows do not come from the world, and a large one answers a uniform sample
+    const meta = { title: d.label, description: entry?.description ?? "", world: d.world || null, total: d.total_rows, truncated: d.truncated, sampled: !!d.sampled };
+    return { payload: d, meta };
   }
   if (source.experiment != null) {
     const d = await api("/experiments", {

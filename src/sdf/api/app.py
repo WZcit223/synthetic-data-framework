@@ -25,7 +25,8 @@ import time
 from pathlib import Path
 
 try:
-    from fastapi import APIRouter, FastAPI, HTTPException, Query, Response
+    from fastapi import APIRouter, FastAPI, HTTPException, Query, Request, Response
+    from fastapi.concurrency import run_in_threadpool
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     from pydantic import ConfigDict, Field, create_model
@@ -57,12 +58,20 @@ from sdf.analytics.forecasters import (
     default_forecasters,
 )
 from sdf.application.agent import WarehouseAgent
-from sdf.application.datasets import DatasetCatalog, ReadDeadline, default_datasets
+from sdf.application.datasets import DatasetCatalog, Datasets, ReadDeadline, default_datasets
 from sdf.application.economics import financial_impact
 from sdf.application.knowledge import KnowledgeQA
 from sdf.application.replenishment import sku_forecast
 from sdf.application.scenarios import run_scenarios
-from sdf.foundation.tables import Field as TableField
+from sdf.foundation.sources import (
+    PREVIEW_ROWS,
+    SourceConflict,
+    SourceSchema,
+    SourceStore,
+    SourceTooLarge,
+    default_store,
+)
+from sdf.foundation.tables import Field as TableField, csv_cell
 from sdf.simulation import catalog
 from sdf.simulation.benchmark import (
     ANOMALY_KINDS,
@@ -77,7 +86,7 @@ from sdf.simulation.signals import SIGNALS, signal_frame
 from sdf.synthesis.materialise import WarehouseRefused
 from sdf.synthesis.registry import SynthesizerRegistry, default_registry
 from sdf.synthesis.spec import GenerationSpec
-from sdf.validation.evaluation import RunFailed, evaluate, sources
+from sdf.validation.evaluation import RunFailed, evaluate, sources as sample_files
 from sdf.validation.quality import structural_quality_check
 from sdf.workflow import warehouse_pipeline
 from . import schemas as s
@@ -86,6 +95,7 @@ from .state import MIN_HORIZON_DAYS, MIN_SKUS, GenerateLimits, GenerationBusy, W
 PREFIX = "/api/v1"
 _EXPORT_TABLES = ("skus", "locations", "inventory", "inbound", "outbound", "sensors")
 MAX_DATASET_ROWS = 250_000  # the most rows one dataset response carries
+MAX_DATASET_CELLS = 2_000_000  # the most cells one data source's dataset response carries, so a wide one has fewer rows
 # The most dataset rows one estimation reads. Measured: ipw (the slowest built-in, 200 bootstrap fits)
 # takes 4 s on order-lines' 28 897 rows and about 5.5 s at 40 000; the three built-ins together about
 # 6 s, and with the causal extra's two about 12 s, well within MAX_ESTIMATE_SECONDS.
@@ -164,6 +174,7 @@ def create_app(
     forecasters: ForecasterRegistry | None = None,
     forecaster: str = "gradient-boosting",
     detectors: DetectorRegistry | None = None,
+    sources: SourceStore | None = None,
 ) -> FastAPI:
     """A new app with its own world store, dataset catalogue and synthesizer registry.
 
@@ -177,7 +188,9 @@ def create_app(
     dashboard's SKU forecast (``demand-series``), fitted once per world. ``POST /api/v1/world`` rejects parameters outside
     ``limits``. ``ui_dir``
     mounts a static UI at "/" for development hosting; ``cors_origins`` lets a
-    UI hosted elsewhere call the API.
+    UI hosted elsewhere call the API. ``sources`` is the data source store (default:
+    ``default_store()``: the bundled files and ``$SDF_DATA_DIR/sources``); its ``limits``
+    bound every upload.
     """
     app = FastAPI(
         title="Synthetic Data Framework — AI Warehouse API",
@@ -193,6 +206,9 @@ def create_app(
     app.state.limits = limits
     catalogue = datasets if datasets is not None else default_datasets()
     app.state.datasets = catalogue
+    source_store = sources if sources is not None else default_store()
+    app.state.sources = source_store
+    view = Datasets(catalogue, source_store)
     estimator_reg = estimators if estimators is not None else default_estimators()
     forecaster_reg = forecasters if forecasters is not None else default_forecasters()
     app.state.estimators = estimator_reg
@@ -266,18 +282,18 @@ def create_app(
     def datasets_list():
         """Every dataset the catalogue serves, with its fields; and the declared ones that could not be mounted."""
         entries = []
-        for name in catalogue.names():
-            info = catalogue.info(name)
+        for name in view.names():
+            info = view.info(name)
             entries.append(
                 {
                     "name": info.name,
                     "label": info.label,
                     "description": info.description,
-                    "origin": catalogue.origin(name),
+                    "origin": view.origin(name),
                     "fields": [f.to_dict() for f in info.fields],
                 }
             )
-        return {"datasets": entries, "unavailable": catalogue.unavailable()}
+        return {"datasets": entries, "unavailable": view.unavailable()}
 
     @api.get(
         "/datasets/{name}",
@@ -285,25 +301,126 @@ def create_app(
         responses={404: {"description": "unknown dataset"}, 500: {"description": "the provider failed"}},
     )
     def dataset(name: str, limit: int | None = Query(None, ge=1, le=MAX_DATASET_ROWS)):
-        """One dataset over the current world; rows are arrays in field order."""
+        """One dataset over the current world, or a data source's rows; rows are arrays in field order."""
         world = store.current.world
         try:
-            catalogue.info(name)
+            info = view.info(name)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=exc.args[0]) from exc
+        rows = min(limit or MAX_DATASET_ROWS, MAX_DATASET_ROWS)
+        if view.origin(name) == "source":
+            rows = max(1, min(rows, MAX_DATASET_CELLS // max(1, len(info.fields))))
         try:
-            table, total = catalogue.head(name, world, min(limit or MAX_DATASET_ROWS, MAX_DATASET_ROWS))
+            table, total, sampled = view.head(name, world, rows)
         except Exception as exc:  # a provider's own failure, a KeyError included, is not an unknown dataset
             raise HTTPException(status_code=500, detail=f"dataset {name} could not be built: {exc}") from exc
         return {
             "name": table.info.name,
             "label": table.info.label,
-            "world": world.label,
+            "world": "" if view.origin(name) == "source" else world.label,  # a source's rows are not the world's
             "fields": [f.to_dict() for f in table.info.fields],
             "rows": [list(r) for r in table.rows],
             "total_rows": total,
             "truncated": total > len(table.rows),
+            "sampled": sampled,
         }
+
+    @api.get("/sources", response_model=s.SourceList)
+    def sources_list():
+        """Every data source, bundled first, with its schema, its last check and the limits an upload must keep."""
+        return {"sources": [e.to_dict() for e in source_store.list()], "limits": source_store.limits.to_dict()}
+
+    @api.get("/sources/{name}", response_model=s.SourceDetail, responses={404: {"description": "unknown source"}})
+    def source_detail(name: str):
+        """One source, with its first rows as the file holds them."""
+        try:
+            entry = source_store.get(name)
+            header = [c.name for c in entry.schema.columns]
+            return {**entry.to_dict(), "preview": {"header": header, "rows": source_store.preview(name, PREVIEW_ROWS)}}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=exc.args[0]) from exc
+
+    @api.post(
+        "/sources",
+        status_code=201,
+        response_model=s.SourceEntryModel,
+        openapi_extra={"requestBody": {"required": True, "content": {"text/csv": {"schema": {"type": "string"}}}}},
+        responses={
+            409: {"description": "the name is taken or reserved, or the store is full"},
+            413: {"description": "over a size limit"},
+            422: {"description": "the name or the file cannot be read"},
+        },
+    )
+    async def source_add(request: Request, name: str = Query(..., description="lower-case words joined by dashes")):
+        """Add the CSV in the body as a source; its schema is inferred, to be confirmed with ``PUT …/schema``.
+
+        The body is streamed to disk and refused as soon as it passes the byte limit.
+        """
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > source_store.limits.max_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"the file is larger than {source_store.limits.max_bytes:,} bytes, the most accepted",
+            )
+        try:
+            upload = await run_in_threadpool(source_store.begin, name)
+        except SourceConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        try:
+            async for chunk in request.stream():
+                upload.write(chunk)
+            entry = await run_in_threadpool(upload.commit)
+        except SourceTooLarge as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
+        except SourceConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        finally:
+            upload.discard()
+        return entry.to_dict()
+
+    @api.put(
+        "/sources/{name}/schema",
+        response_model=s.SourceEntryModel,
+        responses={
+            404: {"description": "unknown source"},
+            409: {"description": "a bundled source"},
+            422: {"description": "the schema does not fit the file"},
+        },
+    )
+    def source_schema(name: str, body: s.SourceSchemaModel):
+        """Replace a user source's schema; every row is checked again under it."""
+        try:
+            schema = SourceSchema.from_dict(body.model_dump())
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        try:
+            return source_store.update_schema(name, schema).to_dict()
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=exc.args[0]) from exc
+        except SourceConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:  # SourceTooLarge included: the limits did not change, but the check says so
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @api.delete(
+        "/sources/{name}",
+        status_code=204,
+        response_class=Response,
+        responses={404: {"description": "unknown source"}, 409: {"description": "a bundled source"}},
+    )
+    def source_remove(name: str):
+        """Delete a user source and its file."""
+        try:
+            source_store.remove(name)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=exc.args[0]) from exc
+        except SourceConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return Response(status_code=204)
 
     @api.get("/synthesizers", response_model=s.SynthesizerList)
     def synthesizers_list():
@@ -327,7 +444,7 @@ def create_app(
     @api.get("/synthesis/sources", response_model=s.SynthesisSources)
     def synthesis_sources():
         """The sample data a run may be fitted on, by ID (the server's own files; a client never sends a path)."""
-        return {"sources": [{"id": sid, "label": Path(path).name} for sid, path in sources().items()]}
+        return {"sources": [{"id": sid, "label": Path(path).name} for sid, path in sample_files().items()]}
 
     @api.post(
         "/synthesis/runs",
@@ -336,7 +453,7 @@ def create_app(
     )
     def synthesis_run(body: s.SynthesisRunRequest):
         """Fit one synthesizer on one source and score it; the parameters are checked before it is created."""
-        listed = sources()
+        listed = sample_files()
         if body.source not in listed:
             raise HTTPException(status_code=422, detail=f"unknown source {body.source!r}; choose from {sorted(listed)}")
         try:
@@ -604,13 +721,13 @@ def create_app(
                 raise HTTPException(status_code=422, detail=f"a question is needed for dataset {body.dataset}")
             question = _question(body.question)
             try:
-                check_question(catalogue.info(body.dataset), question)  # before reading: no data needed
+                check_question(view.info(body.dataset), question)  # before reading: no data needed
             except KeyError as exc:
                 raise HTTPException(status_code=422, detail=exc.args[0]) from exc
             except ValueError as exc:
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
             try:
-                table, more = catalogue.read(body.dataset, world, limit=MAX_ESTIMATE_ROWS, deadline=deadline)
+                table, more = view.read(body.dataset, world, limit=MAX_ESTIMATE_ROWS, deadline=deadline)
             except ReadDeadline as exc:  # the request's deadline; a provider's own TimeoutError is its failure (500)
                 detail = f"dataset {body.dataset} did not deliver its rows within {MAX_ESTIMATE_SECONDS:g} s"
                 raise HTTPException(status_code=422, detail=detail) from exc
@@ -815,7 +932,7 @@ def create_app(
         w.writeheader()
         for r in rows:
             d = r.to_dict()
-            w.writerow({k: (json.dumps(v) if isinstance(v, (dict, list)) else v) for k, v in d.items()})
+            w.writerow({k: csv_cell(json.dumps(v) if isinstance(v, (dict, list)) else v) for k, v in d.items()})
         return Response(
             content=buf.getvalue(),
             media_type="text/csv",
@@ -825,7 +942,10 @@ def create_app(
     app.include_router(api)
     if cors_origins:
         app.add_middleware(
-            CORSMiddleware, allow_origins=cors_origins, allow_methods=["GET", "POST"], allow_headers=["*"]
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_methods=["GET", "POST", "PUT", "DELETE"],
+            allow_headers=["*"],
         )
     if ui_dir is not None:
         path = Path(ui_dir)
