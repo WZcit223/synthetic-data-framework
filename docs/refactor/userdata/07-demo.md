@@ -13,9 +13,11 @@ user would use it.
 
 - `sdf demo --source NAME`: the schema and load report; the demand; a table
   synthesizer's privacy and detection; the forecasters' backtest; a world
-  from data and its replenishment comparison; the detectors; an effect
-  estimated on the source as a dataset (the question chosen in this PR,
-  stated with its assumptions).
+  from data and its replenishment comparison; the detectors; the effect of a
+  price cut on units, estimated on the derived `source-<name>-price-weeks`
+  dataset (§7), with its assumption stated.
+- The derived dataset, listed through `datasets(catalogue, store)` so the
+  Estimation page opens it too.
 - `docs/DEMO.md`: the same steps on the pages, with what to look at.
 - README's first screen points to the demo.
 
@@ -23,6 +25,9 @@ user would use it.
 
 - `sdf demo --source` on a small test source prints every step; without
   `--source`, byte-identical to `main`.
+- The derived dataset: treatment, outcome and covariates on a hand-made
+  source; under 40,000 rows for `uci-retail-daily`; a source without a price
+  role gets none.
 
 ## Non-goals
 
@@ -36,4 +41,4 @@ user would use it.
 
 ## Version
 
-`Version: MINOR 1.18.0 → 1.19.0` — `sdf demo` takes `--source`.
+Version: MINOR 1.18.0 → 1.19.0, `sdf demo` takes `--source`.

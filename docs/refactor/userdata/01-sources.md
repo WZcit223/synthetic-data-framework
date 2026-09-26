@@ -12,15 +12,20 @@ find it next to the bundled data wherever data is listed.
 ## Scope
 
 - **New `sdf.foundation.sources`:** `ColumnSpec`, `Roles`, `SourceSchema`
-  with its checks, `infer_schema`, `SourceLimits`, `SourceStore` (§1.1, §1.2).
-  The two bundled files are declared as read-only sources.
+  with its checks, `infer_schema`, `SourceLimits`, `SourceStore` (§1.1, §1.2),
+  returning foundation types only (layering). `source_demand` in
+  `sdf.analytics.demand`. The two bundled files are declared as read-only
+  sources.
 - **Uploads** streamed to a temporary file with a byte counter, checked, and
   moved into place with one rename; one store lock for adding and removing.
 - **HTTP:** `GET/POST/PUT/DELETE /api/v1/sources` (§1.3);
-  `create_app(source_limits=…)`; CORS allows `PUT` and `DELETE`.
-- **Sources as datasets:** the API merges them with the catalogue's datasets
-  as `source-<name>`, with the field mapping and the row sample of §1.3; the
-  `source-` prefix is refused for dataset plug-ins.
+  `create_app(source_limits=…)`; CORS allows `PUT` and `DELETE`. The API
+  refuses to delete a source the current world reads.
+- **Sources as datasets:** one function in the application layer,
+  `datasets(catalogue, store)`, merges them with the catalogue's datasets as
+  `source-<name>`, with the field mapping and the row and cell limits of
+  §1.3; the API and the command line both call it. The `source-` prefix is
+  refused for dataset plug-ins.
 - **CSV exports** prefix text cells that start with `=`, `+`, `-` or `@`
   (§1.3).
 - **Command line:** `sdf data add/list/show/remove` (§1.4).
@@ -29,9 +34,12 @@ find it next to the bundled data wherever data is listed.
 
 ## Tests
 
-- Inference on small files: numeric ids read as `id`, blanks ignored,
-  ambiguous day and month order flagged, the category fallback, semicolons
-  with decimal commas, roles guessed from names.
+- Inference on small files: each rule in its order (a date column named
+  `OrderDate` is `time`, not `id`; unique amounts stay `real`; numeric ids
+  read as `id`), blanks ignored, ambiguous day and month order flagged, the
+  category fallback, semicolons with decimal commas, roles guessed from
+  names.
+- The layering test passes: the store imports nothing above the foundation.
 - Checks: a quantity column unreadable on 6 % of rows refused, on 2 % kept
   with the count and examples.
 - The store: names checked and reserved, each limit refused with its name, an
@@ -54,9 +62,13 @@ find it next to the bundled data wherever data is listed.
 - The required checks of `AGENTS.md`, with `sdf demo` byte-identical to
   `main`, and no recorded number changed.
 - `sdf data add` on the bundled `retail-10k` file under a new name infers
-  the schema the bundled declaration has, except for the time format.
+  these kinds: `Invoice` id, `StockCode` id, `Description` text, `Quantity`
+  integer, `InvoiceDate` time (month-first, flagged ambiguous only if every
+  sampled day is at most 12), `Price` real, `Customer ID` id, `Country`
+  category; and these roles: time `InvoiceDate`, item `StockCode`, quantity
+  `Quantity`, price `Price`. The bundled declaration is the same.
 
 ## Version
 
-`Version: MINOR 1.13.0 → 1.14.0` — a new module, four endpoints and a
+Version: MINOR 1.13.0 → 1.14.0, a new module, four endpoints and a
 command group.

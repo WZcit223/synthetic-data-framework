@@ -2,7 +2,8 @@
 
 Status: proposed on 2026-09-26, at the project lead's request ("user's own
 data, first"). Waiting for the project lead's approval of the plan and of
-decisions E1 to E3; E4 was left to me and is decided below.
+decisions E1 to E3 (E3 includes the committed table's size); E4 was left to
+me and is decided below.
 
 The interface contract every PR follows is [`interfaces.md`](interfaces.md).
 Each PR has its own plan file (the sequence table's "Plan" column).
@@ -91,7 +92,7 @@ the refinement is reviewed with it.
 | U1 | [`01-sources.md`](01-sources.md) | **Sources.** A source store (`sdf.foundation.sources`): schema inference, checks, limits, safe uploads, the bundled files declared. `GET/POST/PUT/DELETE /api/v1/sources`, `sdf data add/list/show/remove`. Every source is a dataset in Explore and in causal estimation. | MINOR 1.13.0 → 1.14.0 |
 | U2 | [`02-evaluation.md`](02-evaluation.md) | **Evaluation on any source.** A synthesizer run takes any source, a column choice and a row choice. Table runs use the source's columns and kinds; series runs use its demand. `--source`, `--columns`, `--param` on the command line. | MINOR → 1.15.0 |
 | U3 | [`03-forecasts-anomalies.md`](03-forecasts-anomalies.md) | **Forecasts and anomalies on any source.** The backtest takes `source: {data: {name}}`; `GET /anomalies` takes `source=` (a demand-only frame). `--source` on `forecast`, `anomalies` and `backtest`. | MINOR → 1.16.0 |
-| U4 | [`04-world-from-data.md`](04-world-from-data.md) | **A world from data.** `warehouse-from-demand`, fitted on a source's orders: the busiest real SKUs and their real orders over a date window, with synthesized locations, inventory, receipts and sensors. `POST /api/v1/world {source}`. The dashboard, replenishment and its comparison, anomalies and exports run on real demand. | MINOR → 1.17.0 |
+| U4 | [`04-world-from-data.md`](04-world-from-data.md) | **A world from data.** `warehouse-from-demand`, fitted on a source's orders: the busiest real SKUs (at most 400) and their real orders over a date window (at most 730 days), with synthesized locations, inventory, receipts and sensors. `POST /api/v1/world {source}`. The dashboard, replenishment and its comparison, anomalies and exports run on real demand. | MINOR → 1.17.0 |
 | U5 | [`05-data-page.md`](05-data-page.md) | **A Data page.** Upload a CSV, see a preview, confirm the kinds and roles, then use it: open it in Explore, pick it on the Synthesizers and Forecasts pages, or make it the world. | none (UI and documentation) |
 | U6 | [`06-real-data.md`](06-real-data.md) | **Real data.** It replaces algorithm PR 7. `sdf data fetch NAME [--from FILE]` converts a public dataset and registers it (decision E3). The compact UCI daily table is committed as a bundled source (D1 (a)). Every algorithm is validated on real demand through the user's path, and CI checks the numbers. | MINOR → 1.18.0 |
 | U7 | [`07-demo.md`](07-demo.md) | **The demo.** `sdf demo --source NAME` and `docs/DEMO.md`: load, explore, synthesize and check, forecast, replenish, detect, estimate an effect, on real data. | MINOR → 1.19.0 |
@@ -139,11 +140,17 @@ demo.
   and its numbers enter `docs/VALIDATION.md` only after the project lead
   confirms the terms allow it. From UCI, as decision D1 (a) of the algorithm
   phase already settled, one compact table is committed with its
-  attribution: the daily demand and price of the 200 SKUs with the most
-  units, over the two years (under 1 MB). It is a bundled source,
-  `uci-retail-daily`, so continuous integration, the tests and the demo run
-  on real demand with no download. The full order lines are never
-  committed.
+  attribution: the daily units and price of the SKUs with the most units,
+  every day of the two years. It is a bundled source, `uci-retail-daily`,
+  so continuous integration, the tests and the demo run on real demand with
+  no download. The full order lines are never committed.
+
+  **One correction to D1 (a), for your decision.** D1 estimated the table at
+  "well under 1 MB" for 200 SKUs. Measured on a table of that shape, it is
+  about 148,000 rows and **4 MB**; 1 MB holds about 50 SKUs. **Recommended:
+  200 SKUs, 4 MB.** Fifty SKUs are too few for the replenishment comparison
+  and the detectors to mean much, and 4 MB is five times the real extract
+  already committed.
 - **E4. The cost-based policy as the default.** The project lead left this to
   me. **Decided: `service-level-95` stays the default everywhere, and
   `cost-based` stays one click away in the comparison.** The cost-based

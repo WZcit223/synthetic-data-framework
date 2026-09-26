@@ -41,5 +41,5 @@ demand as it runs on the world and the benchmark.
 
 ## Version
 
-`Version: MINOR 1.15.0 → 1.16.0` — a third backtest source and a source
+Version: MINOR 1.15.0 → 1.16.0, a third backtest source and a source
 choice for anomalies.

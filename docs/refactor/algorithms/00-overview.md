@@ -204,7 +204,7 @@ starts.
 | 4 | [`04-anomaly-detectors.md`](04-anomaly-detectors.md) | Detector plug-ins (`sdf.detectors`), the anomaly benchmark (precision, recall), `isolation-forest` over the combined state | MINOR 1.11.0 → 1.12.0 |
 | 5 | [`05-synthesis-checks.md`](05-synthesis-checks.md) | The detection test (B4) in every synthesizer evaluation; column kinds in `TableData`, kept by the built-in table synthesizers | MINOR 1.12.0 → 1.13.0 |
 | 6 | [`06-pages.md`](06-pages.md) | A Forecasts page (forecasters against the benchmark and the world), detectors on the dashboard, detection AUC on the synthesizer page | none (UI and documentation) |
-| 7 | [`07-real-data.md`](07-real-data.md) | Proposed to be replaced by step U6 of [`../userdata/00-overview.md`](../userdata/00-overview.md). Only with D1 (a) or (b): `sdf prepare-retail` and every algorithm of PR 1 to 5 validated on two years of real demand | MINOR 1.13.0 → 1.14.0 |
+| 7 | [`07-real-data.md`](07-real-data.md) | Proposed to be replaced by step U6 of [`../userdata/00-overview.md`](../userdata/00-overview.md). Only with D1 (a) or (b): `sdf prepare-retail` and every algorithm of PR 1 to 5 validated on two years of real demand | MINOR 1.13.0 → 1.14.0 (superseded if U6 replaces it: U1 then takes 1.14.0) |
 
 ## Non-goals
 

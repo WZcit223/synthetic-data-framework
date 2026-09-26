@@ -17,8 +17,10 @@ it was read, and uses it on every page.
 - The Synthesizers and Forecasts pages read `/sources` for their pickers,
   with the column and row choice on the Synthesizers page; links carry the
   source's name.
-- The dashboard names a world from data and its cut, and labels the
-  synthesized panels.
+- The dashboard names a world from data and its cut, labels the
+  synthesized panels, and shows the scenarios panel's refusal as its
+  reason; the generator picker leaves out warehouse synthesizers that need
+  fitting.
 - `api()` accepts an answer with no body.
 - Docs: README, `docs/ONBOARDING.md`, the pages' section of
   `docs/ARCHITECTURE.md`.
@@ -42,4 +44,4 @@ it was read, and uses it on every page.
 
 ## Version
 
-`Version: none` — UI and documentation only.
+Version: none, UI and documentation only.

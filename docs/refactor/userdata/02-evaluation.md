@@ -16,8 +16,9 @@ data, on the columns the user chooses, through the API and the command line.
 - Table runs: the source's kinds become `TableData.kinds`; category labels
   are coded by frequency and decoded in the run table; the answer notes
   categories read as ordered codes.
-- Series runs: the source's demand summed over items, with `build_series`'s
-  grain rule; a source without demand refused.
+- Series runs: through `FittedHourlyDemand`, as today, on the source's
+  orders; a source without demand, or with dates but no times of day,
+  refused with the reason.
 - The bundled sources with no column choice run today's reader unchanged.
 - The run table's fields come from the source.
 - Command line: `--source`, `--columns`, `--rows`, `--param` on `privacy`,
@@ -32,8 +33,8 @@ data, on the columns the user chooses, through the API and the command line.
   privacy and detection checks included.
 - The derived hour and weekday; the row filter; the seeded sample repeatable.
 - The bundled sources' answers equal today's (the golden tests).
-- A source without demand refused for a series synthesizer; an unknown
-  column refused with the columns the source has.
+- A source without demand, or with dates only, refused for a series
+  synthesizer; an unknown column refused with the columns the source has.
 
 ## Non-goals
 
@@ -49,5 +50,5 @@ data, on the columns the user chooses, through the API and the command line.
 
 ## Version
 
-`Version: MINOR 1.14.0 → 1.15.0` — the synthesis run takes any source and a
+Version: MINOR 1.14.0 → 1.15.0, the synthesis run takes any source and a
 column and row choice.
