@@ -2,7 +2,11 @@
 
 > Status: planned. Decision D1 (a) was taken on 2026-09-25: the compact daily
 > table is committed. The PR starts once the project lead provides the
-> dataset file.
+> dataset file. On 2026-09-26 the "your own data" sequence proposed to
+> replace it with its step U6
+> ([`../userdata/00-overview.md`](../userdata/00-overview.md)), which runs this
+> validation through the path a user's own file takes; this plan stands until
+> that sequence is approved.
 
 Contract: [`interfaces.md`](interfaces.md) §9.
 
