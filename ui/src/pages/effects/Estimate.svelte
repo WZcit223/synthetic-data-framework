@@ -286,7 +286,7 @@
 
 <section class="result" class:busy={running} aria-busy={running} aria-live="polite">
   {#if message}
-    <div class="notice" class:bad={message.bad}>{#if message.lead}<b>{message.lead}</b> {/if}{message.text}</div>
+    <div class="notice" class:bad={message.bad}>{#if message.lead}<b>{message.lead}</b>{" "}{/if}{message.text}</div>
   {/if}
   {#if result}
     {@const r = result.response}

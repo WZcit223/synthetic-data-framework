@@ -99,6 +99,9 @@ test("an interval chart puts one row per line, top to bottom, with its interval"
   assert.deepEqual(ref.data.map(p => p.x), [0, 0]);
   const none = intervalConfig({ rows, format: fmt }, LOOK, book());
   assert.equal(none.data.datasets.length, 2); // no reference, no line
+  assert.equal(none.options.scales.x.min, undefined); // no range: the axis fits the data
+  const fixed = intervalConfig({ rows, format: fmt, range: [0.4, 1] }, LOOK, book());
+  assert.deepEqual([fixed.options.scales.x.min, fixed.options.scales.x.max], [0.4, 1]);
   const tip = c.options.plugins.tooltip.callbacks.label;
   assert.equal(tip({ raw: c.data.datasets[0].data[0] }), "promo: 2 [1, 3]");
   assert.equal(tip({ raw: c.data.datasets[1].data[0] }), "price: -1");

@@ -423,7 +423,7 @@ def ui_paths() -> set[str]:
     return paths
 
 
-PAGES = ("index.html", "explore.html", "synthesizers.html", "effects.html")
+PAGES = ("index.html", "explore.html", "synthesizers.html", "effects.html", "forecasts.html")
 
 
 def test_every_ui_path_is_in_the_openapi_schema(client):
@@ -433,6 +433,7 @@ def test_every_ui_path_is_in_the_openapi_schema(client):
     assert {"/datasets", "/datasets/{}", "/experiments/catalog", "/experiments"} <= used
     assert {"/synthesizers", "/synthesis/sources", "/synthesis/runs", "/world"} <= used
     assert {"/effects", "/estimators", "/causal/estimates"} <= used
+    assert {"/forecasters", "/forecasts/backtest", "/detectors", "/anomalies"} <= used
     assert used <= schema_paths, used - schema_paths
     assert "/export?entity=" in ui_scripts()["pages/dashboard/Controls.svelte"]
     assert "/export" in schema_paths  # the export links are built from API + "/export"

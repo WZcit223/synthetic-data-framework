@@ -6,6 +6,7 @@
 -->
 <script>
   import BarChart from "../components/charts/BarChart.svelte";
+  import IntervalChart from "../components/charts/IntervalChart.svelte";
   import LineChart from "../components/charts/LineChart.svelte";
   import Nav from "../components/Nav.svelte";
   import { api } from "../lib/api.js";
@@ -71,6 +72,18 @@
 
   const num = (v, digits) => (v == null ? "–" : Number(v).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }));
   const signedPct = v => (v == null ? "–" : `${v > 0 ? "+" : ""}${num(v, 1)} %`);
+
+  // The detection test of a table run (algorithms interfaces.md §7.3): the AUC with the spread over its folds, 0.5 marked.
+  const detection = $derived.by(() => {
+    const m = run?.kind === "table" ? run.metrics : null;
+    if (!m || !("detection_verdict" in m)) return null;
+    return {
+      rows: m.detection_auc == null ? [] : [{ label: run.synthesizer, estimate: m.detection_auc, low: m.detection_auc_low, high: m.detection_auc_high }],
+      verdict: m.detection_verdict,
+      features: m.detection_top_features,
+    };
+  });
+  const auc = v => (v == null ? "–" : v.toFixed(2));
 
   const tiles = $derived.by(() => {
     if (!run) return [];
@@ -211,6 +224,22 @@
               <div class="tiles">
                 {#each tiles as [v, k, h] (k)}<div class="tile"><div class="v">{v}</div><div class="k">{k}</div><div class="h">{h}</div></div>{/each}
               </div>
+              {#if detection}
+                <div class="detection">
+                  <h3>Detection test: can a classifier tell the synthetic rows from real ones?</h3>
+                  {#if detection.rows.length}
+                    <p class="verdict"><b>{detection.verdict}</b>: AUC {auc(detection.rows[0].estimate)}, from
+                      {auc(detection.rows[0].low)} to {auc(detection.rows[0].high)} over the folds; 0.5 is a coin toss,
+                      1 gives every row away.{" "}{#if detection.features}The columns that give rows away most:
+                      <b>{detection.features}</b>.{:else}No column gives the rows away.{/if}</p>
+                    <!-- the whole scale from below a coin toss to every row given away, so the distance to 1 shows -->
+                    <IntervalChart rows={detection.rows} reference={0.5} format={auc}
+                      range={[Math.min(0.4, Math.floor(detection.rows[0].low * 10) / 10), 1]} />
+                  {:else}
+                    <p class="verdict muted">Not measured: {detection.verdict}.</p>
+                  {/if}
+                </div>
+              {/if}
               <div class="charts">
                 {#if seriesChart}
                   <h3>Demand per step, first {seriesChart.n.toLocaleString()} of {seriesChart.total.toLocaleString()} steps</h3>
@@ -237,7 +266,7 @@
             {:else}
               <div class="notice">{chosen.produces === "series"
                 ? "A series synthesizer learns the sample's hourly demand; the run scores how close its series comes (fidelity)."
-                : "A table synthesizer learns the sample's order lines (quantity, price, hour, weekday); the run scores how close its rows come to real ones (privacy)."}</div>
+                : "A table synthesizer learns the sample's order lines (quantity, price, hour, weekday); the run scores how close its rows come to real ones (privacy) and how easily a classifier tells them apart (detection)."}</div>
             {/if}
           </div>
         {/if}
@@ -278,6 +307,9 @@
   .runform select { width: 140px; }
   .go { align-self: center; margin-top: 6px; }
   .runline { margin-bottom: 10px; }
+  .detection { margin-top: 14px; }
+  .detection h3 { font-size: 13px; margin: 0 0 4px; font-weight: 600; }
+  .verdict { font-size: 12.5px; margin: 0 0 4px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
   .tile { background: var(--surface-raised); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; }
   .tile .v { font-size: 24px; font-weight: 650; letter-spacing: -.01em; }

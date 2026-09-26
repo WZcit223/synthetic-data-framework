@@ -15,6 +15,8 @@ test("a run shows the scores the API returned and opens in Explore", async ({ pa
   await expect(page.locator(".tile", { hasText: "Clone risk" }).locator(".v"))
     .toHaveText(`${run.metrics.clone_risk_pct.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`);
   await expect(page.locator(".charts canvas")).toHaveCount(run.fields.filter(f => f.kind === "measure").length);
+  await expect(page.locator(".detection .verdict")).toContainText(`${run.metrics.detection_verdict}: AUC ${run.metrics.detection_auc.toFixed(2)}`);
+  await expect(page.locator(".detection canvas")).toHaveCount(1);
   const href = await page.getByRole("link", { name: "Open in Explore" }).getAttribute("href");
   const view = JSON.parse(decodeURIComponent(href.replace("explore.html#view=", "")));
   expect(view.source.synthesis).toEqual({ synthesizer: "bootstrap-table", source: run.source, params: run.params });

@@ -1,10 +1,10 @@
-<!-- Grounded questions over the computed facts, and the demand anomalies. -->
+<!-- Grounded questions over the computed facts, the demand anomalies, and each SKU's anomalies by a chosen detector. -->
 <script>
   import DataTable from "../../components/tables/DataTable.svelte";
   import { api } from "../../lib/api.js";
 
-  /** @type {{anomalies: any}} */
-  let { anomalies } = $props();
+  /** @type {{anomalies: any, detectors: any, detector: string, detections: any, ondetector: (name: string) => void}} */
+  let { anomalies, detectors, detector, detections, ondetector } = $props();
 
   const SAMPLES = ["which SKUs are stockout?", "safety stock at 95%?", "how good is the forecast?",
     "any demand anomalies?", "inventory value?", "ABC mix?"];
@@ -34,6 +34,10 @@
   ];
   const rows = $derived((anomalies?.anomalies ?? []).map(a => FIELDS.map(f => a[f.name])));
   const tone = { direction: v => (v === "spike" ? "warn" : "bad") };
+
+  const chosen = $derived(detectors?.detectors.find(x => x.name === detector));
+  const detectionTone = { direction: v => (v === "spike" ? "warn" : v === "drop" ? "bad" : null) };
+  const detectionFormat = { score: v => (v == null ? "–" : v.toLocaleString(undefined, { maximumFractionDigits: 3 })) };
 </script>
 
 <div class="grid two">
@@ -60,7 +64,25 @@
         {anomalies.granularity} series (period {anomalies.seasonal_period}).</div>
       <DataTable fields={FIELDS} {rows} {tone} placeholder="No anomalies at current settings." />
     {/if}
-    <div class="note">ALGORITHM-HOOK: Isolation Forest / autoencoder over multivariate state.</div>
+    <h3 class="sub">Each SKU's anomalies <span class="pill">detector plug-ins</span></h3>
+    {#if detectors}
+      <div class="pick">
+        <label for="detector">Detector</label>
+        <select id="detector" value={detector} onchange={e => ondetector(e.currentTarget.value)}>
+          {#each detectors.detectors as x (x.name)}<option value={x.name}>{x.name}</option>{/each}
+        </select>
+        {#if chosen}<span class="muted">{chosen.description}; reads {chosen.signals.join(", ")}</span>{/if}
+      </div>
+      {#if detections?.error && detections.detector === detector}
+        <div class="note top bad">{detector} did not run: {detections.error}</div>
+      {:else if detections && detections.detector === detector}
+        <div class="note top"><b>{detections.rows.length}</b> SKU-days flagged on the current world, highest score first.</div>
+        <DataTable fields={detections.fields} rows={detections.rows} tone={detectionTone} format={detectionFormat}
+          height="260px" download="anomalies" placeholder="No SKU-day flagged." />
+      {:else}
+        <div class="note top muted">Running {detector}…</div>
+      {/if}
+    {/if}
   </div>
 </div>
 
@@ -71,4 +93,5 @@
   .chips { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
   .chip { color: var(--ink); cursor: pointer; }
   .top { margin: 0 0 8px; }
+  .sub { margin-top: 18px; }
 </style>

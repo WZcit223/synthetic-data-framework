@@ -4,8 +4,9 @@
 
 export const EFFECT_TABLES = ["effects", "replicates"];
 export const ESTIMATE_TABLES = ["scores", "data"];
+export const FORECAST_TABLES = ["scores", "by_horizon", "forecasts"];
 
-const SHAPES = "dataset, experiment, synthesis, effects or estimates";
+const SHAPES = "dataset, experiment, synthesis, effects, estimates or forecasts";
 
 // Why a link's source cannot be opened, or null.
 export function sourceError(source) {
@@ -17,6 +18,7 @@ export function sourceError(source) {
   if (k === "experiment" || k === "synthesis") return isObject(source[k]) ? null : `${k} must be a request body`;
   if (k === "effects") return effectsError(source.effects);
   if (k === "estimates") return estimatesError(source.estimates);
+  if (k === "forecasts") return forecastsError(source.forecasts);
   return `unknown source ${JSON.stringify(k)}`;
 }
 
@@ -42,6 +44,16 @@ function estimatesError(estimates) {
   if (estimates.table === "data" && !isObject(estimates.request.benchmark)) {
     return 'estimates.table "data" needs a benchmark request; a catalogue dataset opens as {dataset: name}';
   }
+  return null;
+}
+
+// {forecasts: {request, table}}: the POST /forecasts/backtest body, and which of the answer's three tables to pivot.
+function forecastsError(forecasts) {
+  if (!isObject(forecasts)) return "forecasts must hold a request and a table";
+  const extra = Object.keys(forecasts).filter(k => k !== "request" && k !== "table");
+  if (extra.length) return `forecasts holds only request and table; got ${JSON.stringify(extra)}`;
+  if (!isObject(forecasts.request)) return "forecasts.request must be a request body";
+  if (!FORECAST_TABLES.includes(forecasts.table)) return `forecasts.table must be one of ${FORECAST_TABLES.join(", ")}`;
   return null;
 }
 

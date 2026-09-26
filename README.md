@@ -42,7 +42,7 @@ uv sync --extra api
 (cd ui && npm ci && npm run build)   # writes ui/dist
 SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app --reload
 # open http://127.0.0.1:8000 (dashboard), http://127.0.0.1:8000/explore.html (Explore),
-# http://127.0.0.1:8000/effects.html (Effects)
+# http://127.0.0.1:8000/effects.html (Effects), http://127.0.0.1:8000/forecasts.html (Forecasts)
 # or http://127.0.0.1:8000/api/v1/docs (API)
 ```
 

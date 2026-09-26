@@ -1,7 +1,33 @@
 # PR 6 — Forecasts page, detectors and detection on the existing pages
 
-> Status: planned. Rewritten for the frontend's new stack (Svelte, Chart.js,
-> Tabulator; [`../frontend/`](../frontend/00-overview.md)) by its step F5.
+> Status: implemented. Rewritten for the frontend's new stack (Svelte, Chart.js,
+> Tabulator; [`../frontend/`](../frontend/00-overview.md)) by its step F5. The
+> acceptance is met: a benchmark link shows the scores `sdf forecast
+> --benchmark` prints for the same request, row for row. Where the
+> implementation departs from the plan, and why:
+>
+> - **"One SKU's history" is the days after the last origin.** The backtest's
+>   `forecasts` table holds each SKU's actual demand only over the forecast
+>   days, and this PR adds no API field. Each small multiple therefore shows
+>   the forecaster's mean, its interval and the demand that happened over those
+>   days.
+> - **The scores table shows the columns a reader compares.** Those are WAPE,
+>   relative WAPE, bias, pinball loss, coverage with the bounds, interval width,
+>   run time, and a reading; a failed forecaster's error is written under the
+>   table. Every column, the method included, opens in Explore.
+> - **The default request is the three fast built-ins**
+>   (`seasonal-naive`, `moving-average`, `seasonal-linear`: under a second).
+>   `gradient-boosting` takes about 15 s on the world, so it is offered but not
+>   ticked.
+> - **`IntervalChart` gains an optional `range`,** so the detection AUC is drawn
+>   on the whole scale from below a coin toss to 1 (frontend contract §2.2).
+> - **The dashboard keeps the demand anomalies of the whole series,** and adds
+>   each SKU's anomalies from the chosen detector below them.
+> - **The page has no `pages/forecasts/` folder.** Its parts fit in
+>   `Forecasts.svelte`, with the logic in `lib/forecasts-model.js`, which
+>   also checks what the server would refuse before sending: the history a
+>   benchmark needs (horizon, origins a week apart and the days before the
+>   first) and a number field holding text that is not a number.
 
 Contract: [`interfaces.md`](interfaces.md) §8; the components, the build and
 the tests are those of [`../frontend/interfaces.md`](../frontend/interfaces.md).
@@ -89,5 +115,5 @@ checked. No accessibility layer is added (frontend overview, Non-goals).
 
 ## Version
 
-`Version: none` — UI and documentation: `ui/` is not part of the package's
-versioned interface.
+`Version: none, UI and documentation only; ui/ is not part of the package's
+versioned interface, and no shipped Python code changes.`

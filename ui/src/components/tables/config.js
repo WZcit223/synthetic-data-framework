@@ -28,8 +28,8 @@ export function columns(fields, { format = {}, tone = {} } = {}) {
     headerHozAlign: f.kind === "measure" ? "right" : "left",
     sorter: SORTERS[f.kind] ?? "string",
     headerSort: true,
-    // wide enough for the title and a typical value; a narrow screen scrolls the table, not the page
-    minWidth: Math.max(f.kind === "measure" ? 72 : 110, 8 * String(f.label).length + 34),
+    // wide enough for the title, its sort arrow and a typical value; a narrow screen scrolls the table, not the page
+    minWidth: f.minWidth ?? Math.max(f.kind === "measure" ? 90 : 110, 8 * String(f.label).length + 34),
     formatter: cell => {
       const v = cell.getValue();
       const cls = tone[f.name]?.(v, cell.getData());

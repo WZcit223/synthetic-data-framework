@@ -5,10 +5,11 @@
 <script>
   import { boundsText } from "../../lib/synthesis.js";
 
-  /** @type {{param: any, entry: {text: string, checked: boolean, choice: string, none: boolean, bad: boolean}, error?: string}} */
-  let { param: p, entry = $bindable(), error = "" } = $props();
+  /** @type {{param: any, entry: {text: string, checked: boolean, choice: string, none: boolean, bad: boolean}, error?: string,
+   *   prefix?: string}} */
+  let { param: p, entry = $bindable(), error = "", prefix = "p" } = $props(); // prefix: unique ids when two forms share a name
 
-  const id = $derived(`p-${p.name}`);
+  const id = $derived(`${prefix}-${p.name}`);
   const label = $derived(p.name.replaceAll("_", " "));
   const numeric = $derived(p.type === "int" || p.type === "float");
   const hint = $derived([p.nullable && p.type !== "str" ? "empty: none" : "", boundsText(p)].filter(Boolean).join(" · "));

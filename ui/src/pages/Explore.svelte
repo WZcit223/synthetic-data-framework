@@ -34,7 +34,7 @@
   let catalogError = $state("");
   let picked = $state(""); // the source select's value
   /** @type {any} */
-  let source = $state.raw(null); // {dataset} | {experiment} | {synthesis} | {effects|estimates: {request, table}}
+  let source = $state.raw(null); // {dataset} | {experiment} | {synthesis} | {effects|estimates|forecasts: {request, table}}
   /** @type {any} */
   let table = $state.raw(null); // toTable(payload)
   /** @type {any} */
@@ -132,7 +132,7 @@
     busy = false; // a failure ends the work in progress, a cancelled request's included
   }
 
-  const selectValue = s => (s?.dataset != null ? `dataset:${s.dataset}` : s?.experiment ? "experiment" : s?.synthesis ? "synthesis" : s?.effects ? "effects" : s?.estimates ? "estimates" : picked);
+  const selectValue = s => (s?.dataset != null ? `dataset:${s.dataset}` : s?.experiment ? "experiment" : s?.synthesis ? "synthesis" : s?.effects ? "effects" : s?.estimates ? "estimates" : s?.forecasts ? "forecasts" : picked);
 
   async function loadSource(next, { view: linkView = null, display: linkDisplay = null } = {}) {
     const mine = ++seq;
@@ -317,6 +317,7 @@
           <option value="effects" disabled>Effect study (from the Effects page)</option>
           <option value="estimates" disabled>Estimation (from the Effects page)</option>
         </optgroup>
+        <optgroup label="Forecasts"><option value="forecasts" disabled>Forecast backtest (from the Forecasts page)</option></optgroup>
       </select>
     </div>
     <div class="sourceinfo">

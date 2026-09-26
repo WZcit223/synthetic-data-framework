@@ -54,18 +54,29 @@ export const PRESETS = {
     { label: "Weekly units by promotion and ABC class", view: { rows: [{ field: "abc_class" }], columns: [{ field: "promoted" }], values: [{ field: "weekly_units", agg: "mean" }] } },
     { label: "Who gets promoted: promoted share by ABC class", view: { rows: [{ field: "abc_class" }], values: [{ field: "promoted", agg: "mean" }, { field: "log_demand", agg: "mean" }, { field: "sku_id", agg: "count" }] } },
   ],
+  "forecasts-scores": [
+    { label: "Error, interval and run time by forecaster", view: { rows: [{ field: "forecaster" }], values: [{ field: "wape", agg: "mean" }, { field: "relative_wape", agg: "mean" }, { field: "pinball", agg: "mean" }, { field: "coverage_closed", agg: "mean" }, { field: "seconds", agg: "sum" }] } },
+  ],
+  "forecasts-by_horizon": [
+    { label: "Mean error over the days ahead by forecaster", view: { rows: [{ field: "forecaster" }], values: [{ field: "wape", agg: "mean" }, { field: "mae", agg: "mean" }, { field: "coverage_closed", agg: "mean" }, { field: "width", agg: "mean" }] } },
+  ],
+  "forecasts-forecasts": [
+    { label: "Forecast demand by day and forecaster", view: { rows: [{ field: "date", grain: "day" }], columns: [{ field: "forecaster" }], values: [{ field: "mean", agg: "sum" }] }, display: { as: "chart" } },
+    { label: "Forecast and actual by SKU", view: { rows: [{ field: "sku_id" }], columns: [{ field: "forecaster" }], values: [{ field: "mean", agg: "sum" }, { field: "actual", agg: "sum" }], sort: { by: "value", dir: "desc" } } },
+  ],
   experiment: [
     { label: "Outcomes by metric, intervention and policy", view: { rows: [{ field: "metric" }, { field: "intervention" }], columns: [{ field: "policy" }], values: [{ field: "value", agg: "mean" }] } },
   ],
 };
 
-// The presets offered for a source ({dataset} | {experiment} | {synthesis} | {effects} | {estimates}).
+// The presets offered for a source ({dataset} | {experiment} | {synthesis} | {effects} | {estimates} | {forecasts}).
 export function presetKey(source, meta) {
   if (source?.dataset != null) return source.dataset;
   if (source?.experiment) return "experiment";
   if (source?.synthesis) return `synthesis-${meta?.kind}`;
   if (source?.effects) return `effects-${source.effects.table}`;
   if (source?.estimates) return `estimates-${source.estimates.table}`;
+  if (source?.forecasts) return `forecasts-${source.forecasts.table}`;
   return null;
 }
 
@@ -95,6 +106,7 @@ export function describeSource(source) {
   if (source?.synthesis) return "the synthesizer run";
   if (source?.effects) return "the effect study";
   if (source?.estimates) return "the estimation";
+  if (source?.forecasts) return "the forecast backtest";
   return "this source";
 }
 

@@ -211,14 +211,16 @@ helper whose base URL is configurable, so it can be served by `create_app(ui_dir
 during development or hosted anywhere else. The contract is in
 [`refactor/structure/interfaces.md`](refactor/structure/interfaces.md) §4.
 
-The four pages (`index.html`, `explore.html`, `synthesizers.html`,
-`effects.html`) are Vite's entries. The modules with no DOM are in
+The five pages (`index.html`, `explore.html`, `synthesizers.html`,
+`effects.html`, `forecasts.html`) are Vite's entries. The modules with no DOM are in
 `ui/src/lib/`: `api.js` (the one `api()`), `format.js` (number formatting),
 the pivot engine (`pivot.js`), the chart colours (`palette.js`), the
 Synthesizers page's helpers (`synthesis.js`: parameter input, distribution
 comparison), the Effects page's (`effects-model.js`: reading an interval, the
 request and its link) and its
-estimation view's (`estimate-model.js`), and `sources.js`, which checks the
+estimation view's (`estimate-model.js`), the Forecasts page's
+(`forecasts-model.js`: the request, its checks and link, and reading the
+backtest's three tables), and `sources.js`, which checks the
 sources an Explore link may name, and `csv.js` (the CSV writers). They are
 tested with Vitest (`npm test`). The shared components are in
 `ui/src/components/`: one Svelte component per kind of chart on Chart.js

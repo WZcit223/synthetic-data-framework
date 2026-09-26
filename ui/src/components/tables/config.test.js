@@ -56,3 +56,9 @@ test("a page's formatter and tone apply to their field", () => {
   cols[2].formatter(pos);
   assert.equal(pos.el.classList.length, 0);
 });
+
+test("a field may set its column's minimum width; otherwise it fits the title", () => {
+  const [sku, , qty] = columns([{ ...FIELDS[0], minWidth: 230 }, FIELDS[1], FIELDS[2]]);
+  assert.equal(sku.minWidth, 230);
+  assert.equal(qty.minWidth, Math.max(90, 8 * "Quantity".length + 34));
+});

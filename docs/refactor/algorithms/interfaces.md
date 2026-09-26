@@ -689,7 +689,9 @@ synthesizer (a Chow–Liu tree over binned columns) 0.53 and 0.49; the column na
   parameters), horizon, origins and interval level; run the backtest; show
   the scores table, WAPE by days ahead (one line per forecaster), and one
   SKU's history with each forecaster's interval band for the last origin; the
-  benchmark's `true-distribution` row is drawn as the reference. The
+  benchmark's `true-distribution` row is drawn as the reference. *As built
+  (PR 6):* the SKU's "history" is the demand over the days after the last
+  origin, the only demand the backtest's `forecasts` table holds. The
   request is in the address, and "Open in Explore" opens the three tables
   (a new Explore source `forecasts`).
 - **Dashboard**: the SKU chart draws the forecast's interval band (§4.2); the

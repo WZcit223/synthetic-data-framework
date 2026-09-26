@@ -1,11 +1,11 @@
-// The UI build: four HTML pages, each its own entry, bundled into ui/dist/ with
+// The UI build: five HTML pages, each its own entry, bundled into ui/dist/ with
 // hashed assets and nothing loaded from the network at run time. `npm run dev`
 // serves the same pages with /api proxied to a local API.
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { svelteTesting } from "@testing-library/svelte/vite";
 import { defineConfig } from "vite";
 
-const PAGES = ["index", "explore", "synthesizers", "effects"];
+const PAGES = ["index", "explore", "synthesizers", "effects", "forecasts"];
 
 export default defineConfig({
   plugins: [svelte(), svelteTesting()],
