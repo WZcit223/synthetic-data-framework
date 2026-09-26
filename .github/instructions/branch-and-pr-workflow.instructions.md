@@ -144,22 +144,29 @@ Before the gate may advance:
 
 Keep every later plan item pending until the preceding PR has passed this complete gate. If review requests changes or the latest checks fail, remain on the current PR and fix it; do not advance the sequence. A separately submitted refactor-plan PR is subject to the same gate before PR1 starts.
 
-### Independent review when GitHub provides none
+## Independent review when GitHub provides none
 
-GitHub's automated reviewer is not always available (its quota runs out, it is switched off, or it does not answer). A PR is never merged unreviewed for that reason. The author runs an independent review in its place, on every PR, before the gate may advance:
+GitHub's automated reviewer is not always available: its quota runs out, it is switched off, or it does not answer. No PR is merged unreviewed for that reason. The author runs an independent review in its place, on every PR, before the PR merges (and, in a multi-PR plan, before the gate advances).
 
-1. **A reviewer that did not write the change.** For an AI agent, this is a separately started review agent with a fresh context. It gets the branch and its diff range against the default branch, the plan file and contract the PR implements, and the repository's instruction files. It may run commands and the required checks but must not edit files, commit or push; it reports only.
-2. **What it checks.**
-   - Correctness against the plan and the contract, including error paths and edge cases.
-   - Every number the PR description and the documents claim, reproduced from the code.
-   - Tests that would still pass with the feature broken, and behaviour no test covers.
+1. **When it starts.** Request GitHub's automated review as usual. Run the independent review if the request is refused (for example, the quota is used up), no reviewer is configured, or no review has arrived by the time required CI finishes on the head commit. A GitHub review that arrives later is handled like any other review; it does not undo the independent one.
+2. **A reviewer that did not write the change.** For a human author, this is another engineer or a separately started review agent. For an AI agent, it is a separately started review agent with a fresh context. The reviewer gets the branch and its diff range against the default branch, the plan file and interface contract if the PR has them, and the repository's instruction files. It may run commands and the required checks. It must not edit files, commit or push; it reports only.
+3. **What it checks.**
+   - Correctness against the PR's stated purpose and, where one exists, its plan and contract, including error paths and edge cases.
+   - Every number claimed in the PR description and in the documents the PR changes, reproduced from the code.
+   - Tests that would still pass with the feature broken, and behavior no test covers.
+   - Compliance with the project invariants of `AGENTS.md` and the applicable instruction files, including the version decision and its `Version:` line.
    - The required checks of `AGENTS.md`.
 
-   It ranks each finding by severity with a file and line, a concrete failure case and a suggested fix, and lists what it checked and found correct.
-3. **What the author does with the findings.** Verify each one against the code. Fix what is real, with a regression test where one applies. For what is not changed, give a concrete reason in the PR description. Record the review in the PR description: that it replaced GitHub's review, what it covered, and what came of each finding.
-4. **When to review again.** If the fixes go beyond what the findings asked for, or change behaviour elsewhere, run the review again on the new head before merging.
+   It ranks each finding by severity, with a file and line, a concrete failure case and a suggested fix. It also lists what it checked and found correct.
+4. **What the author does with the findings.**
+   - Verify each finding against the code.
+   - Fix what is real, with a regression test where one applies.
+   - For what is not changed, give a concrete reason.
+   - Record the review in the PR description, in a section `## Independent review` placed before the `Version:` line. The record says that the review replaced GitHub's, what it covered, and what came of each finding.
+5. **When to review again.** Run the review again on the new head if any fix changes shipped code beyond the lines a finding named, or if the fix for a High finding is not trivial.
+6. **Auto-merge.** On an implementation PR, enable auto-merge only after the independent review is recorded and its fixes are pushed. If auto-merge is already enabled, disable it until then.
 
-The independent review replaces only the automated review. It does not replace the project lead's decision where one is required: a directional PR, a MAJOR version bump, or a PR that misses an acceptance target of its plan.
+The independent review replaces only the automated review. It does not replace the project lead's decision where one is required: a directional PR or a MAJOR version bump.
 
 ## Anti-patterns
 
