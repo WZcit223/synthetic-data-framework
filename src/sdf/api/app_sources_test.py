@@ -45,9 +45,9 @@ def upload(client, name: str, body: str = SALES):
 
 def test_bundled_sources_are_listed_with_the_limits(client):
     res = client.get(f"{V1}/sources").json()
-    assert [s["name"] for s in res["sources"]] == ["retail-10k", "sample"]
+    assert [s["name"] for s in res["sources"]] == ["sample", "retail-10k"]  # in their declared order
     assert res["limits"] == {"max_bytes": 5_000, "max_rows": 2_000_000, "max_columns": 64, "max_sources": 2}
-    sample = res["sources"][1]
+    sample = res["sources"][0]
     assert sample["origin"] == "bundled" and sample["rows"] == 3428 and sample["demand"] and sample["ready"]
     assert sample["schema"]["roles"]["item"] == "StockCode"
 
@@ -182,3 +182,41 @@ def test_an_unreadable_folder_is_listed_as_unavailable(client, store):
     assert [s["name"] for s in res["sources"]][-1] == "ok" and "broken" in res["unavailable"]
     assert client.get(f"{V1}/sources/broken").status_code == 500
     assert client.delete(f"{V1}/sources/broken").status_code == 204
+
+
+# -- evaluation on a source (U2, interfaces §2) ------------------------------------------------------
+
+
+def test_every_ready_source_can_be_fitted_on(client):
+    upload(client, "my-sales")
+    listed = {s["id"]: s for s in client.get(f"{V1}/synthesis/sources").json()["sources"]}
+    assert list(listed) == ["sample", "retail-10k", "my-sales"]
+    mine = listed["my-sales"]
+    assert mine["origin"] == "user" and mine["series"]
+    assert mine["columns"] == ["Sku", "Units", "UnitPrice", "Store Name", "OrderDate.hour", "OrderDate.weekday"]
+
+
+def test_a_run_on_a_source_takes_its_columns_and_row_choice(client):
+    upload(client, "my-sales")
+    body = {"synthesizer": "bootstrap-table", "source": "my-sales", "params": {"seed": 1}}
+    res = client.post(f"{V1}/synthesis/runs", json=body | {"columns": ["Units", "OrderDate.hour"], "rows": "first"})
+    assert res.status_code == 200, res.text
+    run = res.json()
+    assert (run["columns"], run["row_choice"]) == (["Units", "OrderDate.hour"], "first")
+    assert [f["name"] for f in run["fields"]] == ["origin", "units", "order_date_hour"]
+    default = client.post(f"{V1}/synthesis/runs", json=body).json()
+    assert default["columns"] == ["Sku", "Units", "UnitPrice", "Store Name"]
+    assert [n.split(":")[0] for n in default["notes"]] == ["Sku"]  # three labels; Store Name has two
+    bad = client.post(f"{V1}/synthesis/runs", json=body | {"columns": ["Nope"]})
+    assert bad.status_code == 422 and "has no column 'Nope'" in bad.json()["detail"]
+    series = client.post(f"{V1}/synthesis/runs", json=body | {"synthesizer": "seasonal-profile"})
+    assert series.status_code == 200 and series.json()["kind"] == "series"
+    bundled = client.post(f"{V1}/synthesis/runs", json=body | {"source": "sample"}).json()
+    assert bundled["columns"] is None and [f["name"] for f in bundled["fields"]][1] == "qty"  # as today
+
+
+def test_a_path_is_never_a_source_over_http(client):
+    res = client.post(
+        f"{V1}/synthesis/runs", json={"synthesizer": "bootstrap-table", "source": "data/sample_online_retail_ii.csv"}
+    )
+    assert res.status_code == 422 and "unknown source" in res.json()["detail"]

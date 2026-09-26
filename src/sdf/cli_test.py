@@ -409,3 +409,31 @@ def test_data_add_list_show_remove(tmp_path, monkeypatch):
     assert "already exists" in run("data", "add", str(path), "--name", "uk", "--time-format", "Date=%d/%m/%Y").output
     assert run("data", "remove", "uk").exit_code == 0
     assert "no source 'uk'" in run("data", "show", "uk").output
+
+
+def test_privacy_synth_and_tstr_take_a_source(tmp_path, monkeypatch):
+    monkeypatch.setenv("SDF_DATA_DIR", str(tmp_path))
+    path = tmp_path / "in.csv"
+    path.write_text(
+        "At,Units,Price,Shop\n"
+        + "".join(
+            f"2024-01-{1 + i % 28:02d} {9 + i % 8:02d}:00:00,{1 + i % 4},{2 + i % 3}.5,s{i % 3}\n" for i in range(300)
+        ),
+        encoding="utf-8",
+    )
+    assert run("data", "add", str(path), "--name", "shop", "--role", "time=At").exit_code == 0
+    res = run("privacy", "--source", "shop", "--columns", "Units,Shop", "--rows", "first", "--param", "seed=2")
+    assert res.exit_code == 0, res.output
+    assert "source          : shop, columns Units, Shop (the first rows)" in res.output
+    assert "note: Shop: its 3 labels" in res.output
+    assert "fidelity score" in run("synth", "--source", "shop", "--param", "seed=1").output
+    assert "TSTR MAE" in run("tstr", "--source", "shop").output
+    both = run("privacy", SAMPLE_CSV, "--source", "shop")
+    assert both.exit_code == 2 and "not both" in both.output
+    assert "takes no parameter ['bins']" in run("synth", "--source", "shop", "--param", "bins=2").output
+    assert "unknown source 'nope'" in run("privacy", "--source", "nope").output
+
+
+def test_a_date_format_goes_with_a_csv_not_a_source():
+    res = run("synth", "--source", "sample", "--date-format", "%d/%m/%Y %H:%M")
+    assert res.exit_code == 2 and "--date-format is for a CSV" in res.output

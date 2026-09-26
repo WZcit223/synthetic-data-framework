@@ -5,7 +5,7 @@ import { test } from "vitest";
 import { toTable } from "../../lib/pivot.js";
 import {
   DEFAULT_DISPLAY, PRESETS, addToShelf, additive, axisLabel, chipsFor, defaultGrain, displayError, emptyView, fallbackView,
-  isPreset, linkHash, moveChip, nextSort, presetKey, readLink, removeChip, rowsKey, swapAxes, valueLabel,
+  isPreset, linkHash, moveChip, nextSort, presetKey, presetsFor, readLink, removeChip, rowsKey, swapAxes, valueLabel,
 } from "./view.js";
 
 const TABLE = toTable({
@@ -137,4 +137,12 @@ test("a link's display settings are checked", () => {
   assert.equal(displayError({ as: "pie" }), "display.as must be table or chart");
   assert.equal(displayError({ heatmap: "yes" }), "display.heatmap must be true or false");
   assert.equal(displayError({ colour: "red" }), 'the display has an unknown key "colour"');
+});
+
+test("a synthesizer run on a source's own columns gets only the presets its fields fit", () => {
+  const source = { synthesis: { synthesizer: "bootstrap-table", source: "my-sales" } };
+  const retail = toTable({ fields: ["origin", "qty", "price", "hour", "weekday"].map(name => ({ name, label: name, kind: name === "origin" ? "dimension" : "measure" })), rows: [] });
+  assert.equal(presetsFor(source, { kind: "table" }, retail).length, PRESETS["synthesis-table"].length);
+  const own = toTable({ fields: [{ name: "origin", label: "Origin", kind: "dimension" }, { name: "units", label: "Units", kind: "measure" }], rows: [] });
+  assert.deepEqual(presetsFor(source, { kind: "table" }, own), []); // the fallback view is used instead
 });

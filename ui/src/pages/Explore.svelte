@@ -21,8 +21,8 @@
   import PivotChart from "./explore/PivotChart.svelte";
   import Shelves from "./explore/Shelves.svelte";
   import {
-    DEFAULT_DISPLAY, PRESETS, addToShelf, additive, axisLabel, describeSource, displayError, emptyView, fallbackView,
-    isPreset, linkHash, nextSort, onAxis, presetKey, readLink, rowsKey, swapAxes, valueLabel,
+    DEFAULT_DISPLAY, addToShelf, additive, axisLabel, describeSource, displayError, emptyView, fallbackView,
+    isPreset, linkHash, nextSort, onAxis, presetsFor, readLink, rowsKey, swapAxes, valueLabel,
   } from "./explore/view.js";
 
   /** @type {{name: string, label: string, description?: string}[]} */
@@ -83,7 +83,7 @@
     }
   });
 
-  const presets = $derived(table ? PRESETS[presetKey(source, meta)] ?? [] : []);
+  const presets = $derived(table ? presetsFor(source, meta, table) : []);
   const canStack = $derived(additive(view));
   /** @type {any} */
   let lastRun = $state.raw(null); // the last experiment run from the form: a failed run keeps the form as it was
@@ -146,7 +146,7 @@
       const { payload, meta: m } = await fetchSource(next, datasets);
       if (mine !== seq) return;
       const t = toTable(payload);
-      const preset = (PRESETS[presetKey(next, m)] ?? [])[0];
+      const preset = presetsFor(next, m, t)[0];
       // copies: editing the view must never edit the preset or the parsed link it came from
       const v = { ...emptyView(), ...structuredClone(linkView ?? preset?.view ?? fallbackView(t)) };
       const d = { ...DEFAULT_DISPLAY, ...structuredClone(linkView ? linkDisplay : preset?.display) };

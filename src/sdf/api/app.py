@@ -87,7 +87,7 @@ from sdf.simulation.signals import SIGNALS, signal_frame
 from sdf.synthesis.materialise import WarehouseRefused
 from sdf.synthesis.registry import SynthesizerRegistry, default_registry
 from sdf.synthesis.spec import GenerationSpec
-from sdf.validation.evaluation import RunFailed, evaluate, sources as sample_files
+from sdf.validation.evaluation import RunFailed, derived_columns, evaluate
 from sdf.validation.quality import structural_quality_check
 from sdf.workflow import warehouse_pipeline
 from . import schemas as s
@@ -453,8 +453,23 @@ def create_app(
 
     @api.get("/synthesis/sources", response_model=s.SynthesisSources)
     def synthesis_sources():
-        """The sample data a run may be fitted on, by ID (the server's own files; a client never sends a path)."""
-        return {"sources": [{"id": sid, "label": Path(path).name} for sid, path in sample_files().items()]}
+        """The data sources a run may be fitted on, by name (the server's own; a client never sends a path).
+
+        Each says whether it has hourly demand, which a series synthesizer needs, and the columns a
+        table synthesizer may be fitted on (``<time>.hour`` and ``<time>.weekday`` included).
+        """
+        return {"sources": [_synthesis_source(e) for e in source_store.list() if not e.schema.problems]}
+
+    def _synthesis_source(entry) -> dict:
+        schema = entry.schema
+        columns = [c.name for c in schema.columns if c.kind in ("integer", "real", "category")]
+        return {
+            "id": entry.name,
+            "label": entry.schema.label,
+            "origin": entry.origin,
+            "series": schema.has_demand and schema.roles.time in entry.report.times_of_day,
+            "columns": columns + derived_columns(entry),
+        }
 
     @api.post(
         "/synthesis/runs",
@@ -463,11 +478,19 @@ def create_app(
     )
     def synthesis_run(body: s.SynthesisRunRequest):
         """Fit one synthesizer on one source and score it; the parameters are checked before it is created."""
-        listed = sample_files()
-        if body.source not in listed:
-            raise HTTPException(status_code=422, detail=f"unknown source {body.source!r}; choose from {sorted(listed)}")
+        listed = [e.name for e in source_store.list() if not e.schema.problems]
+        if body.source not in listed:  # a name, never a path
+            raise HTTPException(status_code=422, detail=f"unknown source {body.source!r}; choose from {listed}")
         try:
-            run = evaluate(body.synthesizer, source=body.source, params=body.params, registry=registry)
+            run = evaluate(
+                body.synthesizer,
+                source=body.source,
+                params=body.params,
+                registry=registry,
+                store=source_store,
+                columns=body.columns,
+                rows=body.rows,
+            )
         except RunFailed as exc:  # the plug-in's own code failed: not the request's fault
             raise HTTPException(status_code=500, detail=str(exc)) from exc
         except KeyError as exc:  # unknown or unavailable synthesizer
@@ -481,6 +504,9 @@ def create_app(
             "params": run.params,
             "repeatable": run.repeatable,
             "metrics": run.metrics,
+            "columns": list(run.columns) or None,
+            "row_choice": run.rows,
+            "notes": list(run.notes),
             "fields": [f.to_dict() for f in run.table.info.fields],
             "rows": [list(r) for r in run.table.rows],
         }

@@ -1,6 +1,17 @@
 # U2 — Evaluation on any source
 
-> Status: planned.
+> Status: implemented. As built, where it differs from the plan below (the
+> contract, `interfaces.md` §2, is updated to match):
+> - The answer names the row choice `row_choice`, since `rows` already holds
+>   the run table's rows.
+> - `GET /synthesis/sources` also says, per source, whether a series
+>   synthesizer can be fitted on it and which columns a table run may name,
+>   so a page can offer them (U5).
+> - Explore's presets for a synthesizer run are offered only when the run's
+>   table has their fields, and the Synthesizers page's "Open in Explore"
+>   keeps the column and row choice.
+> - A column or row choice on a CSV path is refused: the path keeps today's
+>   reader; add the file as a source to choose.
 
 Contract: [`interfaces.md`](interfaces.md) §2.
 

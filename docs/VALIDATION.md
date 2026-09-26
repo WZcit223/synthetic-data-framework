@@ -590,6 +590,21 @@ effect.
   have a clone risk of 38.5 %), because the catalogue changes over time. The
   "half the real rows" rows above are random halves (AUC 0.50 in every one
   of the 10, between 0.47 and 0.52).
+- **On a data source, the source's kinds decide (your own data, U2).** A run
+  on a source's own columns takes each column's kind from its schema. The
+  bundled sample's `Quantity`, `Price`, `InvoiceDate.hour` and
+  `InvoiceDate.weekday`, first 3,000 rows, are the retail feature table's
+  rows, but `Price` is declared `real` where the retail table declares it a
+  `category` (the sample has 12 prices). A synthesizer that jitters a real
+  column is then told apart: `bootstrap-table` goes from an AUC of 0.55 on
+  the retail table to 0.98 on the source's columns, while `bayesian-network`,
+  which bins and reads the values as observed, stays at 0.49 and 0.48. So a
+  user who knows a column takes few values should declare it `category`; a
+  price or quantity column has to leave its role to be one (roles are
+  numbers). With `Price` a category and no price role, `bootstrap-table`'s
+  AUC is 0.51. No
+  recorded number changes: the bundled sources with no column choice read
+  the retail feature table as before.
 
 **Scenario simulation** — `application/scenarios.py` (spec transforms in
 `synthesis/scenarios.py`): each scenario's safety stock versus baseline is in the

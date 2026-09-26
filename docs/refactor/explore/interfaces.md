@@ -400,6 +400,11 @@ None]]]`, for example `{"jitter": (0.0, 1.0)}`; without it they are unbounded. A
 The default keeps the registry's rule that every constructor argument has one,
 so `create(name)` works; `World.generate` always passes the spec.
 
+> Replaced in version 1.15.0: `sources()` is gone. The sources a run may use
+> are the data sources of the store (`sdf.foundation.sources`), and
+> `evaluate` takes their names, a column and a row choice
+> ([`../userdata/interfaces.md`](../userdata/interfaces.md) §2).
+
 ```python
 from sdf.validation.evaluation import evaluate, sources
 

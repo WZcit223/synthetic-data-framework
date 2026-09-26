@@ -167,17 +167,25 @@ installed in the `sdf.synthesizers` group is listed, has its parameters
 published and checked, and runs through the API, the Synthesizers page and
 Explore, and through `sdf privacy`, `sdf synth` and `sdf tstr`. The limits:
 
-- **The evaluation data is fixed.** A table synthesizer is evaluated on one
-  table, the retail feature table (`qty`, `price`, `hour`, `weekday`), with
-  column kinds the framework declares. A series synthesizer is evaluated on
-  the hourly or daily demand series. Both are read from a CSV in the Online
-  Retail II layout. The command line takes such a CSV by path; the API and
-  the pages take only the bundled sources. The retail table is also written
-  into the run table's fields, Explore's presets for a synthesis run and the
-  Synthesizers page's score tiles.
-- **The command line runs defaults only.** `sdf privacy`, `sdf synth` and
-  `sdf tstr` take no parameters; set them through the API, the pages or
-  Python.
+- **Your own data.** A synthesizer is evaluated on any data source
+  (`sdf data add`, `POST /api/v1/sources`): `POST /api/v1/synthesis/runs`
+  with `source`, and optionally `columns` and `rows`; `sdf privacy --source
+  NAME [--columns a,b] [--rows sample|first] [--param k=v]`, `sdf synth
+  --source NAME [--param k=v]`, `sdf tstr --source NAME`. A table synthesizer
+  receives the chosen columns as numbers, with their kinds from the source's
+  schema: an `integer` or `real` column as it is, a `category` column coded
+  0, 1, … from its most frequent label down, and `<time>.hour` (integer) and
+  `<time>.weekday` (category) derived from the time role. Its sampled codes
+  are rounded and clipped back to labels in the run table. At most 3,000
+  rows are used, a uniform sample drawn with the run's seed by default. A
+  series synthesizer is fitted on the source's hourly demand. The two bundled
+  sources with no column or row choice still read the retail feature table
+  (`qty`, `price`, `hour`, `weekday`), so their recorded numbers stand.
+- **Category codes are ordered numbers to most synthesizers.** The privacy
+  and detection distances, and a synthesizer that reads numbers (the Gaussian
+  copula), treat the codes of a category with more than two labels as
+  ordered; the run's `notes` say so. A synthesizer that honours `kinds`
+  (`bayesian-network`) reads them as labels.
 - **A synthesizer added with `register()` at run time** reaches only what you
   hand the registry to: `evaluate(..., registry=)` and
   `create_app(synthesizers=)`. The command line reads the entry-point group
@@ -188,9 +196,9 @@ Explore, and through `sdf privacy`, `sdf synth` and `sdf tstr`. The limits:
 - **A warehouse generator is not evaluated.** It is chosen for the world
   instead.
 
-To use a synthesizer on a table of your own, call it and the checks from
-Python: `fit(TableData(rows, columns, kinds))`, `sample()`, then
-`sdf.validation.detection.detection_report` and
+From Python, `evaluate(name, source="my-sales", columns=[...])` does the same;
+or call a synthesizer and the checks directly: `fit(TableData(rows, columns,
+kinds))`, `sample()`, then `sdf.validation.detection.detection_report` and
 `sdf.validation.privacy.privacy_report`.
 
 ## A dataset provider

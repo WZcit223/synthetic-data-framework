@@ -61,13 +61,17 @@ dataset (`source-<name>`) that Explore pivots and causal estimation reads:
 uv run sdf data add sales.csv --name my-sales --role quantity=Units   # the schema is inferred, then corrected
 uv run sdf data list                  # the bundled files and yours
 uv run sdf data show my-sales         # schema, rows, dates, what the check found
+uv run sdf privacy --source my-sales --columns Units,Price,Store   # a table synthesizer on your columns
+uv run sdf synth --source my-sales    # a series synthesizer on your hourly demand
 ```
 
 The API does the same (`GET/POST /api/v1/sources`, `PUT /api/v1/sources/{name}/schema`,
 `DELETE /api/v1/sources/{name}`). Sources live in `$SDF_DATA_DIR/sources` (default
 `data/sources`, never committed); an upload is at most 200 MB, 2,000,000 rows and
-64 columns. Synthesizers, forecasters and the warehouse world follow in the next
-steps of [`docs/refactor/userdata/`](docs/refactor/userdata/00-overview.md).
+64 columns. Any synthesizer runs on a source's own columns or demand
+(`POST /api/v1/synthesis/runs` with `source`, `columns`, `rows`), and the
+Synthesizers page lists every source. Forecasters and the warehouse world follow
+in the next steps of [`docs/refactor/userdata/`](docs/refactor/userdata/00-overview.md).
 
 The synthesis algorithms are served the same way: `GET /api/v1/synthesizers`
 lists them with the parameters each takes, `GET /api/v1/synthesis/sources` the

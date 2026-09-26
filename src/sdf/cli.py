@@ -116,7 +116,7 @@ def cmd_export(outdir: str) -> int:
 
 
 def _print_load(load) -> None:
-    if load.skipped:
+    if load is not None and load.skipped:  # a data source has no load report: its check was shown when added
         print(f"  load          : {load.summary()}")
 
 
@@ -158,11 +158,13 @@ def cmd_backtest(path: str, date_format: str | None = None) -> int:
     return 0
 
 
-def cmd_synth(path: str, date_format: str | None = None, synthesizer: str = "seasonal-profile") -> int:
-    """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
+def cmd_synth(
+    path: str, date_format: str | None = None, synthesizer: str = "seasonal-profile", params: dict | None = None
+) -> int:
+    """Phase 2.1: fit a synthesizer on real data (a CSV path or a data source's name) and score its fidelity."""
 
     try:
-        run = evaluate(synthesizer, source=path, date_format=date_format)
+        run = evaluate(synthesizer, source=path, date_format=date_format, params=params)
     except NoUsableRows as exc:
         print(f"  {path}: no usable rows ({exc.reason}); check the file and --date-format\n")
         return 1
@@ -185,12 +187,18 @@ def cmd_synth(path: str, date_format: str | None = None, synthesizer: str = "sea
     return 0
 
 
-def cmd_tstr(path: str, date_format: str | None = None, synthesizer: str = "seasonal-profile") -> int:
-    """Phase 3: TSTR — train on synthetic, test on real (checklist B2)."""
+def cmd_tstr(
+    path: str, date_format: str | None = None, synthesizer: str = "seasonal-profile", source: str | None = None
+) -> int:
+    """Phase 3: TSTR — train on synthetic, test on real (checklist B2), on a CSV or a data source's demand."""
 
-    _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
-    if _no_usable_rows(path, load):
-        return 1
+    if source is not None:
+        _skus, orders = default_store().orders(source)
+        path, load = source, None
+    else:
+        _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
+        if _no_usable_rows(path, load):
+            return 1
     r = tstr_report(orders, synthesizer=synthesizer)
     print("=" * 60)
     print("  TSTR — train on synthetic, test on real (Phase 3, B2)")
@@ -607,11 +615,20 @@ def _policy(text: str):
     return catalog.policy(kind)
 
 
-def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "bootstrap-table") -> int:
-    """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
+def cmd_privacy(
+    path: str,
+    date_format: str | None = None,
+    synthesizer: str = "bootstrap-table",
+    params: dict | None = None,
+    columns: list[str] | None = None,
+    rows: str | None = None,
+) -> int:
+    """Synthetic-data privacy metrics (DCR / NNDR / clone risk), on a CSV or a data source's columns."""
 
+    run = None
     try:
-        rep = evaluate(synthesizer, source=path, date_format=date_format).metrics
+        run = evaluate(synthesizer, source=path, date_format=date_format, params=params, columns=columns, rows=rows)
+        rep = run.metrics
     except NoUsableRows as exc:
         rep = {"error": exc.reason}
     except RunFailed as exc:  # the synthesizer's own failure: say so, without a traceback
@@ -624,6 +641,11 @@ def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "b
         print(f"  {path}: {rep['error']} — no usable rows; check the file and --date-format\n")
         return 1
     print(f"  {'synthesizer':<16}: {synthesizer}")
+    if run is not None and run.columns:
+        chosen = "a uniform sample of rows" if run.rows == "sample" else "the first rows"
+        print(f"  {'source':<16}: {path}, columns {', '.join(run.columns)} ({chosen})")
+        for note in run.notes:
+            print(f"  note: {note}")
     for k in ("n_real", "n_synth", "dcr_median", "dcr_p05", "nndr_median", "clone_risk_pct", "verdict"):
         print(f"  {k:<16}: {rep.get(k)}")
     print("  ALGORITHM-HOOK[B3]: full membership-inference + differential privacy.\n")
@@ -650,6 +672,45 @@ _date_format_option = click.option(
     help="strptime format of InvoiceDate, e.g. '%d/%m/%Y %H:%M' for day-first sources. "
     "Default: try the known formats, month-first first (right for the UCI export).",
 )
+
+
+_source_option = click.option(
+    "--source",
+    "source",
+    metavar="NAME",
+    help="A data source (sdf data list) instead of the CSV argument.",
+)
+_param_option = click.option(
+    "--param",
+    "param_texts",
+    multiple=True,
+    metavar="NAME=VALUE",
+    help="A synthesizer parameter, e.g. --param bins=20; repeatable. VALUE is read as JSON, else as text.",
+)
+
+
+def _params(texts: tuple[str, ...]) -> dict:
+    out = {}
+    for text in texts:
+        key, sep, value = text.partition("=")
+        if not sep or not key.strip():
+            raise click.BadParameter(f"{text!r}: write NAME=VALUE", param_hint="--param")
+        try:
+            out[key.strip()] = json.loads(value)
+        except json.JSONDecodeError:
+            out[key.strip()] = value
+    return out
+
+
+def _source_or_csv(ctx: click.Context, csv_path: str, source: str | None) -> str:
+    """The data source's name when --source is given, else the CSV path; not both, and no --date-format with a source."""
+    if source is None:
+        return csv_path
+    if ctx.get_parameter_source("csv_path") is not click.core.ParameterSource.DEFAULT:
+        raise click.UsageError("give a CSV or --source, not both")
+    if ctx.params.get("date_format") is not None:
+        raise click.UsageError("--date-format is for a CSV; a source's time formats are in its schema (sdf data show)")
+    return source
 
 
 def _synthesizer_option(produces: str, default: str):
@@ -711,9 +772,24 @@ def backtest(csv_path: str, date_format: str | None) -> None:
 @_csv_argument
 @_date_format_option
 @_synthesizer_option("series", "seasonal-profile")
-def synth(csv_path: str, date_format: str | None, synthesizer: str) -> None:
+@_source_option
+@_param_option
+@click.pass_context
+def synth(
+    ctx: click.Context,
+    csv_path: str,
+    date_format: str | None,
+    synthesizer: str,
+    source: str | None,
+    param_texts: tuple[str, ...],
+) -> None:
     """Phase 2.1: fit a synthesizer on real data and score its fidelity."""
-    if cmd_synth(csv_path, date_format, synthesizer):
+    target = _source_or_csv(ctx, csv_path, source)
+    try:
+        failed = cmd_synth(target, date_format, synthesizer, _params(param_texts))
+    except (ValueError, KeyError) as exc:  # an unknown source, a parameter it refuses, no hourly demand
+        raise click.ClickException(exc.args[0] if isinstance(exc, KeyError) else str(exc)) from exc
+    if failed:
         raise click.exceptions.Exit(1)
 
 
@@ -721,9 +797,16 @@ def synth(csv_path: str, date_format: str | None, synthesizer: str) -> None:
 @_csv_argument
 @_date_format_option
 @_synthesizer_option("series", "seasonal-profile")
-def tstr(csv_path: str, date_format: str | None, synthesizer: str) -> None:
+@_source_option
+@click.pass_context
+def tstr(ctx: click.Context, csv_path: str, date_format: str | None, synthesizer: str, source: str | None) -> None:
     """Phase 3: train on synthetic, test on real."""
-    if cmd_tstr(csv_path, date_format, synthesizer):
+    _source_or_csv(ctx, csv_path, source)
+    try:
+        failed = cmd_tstr(csv_path, date_format, synthesizer, source)
+    except (ValueError, KeyError) as exc:
+        raise click.ClickException(exc.args[0] if isinstance(exc, KeyError) else str(exc)) from exc
+    if failed:
         raise click.exceptions.Exit(1)
 
 
@@ -963,9 +1046,29 @@ def scenarios() -> None:
 @_csv_argument
 @_date_format_option
 @_synthesizer_option("table", "bootstrap-table")
-def privacy(csv_path: str, date_format: str | None, synthesizer: str) -> None:
+@_source_option
+@_param_option
+@click.option("--columns", default=None, metavar="A,B", help="With --source: the columns to fit, comma-separated.")
+@click.option("--rows", "row_choice", type=click.Choice(["sample", "first"]), default=None, help="With --source.")
+@click.pass_context
+def privacy(
+    ctx: click.Context,
+    csv_path: str,
+    date_format: str | None,
+    synthesizer: str,
+    source: str | None,
+    param_texts: tuple[str, ...],
+    columns: str | None,
+    row_choice: str | None,
+) -> None:
     """Synthetic-data privacy metrics (DCR / NNDR / clone risk)."""
-    if cmd_privacy(csv_path, date_format, synthesizer):
+    target = _source_or_csv(ctx, csv_path, source)
+    chosen = [c.strip() for c in columns.split(",") if c.strip()] if columns else None
+    try:
+        failed = cmd_privacy(target, date_format, synthesizer, _params(param_texts), chosen, row_choice)
+    except (ValueError, KeyError) as exc:
+        raise click.ClickException(exc.args[0] if isinstance(exc, KeyError) else str(exc)) from exc
+    if failed:
         raise click.exceptions.Exit(1)
 
 
