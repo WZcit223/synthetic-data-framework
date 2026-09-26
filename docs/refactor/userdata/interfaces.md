@@ -33,6 +33,8 @@ SourceSchema(
     ),
     roles=Roles(time="InvoiceDate", item="StockCode", quantity="Quantity", price="Price"),  # all optional
     provenance={"url": "...", "licence": "CC BY 4.0", "fetched": "2026-09-26"},  # optional, free text values
+    delimiter=",",                          # "," or ";"
+    decimal=".",                            # "." or ","; inferred as "," with ";"
 )
 ```
 
@@ -62,8 +64,8 @@ SourceSchema(
      name split at spaces, underscores and capitals) is `id`, even when its
      values look like numbers;
   3. a column whose values are whole numbers or text codes without spaces,
-     and more than 95 % distinct, is `id`. Real numbers are never `id` by
-     this rule;
+     and more than 95 % distinct, is `id`, when at least 20 values were
+     sampled. Real numbers are never `id` by this rule;
   4. a column whose values all parse as numbers is `integer` or `real`;
   5. a column whose values contain spaces and have more than 100 distinct
      values, or a median over 40 characters, is `text`;
@@ -80,8 +82,11 @@ SourceSchema(
   (`sdf data add --role …`).
 - **Delimiter and numbers.** A comma or a semicolon delimiter is detected
   from the header. With a semicolon, a decimal comma (`3,5`) is read as a
-  decimal point. Thousands separators are not supported; such values do not
-  parse.
+  decimal point, and a dot is unreadable (in those files `1.234` means one
+  thousand two hundred and thirty-four). Thousands separators, underscores and
+  non-ASCII digits are not supported; such values do not parse.
+- **Times.** ISO 8601 values may carry an offset (`Z`, `+09:00`); it is
+  dropped, and the time is read as written. Blank lines are not rows.
 - **Checks** (`SourceSchema.check(path)`). Every row is read once when a
   source is added or its schema changed. A value that does not parse as its
   column's kind is counted per column, with the first three examples. A
@@ -115,8 +120,13 @@ returns only foundation types (tables, and the `SKU` and `OutboundOrder`
 entities). Demand is built from the orders one layer up, where it is read:
 `DemandTable.from_orders(store.orders(name)[1])` (U3).
 
-- One folder per user source: `<root>/<name>/data.csv`, `schema.json` and
-  `report.json`.
+- One folder per user source: `<root>/<name>/data.csv` and `source.json`,
+  which holds the schema and the report of its last check, written together
+  in one replace. A folder that cannot be read is left out of `list()` and
+  named, with the reason, by `unavailable()` (and by `GET /sources`), so one
+  broken folder hides only itself. Upload folders a crash left behind are
+  removed when the store is opened a day later. A schema change is written
+  only if the file it was checked against is still the source's.
 - **Names.** The name is checked against `^[a-z0-9]+(-[a-z0-9]+)*$`, at most
   40 characters, so no path is ever built from user text. The names of the
   bundled sources (`sample`, `retail-10k`, and from U6 `uci-retail-daily`) are
@@ -131,7 +141,8 @@ entities). Demand is built from the orders one layer up, where it is read:
   - at most 20 user sources.
 - **Adding safely.** The upload is streamed to a temporary file in `<root>`
   with a byte counter, and refused (and the file deleted) as soon as it
-  passes the limit, whether or not a length was declared. It is checked, then
+  passes the limit, whether or not a length was declared. A header wider
+  than the column limit is refused before anything else is read. It is checked, then
   moved into place with one rename. Adding and removing hold one store lock,
   so the source count and the name are checked and taken together; a second
   add of a name already present is refused.
@@ -168,6 +179,8 @@ DELETE /api/v1/sources/{name}              → 204 | 404 | 409 (bundled; from U4
   - **Fields.** Each column's name becomes a `lower_snake_case` field name
     (`InvoiceDate` → `invoice_date`, `Customer ID` → `customer_id`); a
     collision gets `_2`, `_3`. The field's label is the column's own name.
+    Field names are ASCII: letters outside it are dropped, and a name left
+    empty becomes `column` (`column_2`, …), while the label keeps the name.
     `id` and `category` columns become dimensions, `integer` and `real`
     columns measures; a dimension's values are written as text (`12`, not
     `12.0`). A `time` column becomes a date field, plus a dimension

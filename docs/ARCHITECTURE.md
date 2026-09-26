@@ -73,8 +73,7 @@ byte limit and moved into place in one step). A source is served as a checked
 `Table` or as `SKU` and `OutboundOrder` entities, so the layers above read a
 user's file through the same contracts as the generator's output. The
 application layer's `Datasets` merges the catalogue's datasets with the
-sources' (`source-<name>`), and the API and the command line both read
-through it. Contract: [`refactor/userdata/interfaces.md`](refactor/userdata/interfaces.md) §1.
+sources' (`source-<name>`); the API reads datasets through it. Contract: [`refactor/userdata/interfaces.md`](refactor/userdata/interfaces.md) §1.
 
 ### Synthesis / Prediction Layer
 Turns a declarative `GenerationSpec` (the *reference dataset + generation

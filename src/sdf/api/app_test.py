@@ -717,8 +717,8 @@ def test_effects_refuse_a_generator_whose_first_world_differs_from_its_later_one
 
 def test_datasets_are_listed_with_their_fields(client):
     body = get(client, "/datasets")
-    names = ["inventory", "order-lines", "replenishment-plan", "skus", "source-retail-10k", "source-sample"]
-    assert [d["name"] for d in body["datasets"]] == names  # the catalogue's, then the data sources'
+    names = [d["name"] for d in body["datasets"]]  # the catalogue's, then the data sources' (a local one too)
+    assert names[:6] == ["inventory", "order-lines", "replenishment-plan", "skus", "source-retail-10k", "source-sample"]
     assert body["unavailable"] == {}
     lines = next(d for d in body["datasets"] if d["name"] == "order-lines")
     assert lines["origin"] == "builtin" and lines["label"] == "Outbound order lines"

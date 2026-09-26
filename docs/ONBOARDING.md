@@ -116,8 +116,9 @@ outcomes on the current world and returns tidy rows. The HTTP contract tests in
 Data sources (`docs/refactor/userdata/interfaces.md` §1): `GET /api/v1/sources`
 lists them with the upload limits; `POST /api/v1/sources?name=NAME` with a CSV
 body (`text/csv`) adds one (201; 409 when the name is taken or reserved, or
-the store holds 20 user sources; 413 over 200 MB, 2,000,000 rows or 64
-columns, refused as the body arrives; 422 when it cannot be read);
+the store holds 20 user sources; 413 over 200 MB, refused as the body
+arrives, or over 2,000,000 rows or 64 columns, refused when the file is read;
+422 when it cannot be read);
 `PUT /api/v1/sources/{name}/schema` corrects kinds, formats and roles and
 re-checks every row; `DELETE` removes a user source (the bundled ones are
 read-only). A ready source is also the dataset `source-<name>`: a source larger

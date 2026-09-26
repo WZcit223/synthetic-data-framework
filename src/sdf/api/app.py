@@ -30,6 +30,7 @@ try:
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.staticfiles import StaticFiles
     from pydantic import ConfigDict, Field, create_model
+    from starlette.requests import ClientDisconnect
 except ImportError as exc:  # pragma: no cover
     raise ImportError("FastAPI is optional. Install it with: uv sync --extra api") from exc
 
@@ -328,7 +329,11 @@ def create_app(
     @api.get("/sources", response_model=s.SourceList)
     def sources_list():
         """Every data source, bundled first, with its schema, its last check and the limits an upload must keep."""
-        return {"sources": [e.to_dict() for e in source_store.list()], "limits": source_store.limits.to_dict()}
+        return {
+            "sources": [e.to_dict() for e in source_store.list()],
+            "limits": source_store.limits.to_dict(),
+            "unavailable": source_store.unavailable(),
+        }
 
     @api.get("/sources/{name}", response_model=s.SourceDetail, responses={404: {"description": "unknown source"}})
     def source_detail(name: str):
@@ -339,6 +344,8 @@ def create_app(
             return {**entry.to_dict(), "preview": {"header": header, "rows": source_store.preview(name, PREVIEW_ROWS)}}
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=exc.args[0]) from exc
+        except ValueError as exc:  # its folder cannot be read
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @api.post(
         "/sources",
@@ -370,8 +377,10 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         try:
             async for chunk in request.stream():
-                upload.write(chunk)
+                await run_in_threadpool(upload.write, chunk)  # a disk write: off the event loop
             entry = await run_in_threadpool(upload.commit)
+        except ClientDisconnect as exc:  # the client went away mid-upload; nothing is kept
+            raise HTTPException(status_code=400, detail="the upload was cut off before it ended") from exc
         except SourceTooLarge as exc:
             raise HTTPException(status_code=413, detail=str(exc)) from exc
         except SourceConflict as exc:

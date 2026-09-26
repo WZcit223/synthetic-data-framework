@@ -452,6 +452,7 @@ class SourceEntryModel(Model):
 class SourceList(Model):
     sources: list[SourceEntryModel]
     limits: SourceLimitsModel
+    unavailable: dict[str, str]  # user source folders that cannot be read, with the reason
 
 
 class SourcePreview(Model):

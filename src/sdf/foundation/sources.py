@@ -22,7 +22,9 @@ import re
 import shutil
 import statistics
 import threading
+import time
 import uuid
+from collections import Counter
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -49,12 +51,16 @@ MAX_NAME = 40
 INFER_ROWS = 10_000  # rows inference reads
 MAX_UNREADABLE = 0.05  # a quantity or time column unreadable on more rows than this refuses the source
 PREVIEW_ROWS = 50
+SOURCE_FILE = "source.json"  # a user source's schema and the report of its last check, written together
 # Inference also tries the day-first dates the retail adapter leaves out, so a UK file is flagged, not misread.
 INFER_FORMATS = DATE_FORMATS + ("%d/%m/%Y", "%d/%m/%y")
 _NAME = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
-_ISO = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}([T ][0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]{1,6})?)?)?")
+_ISO = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}([T ][0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]{1,6})?)?(Z|[+-][0-9]{2}:?[0-9]{2})?)?"
+)
 _WHOLE = re.compile(r"[-+]?[0-9]+")
 _CHUNK = 1 << 20
+STALE_UPLOAD_SECONDS = 24 * 3600  # an upload folder this old was left by a crash; the store removes it
 
 # Inference: words of a column name that mark an identifier, and the names each role is guessed from.
 ID_WORDS = frozenset({"id", "code", "no", "number", "invoice", "customer", "zip", "postcode"})
@@ -144,8 +150,7 @@ class SourceSchema:
         object.__setattr__(self, "columns", tuple(self.columns))
         if not self.columns or not all(isinstance(c, ColumnSpec) for c in self.columns):
             raise ValueError(f"source {self.name}: columns must be a non-empty sequence of ColumnSpec")
-        names = [c.name for c in self.columns]
-        duplicates = sorted({n for n in names if names.count(n) > 1})
+        duplicates = sorted(n for n, k in Counter(c.name for c in self.columns).items() if k > 1)
         if duplicates:
             raise ValueError(f"source {self.name}: duplicate column names {duplicates}")
         if self.delimiter not in (",", ";"):
@@ -321,6 +326,9 @@ class SourceEntry:
 
 
 def _number(text: str, decimal: str) -> float:
+    # "1.234" in a decimal-comma file is a thousands separator, not a decimal point: unreadable, never 1.234
+    if not text.isascii() or "_" in text or (decimal == "," and "." in text):
+        raise ValueError(f"{text!r} is not a number written with {decimal!r} as the decimal mark")
     value = float(text.replace(",", ".") if decimal == "," else text)
     if value != value or value in (float("inf"), float("-inf")):
         raise ValueError(f"{text!r} is not a finite number")
@@ -331,7 +339,7 @@ def _time(text: str, formats: tuple[str, ...]) -> datetime:
     if not formats:
         if not _ISO.fullmatch(text):
             raise ValueError(f"{text!r} is not an ISO 8601 date or time")
-        return datetime.fromisoformat(text)
+        return datetime.fromisoformat(text).replace(tzinfo=None)  # an offset is dropped: the time as written
     for fmt in formats:
         try:
             return datetime.strptime(text, fmt)
@@ -366,7 +374,10 @@ def _open_rows(path: Path, delimiter: str) -> tuple[list[str], Iterator[list[str
         raise ValueError("the file is empty: a CSV needs a header row") from None
     except UnicodeDecodeError as exc:
         fh.close()
-        raise ValueError(f"the file is not UTF-8 text: {exc.reason} at byte {exc.start}") from None
+        raise ValueError(f"the file is not UTF-8 text: {exc.reason}") from None
+    except csv.Error as exc:
+        fh.close()
+        raise ValueError(f"the header row is not valid CSV: {exc}") from None
     return header, reader, fh
 
 
@@ -381,7 +392,7 @@ def _iter_kept(path: Path, schema: SourceSchema) -> Iterator[list[Any]]:
     with fh:
         width = len(schema.columns)
         for cells in reader:
-            if len(cells) != width:
+            if not cells or len(cells) != width:  # a blank line, or a malformed row
                 continue
             row: list[Any] = []
             for text, column in zip(cells, schema.columns, strict=True):
@@ -420,6 +431,8 @@ def check(path: str | Path, schema: SourceSchema, limits: SourceLimits = SourceL
         with_time: set[str] = set()
         try:
             for cells in reader:
+                if not cells:
+                    continue  # a blank line is not a row
                 report.rows_read += 1
                 if report.rows_read > limits.max_rows:
                     raise SourceTooLarge(f"the file has more than {limits.max_rows:,} rows, the most accepted")
@@ -455,7 +468,7 @@ def check(path: str | Path, schema: SourceSchema, limits: SourceLimits = SourceL
                     continue
                 report.rows_kept += 1
         except UnicodeDecodeError as exc:
-            raise ValueError(f"the file is not UTF-8 text: {exc.reason} near row {report.rows_read + 1}") from None
+            raise ValueError(f"the file is not UTF-8 text: {exc.reason}") from None
         except csv.Error as exc:
             raise ValueError(f"row {report.rows_read + 1} is not valid CSV: {exc}") from None
     for column in (schema.roles.time, schema.roles.quantity):
@@ -548,10 +561,13 @@ def _guess_roles(columns: tuple[ColumnSpec, ...]) -> Roles:
     return Roles(**chosen)
 
 
-def infer_schema(path: str | Path, *, name: str, label: str | None = None) -> SourceSchema:
+def infer_schema(
+    path: str | Path, *, name: str, label: str | None = None, max_columns: int | None = None
+) -> SourceSchema:
     """A proposed schema for ``path``: the delimiter, each column's kind and the roles guessed from names.
 
     Reads the header and up to 10,000 rows. The proposal is for the user to confirm or correct.
+    A header wider than ``max_columns`` is refused (``SourceTooLarge``) before anything else is read.
     """
     path = Path(path)
     with open(path, newline="", encoding="utf-8-sig") as fh:
@@ -562,17 +578,22 @@ def infer_schema(path: str | Path, *, name: str, label: str | None = None) -> So
     delimiter = ";" if first.count(";") > first.count(",") else ","
     decimal = "," if delimiter == ";" else "."
     header, reader, fh = _open_rows(path, delimiter)
+    if max_columns is not None and len(header) > max_columns:
+        fh.close()
+        raise SourceTooLarge(f"the file has {len(header)} columns; at most {max_columns} are accepted")
     if any(not h for h in header):
         fh.close()
         raise ValueError(f"every column needs a name in the header row; got {header}")
     samples: list[list[str]] = [[] for _ in header]
     with fh:
         try:
-            for n, cells in enumerate(reader):
+            n = 0
+            for cells in reader:
                 if n >= INFER_ROWS:
                     break
-                if len(cells) != len(header):
+                if not cells or len(cells) != len(header):
                     continue
+                n += 1
                 for values, text in zip(samples, cells, strict=True):
                     if text.strip():
                         values.append(text.strip())
@@ -601,34 +622,43 @@ def _field_name(column: str) -> str:
     return name if name[0].isalpha() else "c_" + name
 
 
-def dataset_info(entry: SourceEntry) -> DatasetInfo:
-    """The dataset a source is: ``source-<name>``, a field per column (text left out), a time's hour as its own."""
-    fields: list[Field] = []
+def _column_fields(entry: SourceEntry) -> dict[str, list[Field]]:
+    """Each column's dataset fields, by column: none for text, two for a time holding times of day."""
+    out: dict[str, list[Field]] = {}
     taken: set[str] = set()
 
-    def add(base: str, label: str, kind: str, **kw: Any) -> None:
+    def field(base: str, label: str, kind: str, **kw: Any) -> Field:
         name, n = base, 1
         while name in taken:
             n += 1
             name = f"{base}_{n}"
         taken.add(name)
-        fields.append(Field(name, label, kind, **kw))
+        return Field(name, label, kind, **kw)
 
     roles = {column: role for role, column in entry.schema.roles.items()}
     for c in entry.schema.columns:
         base = _field_name(c.name)
         if c.kind in ("id", "category"):
-            add(base, c.name, "dimension")
+            out[c.name] = [field(base, c.name, "dimension")]
         elif c.kind in ("integer", "real"):
             role = roles.get(c.name)
             unit = "units" if role == "quantity" else "currency" if role in ("price", "cost") else None
-            add(base, c.name, "measure", unit=unit, aggregate="mean" if role in ("price", "cost") else "sum")
+            aggregate = "mean" if role in ("price", "cost") else "sum"
+            out[c.name] = [field(base, c.name, "measure", unit=unit, aggregate=aggregate)]
         elif c.kind == "time":
-            add(base, c.name, "time")
+            out[c.name] = [field(base, c.name, "time")]
             if c.name in entry.report.times_of_day:
-                add(base + "_hour", f"{c.name} (hour)", "dimension")
+                out[c.name].append(field(base + "_hour", f"{c.name} (hour)", "dimension"))
+        else:
+            out[c.name] = []
+    return out
+
+
+def dataset_info(entry: SourceEntry) -> DatasetInfo:
+    """The dataset a source is: ``source-<name>``, a field per column (text left out), a time's hour as its own."""
+    fields = tuple(f for fs in _column_fields(entry).values() for f in fs)
     description = f"The {entry.origin} data source {entry.name}: one row per line of its file"
-    return DatasetInfo(DATASET_PREFIX + entry.name, entry.schema.label, description, tuple(fields))
+    return DatasetInfo(DATASET_PREFIX + entry.name, entry.schema.label, description, fields)
 
 
 def _dataset_row(entry: SourceEntry, row: list[Any]) -> tuple[Any, ...]:
@@ -713,12 +743,11 @@ class Upload:
         if self.size == 0:
             raise ValueError("the file is empty: a CSV needs a header row")
         if schema is None:
-            schema = infer_schema(path, name=self.name)
+            schema = infer_schema(path, name=self.name, max_columns=self._store.limits.max_columns)
         elif schema.name != self.name:
             raise ValueError(f"the schema is for {schema.name!r}, not {self.name!r}")
         report = check(path, schema, self._store.limits)
-        _write_json(self._dir / "schema.json", schema.to_dict())
-        _write_json(self._dir / "report.json", report.to_dict())
+        _write_json(self._dir / SOURCE_FILE, {"schema": schema.to_dict(), "report": report.to_dict()})
         with self._store._lock:
             self._store._check_free(self.name)
             self._dir.rename(self._store.root / self.name)
@@ -753,12 +782,32 @@ class SourceStore:
         self._bundled = dict(bundled or {})
         self._bundled_reports: dict[str, SourceReport] = {}
         self._lock = threading.Lock()
+        if self.root.is_dir():  # upload folders a crash left behind; a live upload is never this old
+            for p in self.root.glob(".upload-*"):
+                if time.time() - p.stat().st_mtime > STALE_UPLOAD_SECONDS:
+                    shutil.rmtree(p, ignore_errors=True)
 
     # -- reading -----------------------------------------------------------------------------------
 
     def list(self) -> list[SourceEntry]:
-        """Bundled sources first, then the user's, each by name."""
-        return [self.get(n) for n in sorted(self._bundled)] + [self.get(n) for n in self._user_names()]
+        """Bundled sources first, then the user's, each by name; a folder that cannot be read is left out."""
+        entries = [self.get(n) for n in sorted(self._bundled)]
+        for name in self._user_names():
+            try:
+                entries.append(self.get(name))
+            except (KeyError, ValueError, OSError):  # listed by unavailable(), with the reason
+                continue
+        return entries
+
+    def unavailable(self) -> dict[str, str]:
+        """User source folders that cannot be read, with the reason, so one broken folder hides only itself."""
+        broken = {}
+        for name in self._user_names():
+            try:
+                self.get(name)
+            except (KeyError, ValueError, OSError) as exc:
+                broken[name] = str(exc)
+        return broken
 
     def get(self, name: str) -> SourceEntry:
         """The source ``name``; ``KeyError`` naming the sources there are."""
@@ -770,17 +819,21 @@ class SourceStore:
                 report = self._bundled_reports[name]
             return SourceEntry(schema, report, "bundled", path, path.stat().st_size)
         folder = self.root / name
-        if not _NAME.fullmatch(name) or not (folder / "schema.json").is_file():
+        if not _NAME.fullmatch(name) or not (folder / SOURCE_FILE).is_file():
             raise KeyError(f"no source {name!r}; the sources: {sorted(self._bundled) + self._user_names()}")
-        schema = SourceSchema.from_dict(json.loads((folder / "schema.json").read_text(encoding="utf-8")))
-        report = SourceReport.from_dict(json.loads((folder / "report.json").read_text(encoding="utf-8")))
+        try:
+            stored = json.loads((folder / SOURCE_FILE).read_text(encoding="utf-8"))
+            schema = SourceSchema.from_dict(stored["schema"])
+            report = SourceReport.from_dict(stored["report"])
+        except (ValueError, KeyError, TypeError) as exc:  # JSON errors are ValueErrors
+            raise ValueError(f"source {name}: its {SOURCE_FILE} cannot be read ({exc})") from None
         path = folder / "data.csv"
         return SourceEntry(schema, report, "user", path, path.stat().st_size)
 
     def _user_names(self) -> list[str]:
         if not self.root.is_dir():
             return []
-        return sorted(p.name for p in self.root.iterdir() if _NAME.fullmatch(p.name) and (p / "schema.json").is_file())
+        return sorted(p.name for p in self.root.iterdir() if _NAME.fullmatch(p.name) and (p / SOURCE_FILE).is_file())
 
     def preview(self, name: str, rows: int = PREVIEW_ROWS) -> list[list[str]]:
         """The first ``rows`` rows as the file holds them, one text per cell."""
@@ -808,7 +861,7 @@ class SourceStore:
             keep = set(random.Random(seed).sample(range(entry.report.rows_kept), limit))
             rows = [_dataset_row(entry, r) for i, r in enumerate(_iter_kept(entry.path, entry.schema)) if i in keep]
         if columns is not None:
-            fields = _fields_of(entry, info, columns)
+            fields = _fields_of(entry, columns)
             idx = [info.fields.index(f) for f in fields]
             info = DatasetInfo(info.name, info.label, info.description, tuple(fields))
             rows = [tuple(r[i] for i in idx) for r in rows]
@@ -916,28 +969,36 @@ class SourceStore:
         entry = self.get(name)
         if schema.name != name:
             raise ValueError(f"the schema is for {schema.name!r}, not {name!r}")
+        checked = entry.path.stat()
         report = check(entry.path, schema, self.limits)
         with self._lock:
-            _write_json(entry.path.parent / "report.json", report.to_dict())
-            _write_json(entry.path.parent / "schema.json", schema.to_dict())
+            try:
+                now = entry.path.stat()
+            except FileNotFoundError:
+                raise KeyError(f"no source {name!r}: it was removed while its schema was checked") from None
+            if (now.st_ino, now.st_mtime_ns) != (checked.st_ino, checked.st_mtime_ns):
+                raise SourceConflict(f"source {name} was replaced while its schema was checked; try again")
+            _write_json(entry.path.parent / SOURCE_FILE, {"schema": schema.to_dict(), "report": report.to_dict()})
         return self.get(name)
 
     def remove(self, name: str) -> None:
         """Delete a user source and its folder."""
         if name in self._bundled:
             raise SourceConflict(f"{name} is a bundled source and cannot be removed")
-        self.get(name)  # KeyError when there is none
         with self._lock:
+            if not _NAME.fullmatch(name) or not (self.root / name / SOURCE_FILE).is_file():
+                self.get(name)  # the KeyError naming the sources there are
             shutil.rmtree(self.root / name)
 
 
-def _fields_of(entry: SourceEntry, info: DatasetInfo, columns: list[str]) -> list[Field]:
-    """The dataset fields of the named source columns (a field's label is its column), a time's hour included."""
+def _fields_of(entry: SourceEntry, columns: list[str]) -> list[Field]:
+    """The dataset fields of the named source columns, a time's hour included."""
+    by_column = _column_fields(entry)
     fields = []
     for column in columns:
         if entry.schema.column(column).kind == "text":  # KeyError for an unknown column
             raise ValueError(f"column {column} is text, which is shown but never read as a field")
-        fields.extend(f for f in info.fields if f.label in (column, f"{column} (hour)"))
+        fields.extend(by_column[column])
     return fields
 
 

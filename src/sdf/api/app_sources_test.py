@@ -162,3 +162,23 @@ def test_exports_guard_text_that_a_spreadsheet_would_run(client, monkeypatch):
     monkeypatch.setattr(sku, "name", "=HYPERLINK(1)")
     text = client.get(f"{V1}/export", params={"entity": "skus"}).text
     assert "'=HYPERLINK(1)" in text
+
+
+def test_a_failed_upload_leaves_nothing_behind(client, store):
+    res = client.post(f"{V1}/sources", params={"name": "bad"}, content=b"\xff\xfe,b\n1,2\n")
+    assert res.status_code == 422 and "not UTF-8" in res.json()["detail"]
+    res = client.post(
+        f"{V1}/sources", params={"name": "bad"}, content=b"When\n2024-01-01\n", headers={"content-type": "text/csv"}
+    )
+    assert res.status_code == 201
+    assert sorted(p.name for p in store.root.iterdir()) == ["bad"]  # no .upload-* folder from the failed one
+
+
+def test_an_unreadable_folder_is_listed_as_unavailable(client, store):
+    upload(client, "ok")
+    upload(client, "broken")
+    (store.root / "broken" / "source.json").write_text("[]", encoding="utf-8")
+    res = client.get(f"{V1}/sources").json()
+    assert [s["name"] for s in res["sources"]][-1] == "ok" and "broken" in res["unavailable"]
+    assert client.get(f"{V1}/sources/broken").status_code == 500
+    assert client.delete(f"{V1}/sources/broken").status_code == 204

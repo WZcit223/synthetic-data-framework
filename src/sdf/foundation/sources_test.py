@@ -349,3 +349,115 @@ def test_the_bundled_files_are_sources_with_declared_schemas(monkeypatch):
     assert entry.origin == "bundled" and entry.report.rows_kept == 10_000
     assert (entry.report.first_date, entry.report.last_date) == ("2010-12-01", "2010-12-05")
     assert BUNDLED["retail-10k"].schema.column("InvoiceDate").formats == DATE_FORMATS
+
+
+# -- the independent review's cases --------------------------------------------------------------------
+
+
+def test_a_wide_header_is_refused_before_any_work(tmp_path):
+    import time
+
+    wide = ",".join(f"c{i}" for i in range(100_000)) + "\n" + ",".join("1" for _ in range(100_000)) + "\n"
+    store = _store(tmp_path)
+    started = time.monotonic()
+    with pytest.raises(SourceTooLarge, match="100000 columns; at most 64"):
+        store.add(io.BytesIO(wide.encode()), name="wide")
+    assert time.monotonic() - started < 5
+    started = time.monotonic()  # a schema of that width is built in linear time too
+    SourceSchema("x", "x", tuple(ColumnSpec(f"c{i}", "integer") for i in range(100_000)))
+    assert time.monotonic() - started < 5
+
+
+def test_a_dot_in_a_decimal_comma_file_is_unreadable_not_a_decimal_point(tmp_path):
+    path = _csv(tmp_path, "Datum;Menge\n2024-01-01;12,5\n2024-01-02;1.234\n2024-01-03;3\n")
+    schema = infer_schema(path, name="de")
+    assert schema.column("Menge").kind == "category"  # "1.234" is not a number here, so the column is not one
+    fixed = SourceSchema(
+        "de", "de", (ColumnSpec("Datum", "time"), ColumnSpec("Menge", "real")), delimiter=";", decimal=","
+    )
+    report = check(path, fixed)
+    assert report.unreadable == {"Menge": 1} and report.examples == {"Menge": ["1.234"]}
+    units = SourceSchema("u", "u", (ColumnSpec("Units", "real"),))
+    for text in ("1_000", "１２"):  # underscores and non-ASCII digits, which float() would accept
+        assert check(_csv(tmp_path, f"Units\n{text}\n", "u.csv"), units).unreadable == {"Units": 1}
+
+
+def test_iso_times_with_an_offset_are_times_read_as_written(tmp_path):
+    store = _store(tmp_path)
+    store.add(_csv(tmp_path, "At,Units\n2024-01-01T10:00:00Z,1\n2024-01-01T23:30:00+09:00,2\n"), name="tz")
+    assert store.get("tz").schema.column("At").kind == "time"
+    assert store.rows("tz").rows == [("2024-01-01", "10", 1), ("2024-01-01", "23", 2)]
+
+
+def test_blank_lines_are_not_rows_and_a_huge_header_field_is_unreadable(tmp_path):
+    schema = infer_schema(_csv(tmp_path, SALES), name="x")
+    report = check(_csv(tmp_path, SALES.replace("\n2024-01-02", "\n\n2024-01-02", 1), "b.csv"), schema)
+    assert report.rows_read == 40 and report.skipped == {}
+    with pytest.raises(ValueError, match="header row is not valid CSV"):
+        infer_schema(_csv(tmp_path, "a" * 200_000 + ",b\n1,2\n", "h.csv"), name="h")
+
+
+def test_the_kept_rows_are_exactly_the_rows_the_check_counted(tmp_path):
+    from .sources import _iter_kept
+
+    text = (
+        "OrderDate,Sku,Units,UnitPrice\n"
+        + _lines(30)
+        + "2024-01-01,a\n2024-01-01,a,,1\n,a,2,1\nnope,a,2,1\n2024-01-01,a,2.5,1\n"
+    )
+    schema = infer_schema(_csv(tmp_path, SALES), name="x")
+    path = _csv(tmp_path, text, "m.csv")
+    report = check(path, schema)
+    assert report.rows_kept == len(list(_iter_kept(path, schema))) == 30
+    assert report.skipped == {"malformed rows": 1, "rows without a readable time or quantity": 4}
+
+
+def test_one_broken_folder_hides_only_itself(tmp_path):
+    store = _store(tmp_path)
+    store.add(_csv(tmp_path, SALES), name="good")
+    store.add(_csv(tmp_path, SALES), name="bad")
+    (tmp_path / "sources" / "bad" / "source.json").write_text("{not json", encoding="utf-8")
+    assert [e.name for e in store.list()] == ["good"]
+    assert "cannot be read" in store.unavailable()["bad"]
+    store.remove("bad")  # a broken source can still be removed
+    assert store.unavailable() == {}
+    with pytest.raises(KeyError):
+        store.remove("bad")
+
+
+def test_a_schema_checked_while_the_source_is_replaced_is_not_written(tmp_path, monkeypatch):
+    from . import sources as module
+
+    store = _store(tmp_path)
+    store.add(_csv(tmp_path, SALES), name="s")
+    original = module.check
+
+    def check_while_replaced(path, schema, limits=SourceLimits()):
+        report = original(path, schema, limits)
+        monkeypatch.setattr(module, "check", original)  # once: the re-add below checks its own file
+        store.remove("s")
+        store.add(_csv(tmp_path, SALES.replace("SKU", "ITEM")), name="s")
+        return report
+
+    monkeypatch.setattr(module, "check", check_while_replaced)
+    schema = store.get("s").schema
+    with pytest.raises(SourceConflict, match="replaced while its schema was checked"):
+        store.update_schema("s", schema)
+
+
+def test_stale_upload_folders_are_swept_and_fresh_ones_kept(tmp_path):
+    import os
+
+    root = tmp_path / "sources"
+    (root / ".upload-old").mkdir(parents=True)
+    (root / ".upload-new").mkdir()
+    os.utime(root / ".upload-old", (0, 0))
+    SourceStore(root)
+    assert sorted(p.name for p in root.iterdir()) == [".upload-new"]
+
+
+def test_a_column_choice_maps_by_column_not_by_label(tmp_path):
+    store = _store(tmp_path)
+    store.add(_csv(tmp_path, "When,When (hour)\n2024-01-01 08:00:00,x\n"), name="w")
+    assert [f.name for f in store.rows("w", columns=["When"]).info.fields] == ["when", "when_hour"]
+    assert [f.name for f in store.rows("w", columns=["When (hour)"]).info.fields] == ["when_hour_2"]
