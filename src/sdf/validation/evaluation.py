@@ -2,10 +2,11 @@
 
 ``evaluate`` fits any series or table synthesizer on one of the repository's
 sample CSVs (or a CSV path), scores the result with the existing checks
-(``fidelity_report`` for a series, ``privacy_report`` for a table) and returns
+(``fidelity_report`` for a series; for a table, ``privacy_report`` and the detection
+test's ``detection_*`` metrics, from ``detection_report``) and returns
 the scores with a real-against-synthetic table that a client can pivot. It is
 what ``sdf synth``, ``sdf privacy`` and ``POST /api/v1/synthesis/runs`` share.
-The scorers keep their algorithm hooks (checklist rows B1 and B3).
+The scorers keep their algorithm hooks (checklist rows B1, B3 and B4).
 """
 
 from __future__ import annotations
@@ -20,8 +21,9 @@ from sdf.foundation.tables import DatasetInfo, Field, Table
 from sdf.synthesis.api import TableData
 from sdf.synthesis.fit import FittedHourlyDemand
 from sdf.synthesis.registry import SynthesizerRegistry, default_registry
+from .detection import detection_metrics
 from .fidelity import fidelity_report
-from .privacy import FEATURE_COLUMNS, privacy_report, read_retail_feature_table
+from .privacy import FEATURE_COLUMNS, FEATURE_KINDS, privacy_report, read_retail_feature_table
 
 EVALUATION_SEED = 7  # the seed of a run that leaves a synthesizer's seed out, so every run can be repeated
 DATA_DIR_ENV = "SDF_DATA_DIR"
@@ -140,14 +142,21 @@ def evaluate(
         _run(
             synthesizer,
             "fitting and sampling it",
-            lambda: model.fit(TableData(rows=real, columns=FEATURE_COLUMNS)).sample(),
+            lambda: model.fit(TableData(rows=real, columns=FEATURE_COLUMNS, kinds=FEATURE_KINDS)).sample(),
         )
         if real
         else []
     )
+    wrong = next((r for r in synth_rows if len(r) != len(FEATURE_COLUMNS)), None)
+    if wrong is not None:  # the synthesizer's fault: it was given 4 columns
+        raise RunFailed(
+            f"{synthesizer} failed while sampling from it: a row of {len(wrong)} values, "
+            f"not one per column {list(FEATURE_COLUMNS)}"
+        )
     metrics = privacy_report(real, synth_rows)
     if "error" in metrics:
         raise NoUsableRows(path, metrics["error"])
+    metrics |= detection_metrics(real, synth_rows, columns=FEATURE_COLUMNS)
     rows = [("real", *(round(float(v), 4) for v in r)) for r in real]
     rows += [("synthetic", *(round(float(v), 4) for v in r)) for r in synth_rows]
     table = Table(_info(synthesizer, "table", TABLE_FIELDS), rows)

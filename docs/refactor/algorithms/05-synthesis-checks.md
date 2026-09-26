@@ -1,6 +1,42 @@
 # PR 5 — The detection test, and column kinds for synthetic tables
 
-> Status: planned.
+> Status: implemented. The numbers are in `docs/VALIDATION.md` ("Detection
+> test"). **The acceptance target is met, by a synthesizer this plan did not
+> foresee.** Column kinds take the detection AUC from 1.00 to 0.55
+> (`bootstrap-table`) and 0.62 (`gaussian-copula`) on the sample, but only to
+> 0.89 and 0.90 on the extract. There, the real columns, each shuffled on
+> its own, already score 0.78, so no synthesizer that samples the columns
+> separately can meet the target; the spike's 0.68 is not reproduced. On
+> the project lead's decision, this PR adds `bayesian-network`: a tree-shaped
+> Bayesian network over binned columns, written against the public plug-in
+> contract only, to check that a user's own synthesizer runs through every
+> part of the framework. It scores 0.53 on the extract and 0.49 on the
+> sample. Where the
+> implementation departs from the contract, and why:
+>
+> - The retail feature table declares `price` a `category`, not `real`: with
+>   the price a real number, the AUC only falls from 1.00 to 0.96–0.99, since
+>   a price between two list prices gives the row away.
+> - `detection_report` takes the column names as a keyword (`columns`), for
+>   `top_features`; without them the columns are "column 1", "column 2", ….
+>   With fewer rows than folds it returns `{"error": ...}`, and the
+>   evaluation's metrics are then `None` with the reason as the verdict.
+> - The evaluation adds a fifth metric, `detection_top_features` (the columns
+>   joined by commas; the API's metrics are single values), for PR 6's
+>   Synthesizers page.
+> - `bayesian-network` is added (above). It exercises every place a table
+>   synthesizer plug-in reaches: the entry-point group, the catalogue and its
+>   parameters, `sdf privacy`, `POST /api/v1/synthesis/runs`, the Synthesizers
+>   page, Explore and the detection test, with nothing in the repository
+>   naming it. It shows one limit: a synthesizer is evaluated only on the
+>   retail feature table of a CSV in the Online Retail II layout, so a user
+>   cannot yet bring their own table or its column kinds through the API,
+>   the command line or the pages (`docs/PLUGINS.md`).
+> - The recorded privacy numbers change more than foreseen: clone risk 4.38 %
+>   → 18.25 % on the sample and 7.62 % → 93.62 % on the extract, both now
+>   "review". Half the real rows scored against the other half give 17.7 %
+>   and 96.3 % (the mean of 10 random halvings), so on this discrete table
+>   the jump is realism, not copying; `docs/VALIDATION.md` records both.
 
 Contract: [`interfaces.md`](interfaces.md) §7.
 
@@ -53,6 +89,8 @@ themselves away by writing whole numbers as decimals.
 
 - No new synthesizer. Whether a better one (CTGAN, a Bayesian network) is
   worth adding is decided on this PR's numbers, and deep models wait for D3.
+  *As built:* the project lead decided on those numbers to add a simple
+  Bayesian network in this PR; deep models still wait for D3.
 - No change to the privacy metrics or to the series evaluation.
 - No change to any recorded fidelity or TSTR number (series evaluations do
   not use `TableData`).
@@ -68,4 +106,5 @@ themselves away by writing whole numbers as decimals.
 ## Version
 
 `Version: MINOR 1.12.0 → 1.13.0` — the detection test in every table
-evaluation, and column kinds in the table synthesis contract.
+evaluation, column kinds in the table synthesis contract, and a new table
+synthesizer, `bayesian-network`.

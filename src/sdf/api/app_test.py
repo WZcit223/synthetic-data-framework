@@ -901,6 +901,10 @@ def test_a_table_run_leaving_the_seed_out_is_repeatable(client):
     first = run(client, synthesizer="bootstrap-table", source="sample").json()
     assert first["params"] == {"seed": 7, "jitter": 0.05} and first["repeatable"]
     assert first["metrics"]["verdict"] and first["fields"][0]["name"] == "origin"
+    m = first["metrics"]
+    assert 0.5 <= m["detection_auc_low"] <= m["detection_auc"] <= m["detection_auc_high"] <= 1
+    assert m["detection_verdict"] in ("hard to distinguish", "distinguishable")
+    assert m["detection_top_features"].split(", ")[0] == "price"
     again = run(client, synthesizer="bootstrap-table", source="sample", params=first["params"]).json()
     assert again["rows"] == first["rows"]
 

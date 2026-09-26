@@ -42,6 +42,24 @@ A synthesizer is a class with an `info` class attribute and two methods:
   `seed` pins one draw; without it, each call continues the instance's own
   random stream.
 
+**Column kinds (table synthesizers).** `TableData.kinds` says, per column,
+whether it is `"real"`, `"integer"` or `"category"` (`None`: all real). Pass
+your sampled rows through `apply_kinds(rows, data)` from `sdf.synthesis.api`,
+with the `TableData` you were fitted on: an integer column is rounded and
+kept within its observed range, and a category column takes only observed
+values (the nearest one). The built-in table synthesizers do. A synthesizer that ignores the
+kinds still works, but every table evaluation runs the detection test, and
+decimals in a whole-number column give its rows away: its `detection_auc`
+shows it.
+
+```python
+from sdf.synthesis.api import TableData, apply_kinds
+
+def sample(self, n=None, *, seed=None):
+    rows = ...  # your model's rows, in self._data.columns order
+    return apply_kinds(rows, self._data)  # self._data: the TableData given to fit()
+```
+
 **Parameters.** Every constructor argument needs a default, so the registry
 can create the synthesizer by name. Keyword arguments typed `int`, `float`,
 `str` or `bool` (or one of those or `None`) are its *parameters*. The catalogue
@@ -52,6 +70,9 @@ is built from them. Two optional refinements:
   parameter; either end may be `None`. The registry refuses bounds that are not
   a (min, max) pair of finite numbers, bounds with min above max, and a default
   outside its own bounds.
+- A seed given to `numpy.random.default_rng` must not be negative: declare
+  `param_bounds = {"seed": (0, None)}`, so a negative seed is refused as a bad
+  request instead of failing the run.
 - A parameter named `seed` makes runs **repeatable**: a run that leaves it out
   uses its declared default, and a nullable seed that is `None` (by default or
   set so) becomes 7. The run reports every parameter it used, so it can be
@@ -129,6 +150,48 @@ class MovingAverageSeries:
             out.append(max(0.0, self._level[i % len(self._level)] + rng.choice(residuals)))
         return out
 ```
+
+**A table synthesizer, worked in full.** `bayesian-network`
+(`src/sdf/synthesis/bayes_net.py`) is written as a plug-in and shipped as a
+built-in. It imports nothing from the framework but `sdf.synthesis.api`, and
+a test keeps it that way. It is declared in the `sdf.synthesizers`
+entry-point group, and it honours `seed`, `param_bounds` and the column kinds.
+Nothing else in the repository names it: the catalogue,
+`sdf privacy --synthesizer`, `POST /api/v1/synthesis/runs`, the Synthesizers
+page, Explore and the detection test all pick it up from the group. Being
+declared by this package, it is listed as a built-in, and its name is taken;
+an installed package is mounted by the same code, as `plugin`.
+
+**What a synthesizer reaches today, and what it does not.** A synthesizer
+installed in the `sdf.synthesizers` group is listed, has its parameters
+published and checked, and runs through the API, the Synthesizers page and
+Explore, and through `sdf privacy`, `sdf synth` and `sdf tstr`. The limits:
+
+- **The evaluation data is fixed.** A table synthesizer is evaluated on one
+  table, the retail feature table (`qty`, `price`, `hour`, `weekday`), with
+  column kinds the framework declares. A series synthesizer is evaluated on
+  the hourly or daily demand series. Both are read from a CSV in the Online
+  Retail II layout. The command line takes such a CSV by path; the API and
+  the pages take only the bundled sources. The retail table is also written
+  into the run table's fields, Explore's presets for a synthesis run and the
+  Synthesizers page's score tiles.
+- **The command line runs defaults only.** `sdf privacy`, `sdf synth` and
+  `sdf tstr` take no parameters; set them through the API, the pages or
+  Python.
+- **A synthesizer added with `register()` at run time** reaches only what you
+  hand the registry to: `evaluate(..., registry=)` and
+  `create_app(synthesizers=)`. The command line reads the entry-point group
+  when it starts, the served `sdf.api.app:app` uses the default registry, and
+  `tstr_report` builds its own.
+- **Recorded numbers cover the built-ins they name.** `sdf validate` records
+  `seasonal-profile` and `bootstrap-table` only.
+- **A warehouse generator is not evaluated.** It is chosen for the world
+  instead.
+
+To use a synthesizer on a table of your own, call it and the checks from
+Python: `fit(TableData(rows, columns, kinds))`, `sample()`, then
+`sdf.validation.detection.detection_report` and
+`sdf.validation.privacy.privacy_report`.
 
 ## A dataset provider
 

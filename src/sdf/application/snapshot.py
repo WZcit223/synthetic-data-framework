@@ -27,7 +27,7 @@ from sdf.synthesis.materialise import build_registry
 from sdf.synthesis.registry import default_registry
 from sdf.synthesis.spec import GenerationSpec
 from sdf.validation.fidelity import fidelity_report
-from sdf.validation.privacy import FEATURE_COLUMNS, privacy_report, read_retail_feature_table
+from sdf.validation.privacy import FEATURE_COLUMNS, FEATURE_KINDS, privacy_report, read_retail_feature_table
 from sdf.validation.quality import structural_quality_check
 from sdf.validation.tstr import tstr_report
 from .agent import WarehouseAgent
@@ -136,7 +136,9 @@ def csv_snapshot(path: str) -> dict:
         "backtest": _backtest(orders),
         "fidelity": fidelity_report(model.real_series, model.generate(), model.ppd),
         "tstr": tstr_report(orders),
-        "privacy": privacy_report(real, bootstrap.fit(TableData(rows=real, columns=FEATURE_COLUMNS)).sample()),
+        "privacy": privacy_report(
+            real, bootstrap.fit(TableData(rows=real, columns=FEATURE_COLUMNS, kinds=FEATURE_KINDS)).sample()
+        ),
     }
 
 

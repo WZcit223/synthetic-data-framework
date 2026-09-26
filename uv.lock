@@ -2158,13 +2158,14 @@ wheels = [
 
 [[package]]
 name = "synthetic-data-framework"
-version = "1.12.0"
+version = "1.13.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
     { name = "numpy" },
     { name = "scikit-learn" },
     { name = "scipy" },
+    { name = "threadpoolctl" },
 ]
 
 [package.optional-dependencies]
@@ -2211,6 +2212,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.18.1" },
     { name = "sdmetrics", marker = "extra == 'synthesis'", specifier = ">=0.31.1" },
     { name = "sdv", marker = "extra == 'synthesis-deep'", specifier = ">=1.38.3" },
+    { name = "threadpoolctl", specifier = ">=3.7.0" },
     { name = "uvicorn", marker = "extra == 'api'", specifier = ">=0.53.0" },
 ]
 provides-extras = ["api", "synthesis", "synthesis-deep", "app", "causal"]

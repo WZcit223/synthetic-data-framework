@@ -11,9 +11,10 @@ from sdf.foundation.adapters.retail_csv import load_online_retail_csv
 from sdf.synthesis.api import SynthesizerInfo, TableData
 from sdf.synthesis.fit import FittedHourlyDemand
 from sdf.synthesis.registry import default_registry
+from .detection import detection_metrics
 from .evaluation import EVALUATION_SEED, NoUsableRows, RunFailed, data_dir, evaluate, sources
 from .fidelity import fidelity_report
-from .privacy import FEATURE_COLUMNS, privacy_report, read_retail_feature_table
+from .privacy import FEATURE_COLUMNS, FEATURE_KINDS, privacy_report, read_retail_feature_table
 
 SAMPLE = "data/sample_online_retail_ii.csv"
 
@@ -43,8 +44,12 @@ def test_a_series_run_scores_what_sdf_synth_prints():
 def test_a_table_run_scores_what_sdf_privacy_prints():
     run = evaluate("bootstrap-table", source="sample")
     real = read_retail_feature_table(SAMPLE)
-    synth = default_registry().create("bootstrap-table").fit(TableData(rows=real, columns=FEATURE_COLUMNS)).sample()
-    assert run.metrics == privacy_report(real, synth)
+    data = TableData(rows=real, columns=FEATURE_COLUMNS, kinds=FEATURE_KINDS)
+    synth = default_registry().create("bootstrap-table").fit(data).sample()
+    assert run.metrics == privacy_report(real, synth) | detection_metrics(real, synth, columns=FEATURE_COLUMNS)
+    assert run.metrics["detection_auc_low"] <= run.metrics["detection_auc"] <= run.metrics["detection_auc_high"]
+    assert run.metrics["detection_verdict"] in ("hard to distinguish", "distinguishable", "easily distinguished")
+    assert set(run.metrics["detection_top_features"].split(", ")) <= set(FEATURE_COLUMNS)
     assert (run.kind, run.params, run.repeatable) == ("table", {"seed": 7, "jitter": 0.05}, True)
     assert [f.name for f in run.table.info.fields] == ["origin", "qty", "price", "hour", "weekday"]
     assert run.table.info.fields[1].aggregate == "mean"
@@ -92,6 +97,33 @@ def test_a_left_out_seed_uses_its_declared_default():
     assert evaluate("seed-five", source="sample", params={"seed": 5}, registry=reg).table == run.table
     with pytest.raises(ValueError, match="seed must not be null"):  # only a nullable seed may be None
         evaluate("seed-five", source="sample", params={"seed": None}, registry=reg)
+
+
+def test_a_plug_in_that_ignores_column_kinds_still_evaluates_with_the_detection_test():
+    reg = default_registry()
+    reg.register(UnseededJitter)  # adds uniform noise to every column, whatever its kind
+    metrics = evaluate("unseeded-jitter", source="sample", registry=reg).metrics
+    assert metrics["detection_auc"] > 0.9 and metrics["detection_verdict"] == "easily distinguished"
+    assert evaluate("bootstrap-table", source="sample").metrics["detection_auc"] < 0.75  # the built-in honours them
+
+
+def test_the_bayesian_network_meets_the_detection_target_on_the_real_extract():
+    # plan 05's acceptance: under 0.75 on the extract, which no per-column synthesizer can reach (0.78 at best)
+    metrics = evaluate("bayesian-network", source="retail-10k").metrics
+    assert metrics["detection_auc"] < 0.75 and metrics["detection_verdict"] == "hard to distinguish"
+
+
+def test_a_row_of_the_wrong_width_is_the_synthesizer_s_failure():
+    class Wide(UnseededJitter):
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("wide", "table", True, "x")
+
+        def sample(self, n=None, *, seed=None):
+            return [(*r, 0.0) for r in self._rows]
+
+    reg = default_registry()
+    reg.register(Wide)
+    with pytest.raises(RunFailed, match=r"wide failed while sampling from it: a row of 5 values"):
+        evaluate("wide", source="sample", registry=reg)
 
 
 def test_a_run_without_a_seed_parameter_is_not_repeatable():

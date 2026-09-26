@@ -56,3 +56,46 @@ def test_check_accepts(param, value):
 )
 def test_check_refuses_with_a_reason(param, value, message):
     assert message in param.check(value)
+
+
+def test_apply_kinds_rounds_integers_and_keeps_categories_to_observed_values():
+    from .api import TableData, apply_kinds
+
+    data = TableData(
+        rows=[(1.0, 2.5, 3.0, 0.1), (4.0, 7.0, 9.0, 0.2)],
+        columns=("qty", "price", "hour", "x"),
+        kinds=("integer", "category", "category", "real"),
+    )
+    sampled = [(2.6, 4.75, 5.9, 0.123), (-3.0, 100.0, 6.1, 5.0), (9.4, 2.4, 3.0, 0.2)]
+    assert apply_kinds(sampled, data) == [
+        (3.0, 2.5, 3.0, 0.123),  # 4.75 is as near 2.5 as 7.0: the lower value
+        (1.0, 7.0, 9.0, 5.0),  # clipped to the observed range; the nearest observed value
+        (4.0, 2.5, 3.0, 0.2),
+    ]
+    assert apply_kinds(sampled, TableData(data.rows, data.columns)) is sampled  # no kinds: unchanged
+    assert apply_kinds(sampled, TableData([], data.columns, data.kinds)) is sampled
+
+
+def test_table_data_refuses_kinds_that_do_not_fit_its_columns():
+    from .api import TableData
+
+    with pytest.raises(ValueError, match="1 kinds for 2 columns"):
+        TableData(rows=[], columns=("a", "b"), kinds=("real",))
+    with pytest.raises(ValueError, match=r"unknown column kinds \['text'\]"):
+        TableData(rows=[], columns=("a",), kinds=("text",))
+
+
+def test_apply_kinds_keeps_integers_whole_leaves_nan_alone_and_refuses_a_row_of_the_wrong_width():
+    from .api import TableData, apply_kinds
+
+    nan = float("nan")
+    data = TableData(rows=[(0.5, 1.0), (3.7, nan), (nan, 3.0)], columns=("a", "b"), kinds=["integer", "category"])
+    assert data.kinds == ("integer", "category")  # a list is kept as a tuple
+    got = apply_kinds([(0.2, 2.4), (4.4, 0.0), (nan, nan)], data)
+    assert got[:2] == [(1.0, 3.0), (3.0, 1.0)]  # whole numbers within 0.5..3.7; nan is never an observed category
+    assert math.isnan(got[2][0]) and math.isnan(got[2][1])  # unknown stays unknown
+    assert apply_kinds([(2.0,)], TableData([(0.2,), (0.8,)], ("a",), ("integer",))) == [
+        (1.0,)
+    ]  # no whole number within
+    with pytest.raises(ValueError, match="a sampled row has 3 values for the 2 columns"):
+        apply_kinds([(1.0, 1.0, 1.0)], data)

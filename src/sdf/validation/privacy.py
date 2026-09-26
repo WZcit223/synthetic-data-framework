@@ -26,6 +26,10 @@ from sdf.foundation.adapters.retail_csv import _parse_dt
 
 Row = Sequence[float]
 FEATURE_COLUMNS = ("qty", "price", "hour", "weekday")  # the columns read_retail_feature_table returns
+# their kinds (sdf.synthesis.api.TableData). A price is a real number, but a catalogue's list prices make it a
+# category in effect: a synthetic price between two list prices gives the row away (docs/VALIDATION.md,
+# "Detection test")
+FEATURE_KINDS = ("integer", "category", "category", "category")
 
 
 def _normaliser(rows: list[Row]):

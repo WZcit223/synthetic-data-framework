@@ -30,7 +30,7 @@ from .simulation.world import World
 from .synthesis.materialise import build_registry
 from .synthesis.registry import default_registry
 from .synthesis.spec import GenerationSpec
-from .validation.evaluation import NoUsableRows, evaluate
+from .validation.evaluation import NoUsableRows, RunFailed, evaluate
 from .validation.quality import structural_quality_check
 from .validation.tstr import tstr_report
 from .workflow import warehouse_pipeline
@@ -598,6 +598,9 @@ def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "b
         rep = evaluate(synthesizer, source=path, date_format=date_format).metrics
     except NoUsableRows as exc:
         rep = {"error": exc.reason}
+    except RunFailed as exc:  # the synthesizer's own failure: say so, without a traceback
+        click.echo(f"sdf privacy: {exc}", err=True)
+        return 1
     print("=" * 60)
     print("  Synthetic-data privacy (B3)")
     print("=" * 60)
@@ -608,6 +611,17 @@ def cmd_privacy(path: str, date_format: str | None = None, synthesizer: str = "b
     for k in ("n_real", "n_synth", "dcr_median", "dcr_p05", "nndr_median", "clone_risk_pct", "verdict"):
         print(f"  {k:<16}: {rep.get(k)}")
     print("  ALGORITHM-HOOK[B3]: full membership-inference + differential privacy.\n")
+    print("  Detection test (B4): can a classifier tell synthetic rows from real ones?")
+    if rep.get("detection_auc") is None:
+        print(f"  {'verdict':<16}: {rep.get('detection_verdict')}\n")
+        return 0
+    print(
+        f"  {'AUC':<16}: {rep['detection_auc']} (folds {rep['detection_auc_low']} to {rep['detection_auc_high']};"
+        " 0.5 = indistinguishable)"
+    )
+    print(f"  {'verdict':<16}: {rep['detection_verdict']}")
+    print(f"  {'telling columns':<16}: {rep['detection_top_features'] or 'none'}")
+    print("  ALGORITHM-HOOK[B4]: a stronger discriminator, on a real holdout set.\n")
     return 0
 
 

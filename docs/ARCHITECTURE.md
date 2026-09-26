@@ -76,7 +76,9 @@ Every algorithm is a plug-in, ours included: `synthesis/registry.py` mounts
 the `sdf.synthesizers` entry-point group, where this package declares its
 built-ins — `warehouse-spec` (the spec-driven world generator),
 `seasonal-profile` (a series fitted on real demand), `bootstrap-table` (a
-per-column table bootstrap) and, with the `synthesis` extra, `gaussian-copula`.
+per-column table bootstrap), `bayesian-network` (a tree of column dependencies,
+written against the public contract only) and, with the `synthesis` extra,
+`gaussian-copula`.
 Another installed package adds its own algorithm by declaring it in the same
 group. Callers choose one by name, for example
 `uv run sdf tstr --synthesizer seasonal-profile`; the contract is in
