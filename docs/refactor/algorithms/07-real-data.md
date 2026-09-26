@@ -4,9 +4,10 @@
 > table is committed. The PR starts once the project lead provides the
 > dataset file. On 2026-09-26 the "your own data" sequence proposed to
 > replace it with its step U6
-> ([`../userdata/00-overview.md`](../userdata/00-overview.md)), which runs this
-> validation through the path a user's own file takes; this plan stands until
-> that sequence is approved.
+> ([`../userdata/06-real-data.md`](../userdata/06-real-data.md)), which runs
+> this validation through the path a user's own file takes and keeps D1 (a):
+> the compact daily table is committed there, as a bundled source. This plan
+> stands until that sequence is approved.
 
 Contract: [`interfaces.md`](interfaces.md) §9.
 
