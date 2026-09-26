@@ -37,3 +37,7 @@ disagree, `AGENTS.md` wins.
 - When a PR you opened receives bot review findings, verify each one against the
   code before acting; fix what is real, reply once with a concrete reason on what
   is not, and resolve the thread either way.
+- When GitHub gives a PR no automated review, run the branch and PR workflow's
+  independent review yourself: start a separate general-purpose agent with a fresh
+  context and a report-only brief, then handle its findings as that section
+  describes, before the PR may merge.
