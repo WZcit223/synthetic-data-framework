@@ -99,7 +99,7 @@ export function barConfig({ series, labels, format, tickFormat = format, stacked
  * colour is its own `color`, else its `group`'s by name. The optional reference
  * is a dashed vertical line (0 for effects, the true effect for estimators).
  */
-export function intervalConfig({ rows, format, reference }, look, book) {
+export function intervalConfig({ rows, format, reference, range = null }, look, book) {
   const colors = book.assign([...new Set(rows.filter(r => !r.color).map(r => r.group ?? ""))]);
   /** @type {any[]} */
   const datasets = rows.map((r, i) => {
@@ -138,7 +138,7 @@ export function intervalConfig({ rows, format, reference }, look, book) {
     return p.xMin === p.xMax && p.xMin === p.x ? `${p.label}: ${format(p.x)}` : `${p.label}: ${format(p.x)} [${format(p.xMin)}, ${format(p.xMax)}]`;
   };
   options.scales = {
-    x: axis(look, { ticks: { color: look.muted, callback: v => format(v) } }),
+    x: axis(look, { ticks: { color: look.muted, callback: v => format(v) }, ...(range ? { min: range[0], max: range[1] } : {}) }),
     y: axis(look, {
       type: "linear",
       reverse: true,

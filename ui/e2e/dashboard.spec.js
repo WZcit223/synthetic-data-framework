@@ -3,8 +3,10 @@ import { expect, test } from "@playwright/test";
 import { smoke } from "./smoke.js";
 
 const CALLS = [
+  "GET /api/v1/anomalies?detector=seasonal-residual",
   "GET /api/v1/backtest",
   "GET /api/v1/demand-anomalies",
+  "GET /api/v1/detectors",
   "GET /api/v1/demand-series?sku_id=SKU-00040",
   "GET /api/v1/economics",
   "GET /api/v1/overview",
@@ -115,4 +117,16 @@ test("at 390 px the dashboard does not overflow sideways", async ({ page }) => {
   await page.goto("/index.html", { waitUntil: "networkidle" });
   const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(scroll).toBeLessThanOrEqual(inner);
+});
+
+test("the anomaly panel lists each SKU's anomalies from the detector chosen", async ({ page, request }) => {
+  const forest = await (await request.get("/api/v1/anomalies?detector=isolation-forest")).json();
+  await page.goto("/index.html", { waitUntil: "networkidle" });
+  const panel = card(page, "Demand anomalies");
+  await expect(panel.locator("#detector")).toHaveValue("seasonal-residual");
+  const answer = page.waitForResponse(r => r.url().endsWith("/api/v1/anomalies?detector=isolation-forest"));
+  await panel.locator("#detector").selectOption("isolation-forest");
+  await answer;
+  await expect(panel.getByText(`${forest.rows.length} SKU-days flagged`)).toBeVisible();
+  await expect(panel.getByText("reads demand, on_hand, receipts")).toBeVisible();
 });

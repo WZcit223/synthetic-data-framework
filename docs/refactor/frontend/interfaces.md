@@ -170,13 +170,14 @@ updates it when its props change, and destroys it when it leaves the page.
 ```svelte
 <LineChart     {series} {labels} {yLabel} {format} {tickFormat} {band} />  <!-- lines; gaps at null; filled band -->
 <BarChart      {series} {labels} {format} {tickFormat} {stacked} {horizontal} />
-<IntervalChart {rows} {format} {reference} />                   <!-- point + interval per row; reference line -->
+<IntervalChart {rows} {format} {reference} {range} />           <!-- point + interval per row; reference line -->
 <StripChart    {groups} {format} />                             <!-- jittered points per group, with its mean -->
 <HeatGrid      {cells} {columns} {rows} {format} {domain} />             <!-- a value per cell on the sequential ramp -->
 ```
 
 Optional props, which may be left out: `band` (no band), `stacked` and
-`horizontal` (`false`), `reference` (no line), `domain` (the values shown). Every other prop is required.
+`horizontal` (`false`), `reference` (no line), `range` (the axis fits the data),
+`domain` (the values shown). Every other prop is required.
 
 The props, in JSDoc types (`number | null` is a missing value: a gap in a
 line, no bar, an empty cell; never a zero):
@@ -192,7 +193,8 @@ line, no bar, an empty cell; never a zero):
 // low or high draws the point with no interval. A row's colour is its own
 // `color` (an effect that covers 0 is grey, an estimator has its catalogue
 // colour), else its `group`'s by name. reference: number | null, a dashed
-// vertical line (0 for effects, the true effect for estimators).
+// vertical line (0 for effects, the true effect for estimators). range: [min, max] | null
+// fixes the value axis (the detection AUC's whole scale, algorithm PR 6).
 /** @typedef {{name: string, values: number[], mean: number}} StripGroup */
 // StripChart: one row of points per group; jitter is seeded by the group's
 // name, so a redraw does not move points. mean is required and is drawn as

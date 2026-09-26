@@ -11,6 +11,7 @@
     ["explore.html", "Explore"],
     ["synthesizers.html", "Synthesizers"],
     ["effects.html", "Effects"],
+    ["forecasts.html", "Forecasts"],
   ];
 </script>
 

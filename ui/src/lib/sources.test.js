@@ -28,7 +28,7 @@ test("an effects source holds a request and one of its two tables", () => {
 test("a source names exactly one known shape", () => {
   assert.match(sourceError(null), /names no source/);
   assert.match(sourceError([]), /names no source/);
-  assert.match(sourceError({ dataset: "a", effects: {} }), /exactly one of dataset, experiment, synthesis, effects or estimates/);
+  assert.match(sourceError({ dataset: "a", effects: {} }), /exactly one of dataset, experiment, synthesis, effects, estimates or forecasts/);
   assert.match(sourceError({ nope: {} }), /unknown source "nope"/);
   assert.match(sourceError({ dataset: 3 }), /dataset must be a name/);
 });
@@ -44,4 +44,13 @@ test("an estimates source holds a request and the scores or, for the benchmark, 
   assert.match(sourceError({ estimates: { request: bench } }), /estimates.table/);
   assert.match(sourceError({ estimates: { table: "scores" } }), /estimates.request must be a request body/);
   assert.match(sourceError({ estimates: { request: bench, table: "scores", view: 1 } }), /only request and table/);
+});
+
+test("a forecasts source holds a backtest request and one of its three tables", () => {
+  const request = { forecasters: ["mean"], source: { world: {} } };
+  for (const table of ["scores", "by_horizon", "forecasts"]) assert.equal(sourceError({ forecasts: { request, table } }), null);
+  assert.match(sourceError({ forecasts: { request, table: "data" } }), /forecasts.table must be one of scores, by_horizon, forecasts/);
+  assert.match(sourceError({ forecasts: { table: "scores" } }), /forecasts.request must be a request body/);
+  assert.match(sourceError({ forecasts: { request, table: "scores", view: {} } }), /only request and table; got \["view"\]/);
+  assert.match(sourceError({ forecasts: [] }), /forecasts must hold a request and a table/);
 });

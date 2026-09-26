@@ -27,6 +27,8 @@ test("a preset is offered for its source and recognised only while unchanged", (
   assert.equal(presetKey({ synthesis: {} }, { kind: "table" }), "synthesis-table");
   assert.equal(presetKey({ effects: { table: "replicates" } }), "effects-replicates");
   assert.equal(presetKey({ estimates: { table: "scores" } }), "estimates-scores");
+  assert.equal(presetKey({ forecasts: { table: "by_horizon" } }), "forecasts-by_horizon");
+  for (const t of ["scores", "by_horizon", "forecasts"]) assert.ok(PRESETS[`forecasts-${t}`]?.length, t);
   const p = PRESETS["order-lines"][1];
   const v = { ...emptyView(), ...structuredClone(p.view) };
   const d = { ...DEFAULT_DISPLAY, ...p.display };

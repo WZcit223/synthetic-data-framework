@@ -16,6 +16,7 @@
   let d = $state({});
   let serviceLevel = $state("0.95");
   let sku = $state("");
+  let detector = $state(""); // the per-SKU anomaly detector shown; the first mounted one until chosen
   /** @type {any} */
   let controls;
 
@@ -24,6 +25,15 @@
   const loadPlan = async () => { d.plan = await api("/replenishment?service_level=" + serviceLevel); };
   const loadBacktest = async () => { d.backtest = await api("/backtest"); };
   const loadAnomalies = async () => { d.anomalies = await api("/demand-anomalies"); };
+  const loadDetections = async () => {
+    d.detectors ??= await api("/detectors");
+    const names = d.detectors.detectors.map(x => x.name);
+    if (!names.includes(detector)) detector = names.includes("seasonal-residual") ? "seasonal-residual" : names[0] ?? "";
+    if (!detector) return;
+    const asked = detector;
+    const found = await api("/anomalies?detector=" + encodeURIComponent(asked));
+    if (asked === detector) d.detections = found; // a later choice wins
+  };
   const loadImpact = async () => { d.impact = await api("/economics"); };
   const loadWorkflow = async () => { d.workflow = await api("/workflow/run"); };
   const loadScenarios = async () => { d.scenarios = await api("/scenarios"); };
@@ -44,13 +54,19 @@
   function refreshAll() {
     return Promise.all([
       loadOverview(), loadComparison(), loadMovers(), loadVision(), loadBacktest(),
-      loadPlan(), loadAnomalies(), loadImpact(), loadWorkflow(), loadScenarios(),
+      loadPlan(), loadAnomalies(), loadDetections(), loadImpact(), loadWorkflow(), loadScenarios(),
     ]);
   }
 
   function chooseSku(next) {
     sku = next;
     loadSeries();
+  }
+
+  function chooseDetector(next) {
+    detector = next;
+    d.detections = null;
+    loadDetections().catch(err => controls?.report("✗ could not load the detections: " + (err.detail ?? err.message)));
   }
 
   function chooseServiceLevel(next) {
@@ -86,7 +102,7 @@
   <Vision vision={d.vision} />
 
   <h2>Knowledge &amp; anomalies <span class="muted">— C6 grounded Q&amp;A · C3 anomaly detection</span></h2>
-  <Knowledge anomalies={d.anomalies} />
+  <Knowledge anomalies={d.anomalies} detectors={d.detectors} {detector} detections={d.detections} ondetector={chooseDetector} />
 
   <h2>Agent, economics &amp; workflow <span class="muted">— trusted agent · £ impact · DAG · what-if</span></h2>
   <Operations impact={d.impact} workflow={d.workflow} scenarios={d.scenarios} />

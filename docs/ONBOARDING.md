@@ -60,9 +60,19 @@ SDF_UI_DIR=ui/dist uv run uvicorn sdf.api.app:app --reload
 #      http://127.0.0.1:8000/api/v1/docs → the API and its OpenAPI schema
 ```
 
+The UI has five pages: the dashboard, Explore (pivot any table), Synthesizers
+(run and score a synthesizer), Effects (simulate an action, or estimate one
+from data) and Forecasts (backtest forecasters per SKU, with intervals). A
+page's address holds its request, so a link reproduces what it shows:
+`forecasts.html#backtest=<the request as JSON, URL-encoded>`, for example
+`{"forecasters": ["seasonal-naive", "moving-average"], "source": "benchmark",
+"horizon": 14, "origins": 4, "level": 0.8}`, runs that backtest when opened.
+Effects uses `#request=` and `#estimate=` the same way, and Explore
+`#view=`, which each page's "Open in Explore" links write.
+
 The backend is a JSON-only API under `/api/v1`; its OpenAPI schema
 (`/api/v1/openapi.json`) is the contract with any UI. The UI in `ui/` is built
-with Vite (Svelte is set up; the pages are being moved onto it, see
+with Vite, Svelte, Chart.js and Tabulator (see
 [`refactor/frontend/`](refactor/frontend/00-overview.md)) and reaches the
 backend only through the `api()` helper in `ui/src/lib/api.js`.
 `SDF_UI_DIR=ui/dist` (or `create_app(ui_dir="ui/dist")`) serves the built UI at

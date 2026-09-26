@@ -43,6 +43,23 @@ export async function fetchSource(source, datasets) {
       },
     };
   }
+  if (source.forecasts != null) {
+    // a forecast backtest (algorithms interfaces.md §8): the same request again, on the current world or the benchmark
+    const d = await api("/forecasts/backtest", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(source.forecasts.request),
+    });
+    const table = source.forecasts.table;
+    const on = d.source === "world" ? `the current world (${d.world})` : "the demand benchmark";
+    const TITLES = {
+      scores: ["Forecast scores", `Each forecaster over every SKU, origin and day ahead on ${on}.`],
+      by_horizon: ["Forecast scores by days ahead", `Each forecaster's scores for each day after the origin, on ${on}.`],
+      forecasts: ["Forecasts after the last origin", `Each forecaster's mean and quantiles for every SKU and day, with the actual demand, on ${on}.`],
+    };
+    const [title, description] = TITLES[table];
+    return { payload: d[table], meta: { title, description, world: d.world, total: d[table].rows.length, truncated: false } };
+  }
   if (source.effects != null) {
     // an effect study (causal interfaces.md §1.5): the same request again, on the current world
     const d = await api("/effects", {
