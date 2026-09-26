@@ -265,9 +265,10 @@ class Datasets:
     """The catalogue's datasets and every readable data source's, as one list.
 
     A source ``name`` is the dataset ``source-<name>``; its rows come from the store, not the
-    world. The API and the command line read datasets through this one merge
-    (``docs/refactor/userdata/interfaces.md`` §1.3). The catalogue and the store are read on
-    every call, so a provider registered or a source added later is served.
+    world. The API reads datasets through this one merge, and the command line will from the
+    first command that reads a dataset (``docs/refactor/userdata/interfaces.md`` §1.3). The
+    catalogue and the store are read on every call, so a provider registered or a source
+    added later is served.
     """
 
     def __init__(self, catalogue: DatasetCatalog, sources: SourceStore) -> None:
@@ -286,7 +287,10 @@ class Datasets:
         source = self._source(name)
         if source is None:
             return self.catalogue.info(name)
-        entry = self.sources.get(source)
+        try:
+            entry = self.sources.get(source)
+        except ValueError as exc:  # its folder cannot be read: not a dataset, as an unknown one
+            raise KeyError(str(exc)) from None
         if entry.schema.problems:
             raise KeyError(f"source {source} cannot be read yet: " + "; ".join(entry.schema.problems))
         return dataset_info(entry)
@@ -295,7 +299,9 @@ class Datasets:
         return "source" if self._source(name) is not None else self.catalogue.origin(name)
 
     def unavailable(self) -> dict[str, str]:
-        return self.catalogue.unavailable()
+        """The catalogue's plug-ins that could not be mounted, and the sources whose folders cannot be read."""
+        broken = {DATASET_PREFIX + name: reason for name, reason in self.sources.scan()[1].items()}
+        return self.catalogue.unavailable() | broken
 
     def head(self, name: str, world: World, limit: int, *, seed: int = 0) -> tuple[Table, int, bool]:
         """At most ``limit`` rows, the dataset's total row count, and whether the rows are a sample.

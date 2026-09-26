@@ -81,9 +81,11 @@ SourceSchema(
   The guess is only a proposal; the user confirms it (U5) or passes it
   (`sdf data add --role …`).
 - **Delimiter and numbers.** A comma or a semicolon delimiter is detected
-  from the header. With a semicolon, a decimal comma (`3,5`) is read as a
-  decimal point, and a dot is unreadable (in those files `1.234` means one
-  thousand two hundred and thirty-four). Thousands separators, underscores and
+  from the header. With a semicolon, the decimal mark is the one the sampled
+  numbers use more often: with a decimal comma (`3,5`), a dot is unreadable
+  (in those files `1.234` means one thousand two hundred and thirty-four);
+  with a dot, a comma is. A refusal for an unreadable time or quantity names
+  the decimal mark. Thousands separators, underscores and
   non-ASCII digits are not supported; such values do not parse.
 - **Times.** ISO 8601 values may carry an offset (`Z`, `+09:00`); it is
   dropped, and the time is read as written. Blank lines are not rows.
@@ -103,6 +105,7 @@ from sdf.foundation.sources import SourceStore, SourceLimits
 store = default_store()                     # $SDF_DATA_DIR/sources, and the bundled files in $SDF_DATA_DIR
 store = SourceStore(root, bundled={name: (path, schema)}, limits=SourceLimits())
 store.list() -> list[SourceEntry]          # bundled first, then the user's, by name
+store.scan() -> (list[SourceEntry], dict[str, str])  # the same, and the folders that cannot be read, with why
 store.get(name) -> SourceEntry              # schema, report (rows, dates, what could not be read), origin, path
 store.add(path_or_binary_file, *, name, schema=None) -> SourceEntry   # schema None: inferred
 store.begin(name) -> Upload                 # upload.write(chunk)…; upload.commit(schema=None); upload.discard()
@@ -122,11 +125,15 @@ entities). Demand is built from the orders one layer up, where it is read:
 
 - One folder per user source: `<root>/<name>/data.csv` and `source.json`,
   which holds the schema and the report of its last check, written together
-  in one replace. A folder that cannot be read is left out of `list()` and
-  named, with the reason, by `unavailable()` (and by `GET /sources`), so one
-  broken folder hides only itself. Upload folders a crash left behind are
-  removed when the store is opened a day later. A schema change is written
-  only if the file it was checked against is still the source's.
+  in one replace, with the upload it came from. A folder that cannot be read
+  is left out of `list()` and named, with the reason, by `scan()` (and by
+  `GET /sources` and, as `source-<name>`, `GET /datasets`), so one broken
+  folder hides only itself; it can still be removed. Upload folders a crash
+  left behind are removed when the store is opened a day later. A schema
+  change is written only if the source is still the upload it was checked
+  against. The store lock holds within one process: the command line and a
+  running server share the folder but not the lock, so remove a source from
+  one of them at a time.
 - **Names.** The name is checked against `^[a-z0-9]+(-[a-z0-9]+)*$`, at most
   40 characters, so no path is ever built from user text. The names of the
   bundled sources (`sample`, `retail-10k`, and from U6 `uci-retail-daily`) are
@@ -179,8 +186,9 @@ DELETE /api/v1/sources/{name}              → 204 | 404 | 409 (bundled; from U4
   - **Fields.** Each column's name becomes a `lower_snake_case` field name
     (`InvoiceDate` → `invoice_date`, `Customer ID` → `customer_id`); a
     collision gets `_2`, `_3`. The field's label is the column's own name.
-    Field names are ASCII: letters outside it are dropped, and a name left
-    empty becomes `column` (`column_2`, …), while the label keeps the name.
+    Field names are ASCII: a letter outside it splits the name into words
+    (`Größe` → `gr_e`), and a name with no ASCII letter or digit becomes
+    `column` (`column_2`, …); the label always keeps the column's name.
     `id` and `category` columns become dimensions, `integer` and `real`
     columns measures; a dimension's values are written as text (`12`, not
     `12.0`). A `time` column becomes a date field, plus a dimension

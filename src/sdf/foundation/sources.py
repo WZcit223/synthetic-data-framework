@@ -59,6 +59,8 @@ _ISO = re.compile(
     r"[0-9]{4}-[0-9]{2}-[0-9]{2}([T ][0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]{1,6})?)?(Z|[+-][0-9]{2}:?[0-9]{2})?)?"
 )
 _WHOLE = re.compile(r"[-+]?[0-9]+")
+_COMMA_DECIMAL = re.compile(r"[-+]?[0-9]*,[0-9]+")
+_DOT_DECIMAL = re.compile(r"[-+]?[0-9]*\.[0-9]+")
 _CHUNK = 1 << 20
 STALE_UPLOAD_SECONDS = 24 * 3600  # an upload folder this old was left by a crash; the store removes it
 
@@ -477,7 +479,7 @@ def check(path: str | Path, schema: SourceSchema, limits: SourceLimits = SourceL
             raise ValueError(
                 f"column {column}: {bad:,} of {report.rows_read:,} values cannot be read as"
                 f" {schema.column(column).kind} (e.g. {', '.join(repr(e) for e in report.examples[column])});"
-                " check its kind and format"
+                f" check its kind and format, and the decimal mark ({schema.decimal!r})"
             )
     report.first_date = first.isoformat() if first else None
     report.last_date = last.isoformat() if last else None
@@ -576,7 +578,6 @@ def infer_schema(
         except UnicodeDecodeError as exc:
             raise ValueError(f"the file is not UTF-8 text: {exc.reason}") from None
     delimiter = ";" if first.count(";") > first.count(",") else ","
-    decimal = "," if delimiter == ";" else "."
     header, reader, fh = _open_rows(path, delimiter)
     if max_columns is not None and len(header) > max_columns:
         fh.close()
@@ -601,6 +602,13 @@ def infer_schema(
             raise ValueError(f"the file is not UTF-8 text: {exc.reason}") from None
         except csv.Error as exc:
             raise ValueError(f"the file is not valid CSV: {exc}") from None
+    # a semicolon file may write 2,50 or 2.50: the decimal mark is the one its numbers use more often
+    decimal = "."
+    if delimiter == ";":
+        values = [v for column in samples for v in column]
+        commas = sum(1 for v in values if _COMMA_DECIMAL.fullmatch(v))
+        dots = sum(1 for v in values if _DOT_DECIMAL.fullmatch(v))
+        decimal = "," if commas >= dots else "."
     columns = tuple(_kind(h, values, decimal) for h, values in zip(header, samples, strict=True))
     return SourceSchema(
         name=name,
@@ -747,7 +755,8 @@ class Upload:
         elif schema.name != self.name:
             raise ValueError(f"the schema is for {schema.name!r}, not {self.name!r}")
         report = check(path, schema, self._store.limits)
-        _write_json(self._dir / SOURCE_FILE, {"schema": schema.to_dict(), "report": report.to_dict()})
+        stored = {"schema": schema.to_dict(), "report": report.to_dict(), "upload": self._dir.name}
+        _write_json(self._dir / SOURCE_FILE, stored)
         with self._store._lock:
             self._store._check_free(self.name)
             self._dir.rename(self._store.root / self.name)
@@ -784,30 +793,32 @@ class SourceStore:
         self._lock = threading.Lock()
         if self.root.is_dir():  # upload folders a crash left behind; a live upload is never this old
             for p in self.root.glob(".upload-*"):
-                if time.time() - p.stat().st_mtime > STALE_UPLOAD_SECONDS:
+                try:
+                    stale = time.time() - p.stat().st_mtime > STALE_UPLOAD_SECONDS
+                except OSError:  # committed or removed by another process meanwhile
+                    continue
+                if stale:
                     shutil.rmtree(p, ignore_errors=True)
 
     # -- reading -----------------------------------------------------------------------------------
 
     def list(self) -> list[SourceEntry]:
         """Bundled sources first, then the user's, each by name; a folder that cannot be read is left out."""
-        entries = [self.get(n) for n in sorted(self._bundled)]
-        for name in self._user_names():
-            try:
-                entries.append(self.get(name))
-            except (KeyError, ValueError, OSError):  # listed by unavailable(), with the reason
-                continue
-        return entries
+        return self.scan()[0]
 
-    def unavailable(self) -> dict[str, str]:
-        """User source folders that cannot be read, with the reason, so one broken folder hides only itself."""
+    def scan(self) -> tuple[list[SourceEntry], dict[str, str]]:
+        """The sources (as ``list``) and, in the same pass, the user folders that cannot be read, with the reason.
+
+        One broken folder so hides only itself; it can still be removed.
+        """
+        entries = [self.get(n) for n in sorted(self._bundled)]
         broken = {}
         for name in self._user_names():
             try:
-                self.get(name)
-            except (KeyError, ValueError, OSError) as exc:
-                broken[name] = str(exc)
-        return broken
+                entries.append(self.get(name))
+            except (KeyError, ValueError) as exc:
+                broken[name] = exc.args[0] if isinstance(exc, KeyError) else str(exc)
+        return entries, broken
 
     def get(self, name: str) -> SourceEntry:
         """The source ``name``; ``KeyError`` naming the sources there are."""
@@ -819,28 +830,31 @@ class SourceStore:
                 report = self._bundled_reports[name]
             return SourceEntry(schema, report, "bundled", path, path.stat().st_size)
         folder = self.root / name
-        if not _NAME.fullmatch(name) or not (folder / SOURCE_FILE).is_file():
+        if name not in self._user_names():
             raise KeyError(f"no source {name!r}; the sources: {sorted(self._bundled) + self._user_names()}")
         try:
-            stored = json.loads((folder / SOURCE_FILE).read_text(encoding="utf-8"))
+            stored = self._stored(name)
             schema = SourceSchema.from_dict(stored["schema"])
             report = SourceReport.from_dict(stored["report"])
-        except (ValueError, KeyError, TypeError) as exc:  # JSON errors are ValueErrors
-            raise ValueError(f"source {name}: its {SOURCE_FILE} cannot be read ({exc})") from None
-        path = folder / "data.csv"
-        return SourceEntry(schema, report, "user", path, path.stat().st_size)
+            path = folder / "data.csv"
+            size = path.stat().st_size
+        except (OSError, ValueError, KeyError, TypeError) as exc:  # JSON errors are ValueErrors
+            raise ValueError(f"source {name} cannot be read: {type(exc).__name__}: {exc}") from None
+        return SourceEntry(schema, report, "user", path, size)
 
     def _user_names(self) -> list[str]:
-        if not self.root.is_dir():
+        """Every user source folder, readable or not; hidden ``.upload-*`` folders are not sources."""
+        try:
+            return sorted(p.name for p in self.root.iterdir() if _NAME.fullmatch(p.name) and p.is_dir())
+        except OSError:  # no root yet
             return []
-        return sorted(p.name for p in self.root.iterdir() if _NAME.fullmatch(p.name) and (p / SOURCE_FILE).is_file())
 
     def preview(self, name: str, rows: int = PREVIEW_ROWS) -> list[list[str]]:
         """The first ``rows`` rows as the file holds them, one text per cell."""
         entry = self.get(name)
         _, reader, fh = _open_rows(entry.path, entry.schema.delimiter)
         with fh:
-            return [cells for _, cells in zip(range(rows), reader)]
+            return [cells for _, cells in zip(range(rows), (c for c in reader if c))]  # blank lines are not rows
 
     def rows(
         self, name: str, *, columns: list[str] | None = None, limit: int | None = None, seed: int | None = None
@@ -969,25 +983,29 @@ class SourceStore:
         entry = self.get(name)
         if schema.name != name:
             raise ValueError(f"the schema is for {schema.name!r}, not {name!r}")
-        checked = entry.path.stat()
+        upload = self._stored(name).get("upload")  # which upload the file came from: a re-added one differs
         report = check(entry.path, schema, self.limits)
         with self._lock:
             try:
-                now = entry.path.stat()
-            except FileNotFoundError:
+                now = self._stored(name).get("upload")
+            except (OSError, ValueError):
                 raise KeyError(f"no source {name!r}: it was removed while its schema was checked") from None
-            if (now.st_ino, now.st_mtime_ns) != (checked.st_ino, checked.st_mtime_ns):
+            if now != upload:
                 raise SourceConflict(f"source {name} was replaced while its schema was checked; try again")
-            _write_json(entry.path.parent / SOURCE_FILE, {"schema": schema.to_dict(), "report": report.to_dict()})
+            stored = {"schema": schema.to_dict(), "report": report.to_dict(), "upload": upload}
+            _write_json(entry.path.parent / SOURCE_FILE, stored)
         return self.get(name)
+
+    def _stored(self, name: str) -> dict[str, Any]:
+        return json.loads((self.root / name / SOURCE_FILE).read_text(encoding="utf-8"))
 
     def remove(self, name: str) -> None:
         """Delete a user source and its folder."""
         if name in self._bundled:
             raise SourceConflict(f"{name} is a bundled source and cannot be removed")
         with self._lock:
-            if not _NAME.fullmatch(name) or not (self.root / name / SOURCE_FILE).is_file():
-                self.get(name)  # the KeyError naming the sources there are
+            if name not in self._user_names():  # a folder that cannot be read can still be removed
+                raise KeyError(f"no source {name!r}; the sources: {sorted(self._bundled) + self._user_names()}")
             shutil.rmtree(self.root / name)
 
 

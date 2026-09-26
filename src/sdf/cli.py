@@ -1136,15 +1136,14 @@ def data_add(
 @data.command("list")
 def data_list() -> None:
     """Every source, bundled first."""
-    store = default_store()
-    entries = store.list()
+    entries, broken = default_store().scan()
     click.echo(f"{'name':<28}{'origin':<9}{'rows':>11}  {'dates':<25}demand")
     for e in entries:
         dates = f"{e.report.first_date} to {e.report.last_date}" if e.report.first_date else "-"
         ready = "" if not e.schema.problems else "  (to settle: sdf data show " + e.name + ")"
         demand = "yes" if e.schema.has_demand else "no"
         click.echo(f"{e.name:<28}{e.origin:<9}{e.report.rows_kept:>11,}  {dates:<25}{demand}{ready}")
-    for name, reason in store.unavailable().items():
+    for name, reason in broken.items():
         click.echo(f"{name:<28}cannot be read: {reason}")
 
 

@@ -329,10 +329,11 @@ def create_app(
     @api.get("/sources", response_model=s.SourceList)
     def sources_list():
         """Every data source, bundled first, with its schema, its last check and the limits an upload must keep."""
+        entries, broken = source_store.scan()
         return {
-            "sources": [e.to_dict() for e in source_store.list()],
+            "sources": [e.to_dict() for e in entries],
             "limits": source_store.limits.to_dict(),
-            "unavailable": source_store.unavailable(),
+            "unavailable": broken,
         }
 
     @api.get("/sources/{name}", response_model=s.SourceDetail, responses={404: {"description": "unknown source"}})
@@ -344,7 +345,7 @@ def create_app(
             return {**entry.to_dict(), "preview": {"header": header, "rows": source_store.preview(name, PREVIEW_ROWS)}}
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=exc.args[0]) from exc
-        except ValueError as exc:  # its folder cannot be read
+        except (ValueError, OSError) as exc:  # its folder cannot be read
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @api.post(
@@ -388,7 +389,7 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         finally:
-            upload.discard()
+            await run_in_threadpool(upload.discard)  # a folder removal: off the event loop too
         return entry.to_dict()
 
     @api.put(

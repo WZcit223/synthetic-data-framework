@@ -418,9 +418,9 @@ def test_one_broken_folder_hides_only_itself(tmp_path):
     store.add(_csv(tmp_path, SALES), name="bad")
     (tmp_path / "sources" / "bad" / "source.json").write_text("{not json", encoding="utf-8")
     assert [e.name for e in store.list()] == ["good"]
-    assert "cannot be read" in store.unavailable()["bad"]
+    assert "cannot be read" in store.scan()[1]["bad"]
     store.remove("bad")  # a broken source can still be removed
-    assert store.unavailable() == {}
+    assert store.scan()[1] == {}
     with pytest.raises(KeyError):
         store.remove("bad")
 
@@ -461,3 +461,40 @@ def test_a_column_choice_maps_by_column_not_by_label(tmp_path):
     store.add(_csv(tmp_path, "When,When (hour)\n2024-01-01 08:00:00,x\n"), name="w")
     assert [f.name for f in store.rows("w", columns=["When"]).info.fields] == ["when", "when_hour"]
     assert [f.name for f in store.rows("w", columns=["When (hour)"]).info.fields] == ["when_hour_2"]
+
+
+def test_a_semicolon_file_may_use_dot_decimals(tmp_path):
+    path = _csv(
+        tmp_path,
+        "date;sku;qty;price\n" + "".join(f"2024-01-{1 + i:02d};A{i % 2};{i + 1};2.{50 + i}\n" for i in range(9)),
+    )
+    schema = infer_schema(path, name="dots")
+    assert (schema.delimiter, schema.decimal) == (";", ".")
+    assert schema.column("price").kind == "real" and schema.roles.price == "price"
+    assert check(path, schema).unreadable == {}
+    comma = SourceSchema(
+        "c",
+        "c",
+        (ColumnSpec("date", "time"), ColumnSpec("qty", "real")),
+        roles=Roles(time="date", quantity="qty"),
+        delimiter=";",
+        decimal=",",
+    )
+    with pytest.raises(ValueError, match=r"the decimal mark \(','\)"):
+        check(_csv(tmp_path, "date;qty\n2024-01-01;2.5\n", "q.csv"), comma)
+
+
+def test_a_folder_without_its_file_is_unavailable_and_removable(tmp_path):
+    store = _store(tmp_path)
+    store.add(_csv(tmp_path, SALES), name="ok")
+    (tmp_path / "sources" / "half").mkdir()
+    entries, broken = store.scan()
+    assert [e.name for e in entries] == ["ok"] and "half" in broken
+    store.remove("half")
+    assert store.scan()[1] == {}
+
+
+def test_preview_skips_blank_lines(tmp_path):
+    store = _store(tmp_path)
+    store.add(_csv(tmp_path, "Units\n\n1\n\n2\n"), name="gaps")
+    assert store.preview("gaps") == [["1"], ["2"]]
