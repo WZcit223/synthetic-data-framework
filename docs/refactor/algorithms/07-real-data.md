@@ -1,8 +1,12 @@
 # PR 7 — Two years of real demand (only with decision D1)
 
-> Status: planned. Decision D1 (a) was taken on 2026-09-25: the compact daily
-> table is committed. The PR starts once the project lead provides the
-> dataset file.
+> Status: replaced, not implemented. Decision D1 (a) was taken on
+> 2026-09-25: the compact daily table is committed. On 2026-09-26 the
+> project lead approved the "your own data" sequence, whose step U6
+> ([`../userdata/06-real-data.md`](../userdata/06-real-data.md)) replaces
+> this PR: it runs this validation through the path a user's own file takes
+> and keeps D1 (a), committing the compact daily table as a bundled source.
+> This file is kept as the record of what U6 took over.
 
 Contract: [`interfaces.md`](interfaces.md) §9.
 
