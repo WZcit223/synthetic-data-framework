@@ -432,3 +432,8 @@ def test_privacy_synth_and_tstr_take_a_source(tmp_path, monkeypatch):
     assert both.exit_code == 2 and "not both" in both.output
     assert "takes no parameter ['bins']" in run("synth", "--source", "shop", "--param", "bins=2").output
     assert "unknown source 'nope'" in run("privacy", "--source", "nope").output
+
+
+def test_a_date_format_goes_with_a_csv_not_a_source():
+    res = run("synth", "--source", "sample", "--date-format", "%d/%m/%Y %H:%M")
+    assert res.exit_code == 2 and "--date-format is for a CSV" in res.output

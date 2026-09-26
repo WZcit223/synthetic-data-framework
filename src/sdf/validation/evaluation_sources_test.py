@@ -56,7 +56,7 @@ def test_categories_are_coded_by_frequency_then_first_seen(store, monkeypatch):
             return self
 
         def sample(self, n=None):
-            return [(0.4, 1.0, 3.0), (7.0, 2.0, 2.5), (float("nan"), 1.0, 2.5)]  # a code out of range, a nan
+            return [(0.4, 1.0, 3.0), (7.0, 2.0, 2.5), (1.5, 1.0, 2.5)]  # rounded, out of range, a half
 
     reg = default_registry()
     reg.register(Spy)
@@ -66,7 +66,7 @@ def test_categories_are_coded_by_frequency_then_first_seen(store, monkeypatch):
     # i % 7 % 3 over 200 rows: north (0) most often, then south (1), then east (2)
     assert sorted({row[0] for row in data.rows}) == [0.0, 1.0, 2.0]
     synth = [row[1:] for row in r.table.rows if row[0] == "synthetic"]
-    assert synth == [("north", 1.0, 3.0), ("east", 2.0, 2.5), (None, 1.0, 2.5)]  # rounded, clipped, nan kept apart
+    assert synth == [("north", 1.0, 3.0), ("east", 2.0, 2.5), ("east", 1.0, 2.5)]  # rounded, clipped, halves up
 
 
 def test_derived_hour_and_weekday_and_the_first_rows(store):
@@ -165,3 +165,78 @@ def test_no_usable_row_and_a_synthesizer_giving_the_wrong_width(tmp_path):
     store.add(io.BytesIO(b"Units,Price\n1,2\n2,3\n"), name="ok")
     with pytest.raises(RunFailed, match=r"a row of 1 values, not one per column \['Units', 'Price'\]"):
         evaluate("narrow", source="ok", store=store, registry=reg)
+
+
+# -- the independent review's cases --------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", default_registry().names())
+def test_every_mounted_synthesizer_runs_on_a_user_source(store, name):
+    info = default_registry().info(name)
+    if info.produces == "warehouse":
+        pytest.skip("a warehouse generator is chosen for the world, not evaluated")
+    r = evaluate(name, source="sales", store=store)
+    assert r.kind == info.produces
+    assert ("fidelity_score" if r.kind == "series" else "detection_auc") in r.metrics
+
+
+def test_the_seeded_sample_repeats_and_another_seed_draws_other_rows(tmp_path):
+    store = SourceStore(tmp_path / "s")
+    rows = "".join(f"{i}.5,1.0\n" for i in range(MAX_TABLE_ROWS * 3))
+    store.add(io.BytesIO(("Position,Price\n" + rows).encode()), name="big")
+
+    def real(seed):
+        table = evaluate("bootstrap-table", source="big", store=store, params={"seed": seed}).table
+        return [row for row in table.rows if row[0] == "real"]
+
+    assert real(1) == real(1) and real(1) != real(2)
+
+
+def test_a_date_only_time_offers_its_weekday_but_not_its_hour(tmp_path):
+    store = SourceStore(tmp_path / "s")
+    store.add(io.BytesIO(b"Day,Units\n2024-01-01,1\n2024-01-02,2\n2024-01-06,3\n"), name="daily")
+    from .evaluation import derived_columns
+
+    assert derived_columns(store.get("daily")) == ["Day.weekday"]
+    r = evaluate("bootstrap-table", source="daily", store=store, columns=["Units", "Day.weekday"])
+    assert [row[2] for row in r.table.rows if row[0] == "real"] == ["Monday", "Tuesday", "Saturday"]
+    with pytest.raises(ValueError, match="holds dates without times of day"):
+        evaluate("bootstrap-table", source="daily", store=store, columns=["Day.hour"])
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), "x", None])
+def test_a_synthesizer_giving_no_finite_number_is_its_own_failure(store, bad):
+    class Bad:
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("bad", "table", True, "one bad value")
+
+        def fit(self, data):
+            return self
+
+        def sample(self, n=None):
+            return [(2.0, bad)]
+
+    reg = default_registry()
+    reg.register(Bad)
+    with pytest.raises(RunFailed, match="Price = .*not a finite number"):
+        evaluate("bad", source="sales", store=store, registry=reg, columns=["Units", "Price"])
+
+
+def test_a_series_run_checks_the_source_before_creating_the_synthesizer(tmp_path):
+    class Fragile:
+        info: ClassVar[SynthesizerInfo] = SynthesizerInfo("fragile", "series", True, "fails when created")
+
+        def __init__(self):
+            raise RuntimeError("never created")
+
+        def fit(self, data):
+            return self
+
+        def sample(self, n=None):
+            return []
+
+    store = SourceStore(tmp_path / "s")
+    store.add(io.BytesIO(b"Colour,Units\nred,1\n"), name="flat")
+    reg = default_registry()
+    reg.register(Fragile)
+    with pytest.raises(ValueError, match="has no demand"):  # the request's fault, before the plug-in's
+        evaluate("fragile", source="flat", store=store, registry=reg)

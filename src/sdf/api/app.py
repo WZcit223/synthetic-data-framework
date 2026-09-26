@@ -87,7 +87,7 @@ from sdf.simulation.signals import SIGNALS, signal_frame
 from sdf.synthesis.materialise import WarehouseRefused
 from sdf.synthesis.registry import SynthesizerRegistry, default_registry
 from sdf.synthesis.spec import GenerationSpec
-from sdf.validation.evaluation import RunFailed, evaluate
+from sdf.validation.evaluation import RunFailed, derived_columns, evaluate
 from sdf.validation.quality import structural_quality_check
 from sdf.workflow import warehouse_pipeline
 from . import schemas as s
@@ -463,15 +463,12 @@ def create_app(
     def _synthesis_source(entry) -> dict:
         schema = entry.schema
         columns = [c.name for c in schema.columns if c.kind in ("integer", "real", "category")]
-        time = schema.roles.time
-        if time is not None and time in entry.report.times_of_day:
-            columns += [f"{time}.hour", f"{time}.weekday"]
         return {
             "id": entry.name,
             "label": entry.schema.label,
             "origin": entry.origin,
-            "series": schema.has_demand and time in entry.report.times_of_day,
-            "columns": columns,
+            "series": schema.has_demand and schema.roles.time in entry.report.times_of_day,
+            "columns": columns + derived_columns(entry),
         }
 
     @api.post(

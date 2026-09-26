@@ -599,7 +599,10 @@ effect.
   column is then told apart: `bootstrap-table` goes from an AUC of 0.55 on
   the retail table to 0.98 on the source's columns, while `bayesian-network`,
   which bins and reads the values as observed, stays at 0.49 and 0.48. So a
-  user who knows a column takes few values should declare it `category`. No
+  user who knows a column takes few values should declare it `category`; a
+  price or quantity column has to leave its role to be one (roles are
+  numbers). With `Price` a category and no price role, `bootstrap-table`'s
+  AUC is 0.51. No
   recorded number changes: the bundled sources with no column choice read
   the retail feature table as before.
 

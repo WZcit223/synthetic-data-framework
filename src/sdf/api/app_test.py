@@ -885,7 +885,7 @@ def test_the_synthesizer_catalogue_lists_parameters_and_unavailable_ones(client)
     assert isinstance(body["unavailable"], dict)
 
 
-def test_the_sources_are_ids_and_file_names(client, monkeypatch, tmp_path):
+def test_the_synthesis_sources_are_the_ready_data_sources(client, monkeypatch, tmp_path):
     listed = get(client, "/synthesis/sources")["sources"]
     assert [(s["id"], s["origin"], s["series"]) for s in listed[:2]] == [
         ("sample", "bundled", True),

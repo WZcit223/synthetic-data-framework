@@ -11,6 +11,7 @@ The scorers keep their algorithm hooks (checklist rows B1, B3 and B4).
 
 from __future__ import annotations
 
+import math
 import os
 import random
 from dataclasses import dataclass, field
@@ -37,6 +38,7 @@ from .privacy import FEATURE_COLUMNS, FEATURE_KINDS, privacy_report, read_retail
 EVALUATION_SEED = 7  # the seed of a run that leaves a synthesizer's seed out, so every run can be repeated
 MAX_TABLE_ROWS = 3000  # rows a table run fits on, as the retail reader reads
 RowChoice = Literal["sample", "first"]
+SOURCE_HINT = "check the source's roles and kinds (sdf data show)"
 DATA_KINDS = ("integer", "real", "category")  # the source column kinds a table synthesizer reads
 DERIVED = {"hour": "integer", "weekday": "category"}  # what <time>.hour and <time>.weekday are
 WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
@@ -81,8 +83,15 @@ class RunFailed(RuntimeError):
 class NoUsableRows(ValueError):
     """The source gave no row to fit on; ``reason`` says why (a load summary, or the scorer's error)."""
 
-    def __init__(self, path: str, reason: str, load: LoadReport | None = None) -> None:
-        super().__init__(f"{path}: no usable rows ({reason}); check the file and the date format")
+    def __init__(
+        self,
+        path: str,
+        reason: str,
+        load: LoadReport | None = None,
+        *,
+        hint: str = "check the file and the date format",
+    ) -> None:
+        super().__init__(f"{path}: no usable rows ({reason}); {hint}")
         self.path = path
         self.reason = reason
         self.load = load
@@ -143,15 +152,17 @@ def evaluate(
     if entry is not None and info.produces == "series" and (columns is not None or rows is not None):
         raise ValueError("a series synthesizer is fitted on the source's demand; columns and rows are for tables")
     seed = used["seed"] if repeatable else EVALUATION_SEED
-    if entry is not None and info.produces == "table":  # before the synthesizer is created: a bad column is ours
+    # the source is read before the synthesizer is created: a bad column or a source without demand is ours
+    if entry is not None and info.produces == "table":
         data, fields, decode, notes = _source_table(store, entry, columns, rows or "sample", seed)
+    if entry is not None and info.produces == "series":
+        orders = _source_orders(store, entry)
     model = _run(synthesizer, "creating it", lambda: reg.create(synthesizer, **used))
 
     if entry is not None and info.produces == "series":
-        orders = _source_orders(store, entry)
         fitted = _run(synthesizer, "fitting it", lambda: FittedHourlyDemand(model).fit(orders))
         if not fitted.real_series:
-            raise NoUsableRows(source, "no demand left after removing cancelled lines")
+            raise NoUsableRows(source, "no demand left after removing cancelled lines", hint=SOURCE_HINT)
         synth = _run(synthesizer, "sampling from it", fitted.generate)
         metrics = fidelity_report(fitted.real_series, synth, fitted.ppd)
         series_rows = [(str(i), "real", round(v, 4)) for i, v in enumerate(fitted.real_series)]
@@ -164,7 +175,7 @@ def evaluate(
         _check_width(synthesizer, synth_rows, data.columns)
         metrics = privacy_report(data.rows, synth_rows)
         if "error" in metrics:
-            raise NoUsableRows(source, metrics["error"])
+            raise NoUsableRows(source, metrics["error"], hint=SOURCE_HINT)
         metrics |= detection_metrics(data.rows, synth_rows, columns=data.columns)
         table_rows = [("real", *decode(r)) for r in data.rows] + [("synthetic", *decode(r)) for r in synth_rows]
         table = Table(_info(synthesizer, "table", fields), table_rows)
@@ -182,9 +193,9 @@ def evaluate(
             raise NoUsableRows(path, f"{load.summary()}; no demand left after removing cancelled lines", load)
         synth = _run(synthesizer, "sampling from it", fitted.generate)
         metrics = fidelity_report(fitted.real_series, synth, fitted.ppd)
-        rows = [(str(i), "real", round(v, 4)) for i, v in enumerate(fitted.real_series)]
-        rows += [(str(i), "synthetic", round(v, 4)) for i, v in enumerate(synth)]
-        table = Table(_info(synthesizer, "series", SERIES_FIELDS), rows)
+        series_rows = [(str(i), "real", round(v, 4)) for i, v in enumerate(fitted.real_series)]
+        series_rows += [(str(i), "synthetic", round(v, 4)) for i, v in enumerate(synth)]
+        table = Table(_info(synthesizer, "series", SERIES_FIELDS), series_rows)
         return EvaluationRun(synthesizer, source, "series", used, metrics, table, repeatable, load)
 
     real = read_retail_feature_table(path, date_format=date_format)
@@ -202,9 +213,9 @@ def evaluate(
     if "error" in metrics:
         raise NoUsableRows(path, metrics["error"])
     metrics |= detection_metrics(real, synth_rows, columns=FEATURE_COLUMNS)
-    rows = [("real", *(round(float(v), 4) for v in r)) for r in real]
-    rows += [("synthetic", *(round(float(v), 4) for v in r)) for r in synth_rows]
-    table = Table(_info(synthesizer, "table", TABLE_FIELDS), rows)
+    table_rows = [("real", *(round(float(v), 4) for v in r)) for r in real]
+    table_rows += [("synthetic", *(round(float(v), 4) for v in r)) for r in synth_rows]
+    table = Table(_info(synthesizer, "table", TABLE_FIELDS), table_rows)
     return EvaluationRun(synthesizer, source, "table", used, metrics, table, repeatable)
 
 
@@ -217,12 +228,20 @@ def _run(synthesizer: str, step: str, call):
 
 
 def _check_width(synthesizer: str, synth_rows: list, columns: tuple[str, ...]) -> None:
-    wrong = next((r for r in synth_rows if len(r) != len(columns)), None)
-    if wrong is not None:  # the synthesizer's fault: it was given these columns
-        raise RunFailed(
-            f"{synthesizer} failed while sampling from it: a row of {len(wrong)} values, "
-            f"not one per column {list(columns)}"
-        )
+    """``RunFailed`` unless every sampled row has one finite number per column: the synthesizer's fault, not ours."""
+    for row in synth_rows:
+        if len(row) != len(columns):
+            raise RunFailed(
+                f"{synthesizer} failed while sampling from it: a row of {len(row)} values, "
+                f"not one per column {list(columns)}"
+            )
+        for column, v in zip(columns, row, strict=True):
+            try:
+                ok = math.isfinite(float(v)) and not isinstance(v, (bool, str))
+            except (TypeError, ValueError):
+                ok = False
+            if not ok:
+                raise RunFailed(f"{synthesizer} failed while sampling from it: {column} = {v!r}, not a finite number")
 
 
 def _resolve(source: str, store: SourceStore, *, choice: bool) -> tuple[str | None, SourceEntry | None]:
@@ -251,6 +270,14 @@ def _resolve(source: str, store: SourceStore, *, choice: bool) -> tuple[str | No
     raise ValueError(f"unknown source {source!r}; choose from {names} or give a CSV path")
 
 
+def derived_columns(entry: SourceEntry) -> list[str]:
+    """The columns a table run may derive from the time role: its weekday, and its hour when it holds times."""
+    time = entry.schema.roles.time
+    if time is None:
+        return []
+    return ([f"{time}.hour"] if time in entry.report.times_of_day else []) + [f"{time}.weekday"]
+
+
 def _source_orders(store: SourceStore, entry: SourceEntry) -> list:
     """The orders a series synthesizer is fitted on; ``ValueError`` when the source has no hourly demand."""
     schema = entry.schema
@@ -270,7 +297,8 @@ def _source_table(
     """A source's rows as a synthesizer's table: the data, the run table's fields, a decoder, and the notes.
 
     Categories are coded 0, 1, … from the most frequent label down (ties in first-seen order); the
-    decoder turns a row of codes back into labels, a synthetic code rounded and clipped to a label.
+    decoder turns a row of codes back into labels, a synthetic code rounded (halves up) and clipped to a
+    label. A sampled row is checked to hold finite numbers before it is decoded.
     """
     schema = entry.schema
     time = schema.roles.time
@@ -283,11 +311,13 @@ def _source_table(
     specs = []  # (column, kind, index in the schema, derived part or None)
     for col in chosen:
         base, _, part = col.rpartition(".")
-        if time is not None and base == time and part in DERIVED:
+        if col not in names and time is not None and base == time and part in DERIVED:
+            if part == "hour" and time not in entry.report.times_of_day:
+                raise ValueError(f"{col}: the time column {time} holds dates without times of day")
             specs.append((col, DERIVED[part], names.index(time), part))
             continue
         if col not in names:
-            derived = f" (and {time}.hour, {time}.weekday)" if time else ""
+            derived = f" (and {', '.join(derived_columns(entry))})" if derived_columns(entry) else ""
             raise ValueError(f"source {entry.name} has no column {col!r}; its columns: {names}{derived}")
         kind = schema.column(col).kind
         if kind not in DATA_KINDS:
@@ -322,7 +352,9 @@ def _source_table(
         else:
             break
     if not picked:
-        raise NoUsableRows(entry.name, "no row has every chosen column, with a positive quantity and price")
+        raise NoUsableRows(
+            entry.name, "no row has every chosen column, with a positive quantity and price", hint=SOURCE_HINT
+        )
     picked.sort(key=lambda p: p[0])  # the file's order
     rows_in = [values for _, values in picked]
 
@@ -348,10 +380,8 @@ def _source_table(
         for v, ls in zip(row, labels, strict=True):
             if ls is None:
                 out.append(round(float(v), 4))
-            elif v != v:  # nan: no label
-                out.append(None)
             else:
-                out.append(ls[min(max(round(v), 0), len(ls) - 1)])
+                out.append(ls[min(max(math.floor(v + 0.5), 0), len(ls) - 1)])  # the nearest code, halves up
         return tuple(out)
 
     roles = {column: role for role, column in schema.roles.items()}

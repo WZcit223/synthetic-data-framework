@@ -703,11 +703,13 @@ def _params(texts: tuple[str, ...]) -> dict:
 
 
 def _source_or_csv(ctx: click.Context, csv_path: str, source: str | None) -> str:
-    """The data source's name when --source is given, else the CSV path; not both."""
+    """The data source's name when --source is given, else the CSV path; not both, and no --date-format with a source."""
     if source is None:
         return csv_path
     if ctx.get_parameter_source("csv_path") is not click.core.ParameterSource.DEFAULT:
         raise click.UsageError("give a CSV or --source, not both")
+    if ctx.params.get("date_format") is not None:
+        raise click.UsageError("--date-format is for a CSV; a source's time formats are in its schema (sdf data show)")
     return source
 
 

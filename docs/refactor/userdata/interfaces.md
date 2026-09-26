@@ -238,7 +238,9 @@ POST /api/v1/synthesis/runs
 
 - **A table synthesizer** is fitted on `columns`, by default every `integer`,
   `real` and `category` column. Two derived columns of the `time` role may be
-  named: `<time>.hour` (integer) and `<time>.weekday` (category). Rows with a
+  named: `<time>.weekday` (category, `Monday` … `Sunday`), and `<time>.hour`
+  (integer) when the time column holds times of day; a real column of the same
+  name wins over a derived one. Rows with a
   missing chosen value, or a chosen `quantity` or `price` column at or below
   zero, are left out. At most 3,000 rows are used: `rows: "sample"` (the
   default) is a uniform sample drawn with the run's seed; `rows: "first"`
@@ -270,7 +272,11 @@ POST /api/v1/synthesis/runs
   `notes`. `GET /api/v1/synthesis/sources` lists every ready source with
   `origin`, `series` (it has hourly demand) and the `columns` a table run may
   name; a run's `source` must be one of them, never a path.
-- In Python: `evaluate(name, source=…, columns=…, rows=…, store=…)`.
+- A sampled row that is not one finite number per column is the
+  synthesizer's failure (500, `RunFailed`), never the request's.
+- In Python: `evaluate(name, source=…, columns=…, rows=…, store=…)`. The
+  earlier `sdf.validation.evaluation.sources()` is gone: the store lists the
+  sources.
 - Command line: `sdf privacy --source NAME [--columns a,b] [--rows sample|first]
   [--param k=v]`, `sdf synth --source NAME [--param k=v]`,
   `sdf tstr --source NAME`. A path is still accepted, read as today, with
