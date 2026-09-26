@@ -58,7 +58,7 @@ export async function fetchSource(source, datasets) {
       forecasts: ["Forecasts after the last origin", `Each forecaster's mean and quantiles for every SKU and day, with the actual demand, on ${on}.`],
     };
     const [title, description] = TITLES[table];
-    return { payload: d[table], meta: { title, description, world: d.world, total: d[table].rows.length, truncated: false } };
+    return { payload: d[table], meta: { title, description, world: null, total: d[table].rows.length, truncated: false } };
   }
   if (source.effects != null) {
     // an effect study (causal interfaces.md §1.5): the same request again, on the current world

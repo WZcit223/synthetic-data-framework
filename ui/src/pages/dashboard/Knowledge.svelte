@@ -73,7 +73,9 @@
         </select>
         {#if chosen}<span class="muted">{chosen.description}; reads {chosen.signals.join(", ")}</span>{/if}
       </div>
-      {#if detections && detections.detector === detector}
+      {#if detections?.error && detections.detector === detector}
+        <div class="note top bad">{detector} did not run: {detections.error}</div>
+      {:else if detections && detections.detector === detector}
         <div class="note top"><b>{detections.rows.length}</b> SKU-days flagged on the current world, highest score first.</div>
         <DataTable fields={detections.fields} rows={detections.rows} tone={detectionTone} format={detectionFormat}
           height="260px" download="anomalies" placeholder="No SKU-day flagged." />

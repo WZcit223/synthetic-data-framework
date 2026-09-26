@@ -78,3 +78,19 @@ test("at 390 px the Forecasts page does not overflow sideways", async ({ page })
   const [scroll, inner] = await page.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
   expect(scroll).toBeLessThanOrEqual(inner);
 });
+
+test("a field holding text that is not a number keeps the backtest from being sent", async ({ page }) => {
+  await page.goto("/forecasts.html", { waitUntil: "networkidle" });
+  await page.getByLabel("the demand benchmark (its truth is known)").check();
+  await page.locator("#bench-seed").pressSequentially("-"); // the browser reads "-" as no value; seed may be none
+  await expect(page.locator(".formerror")).toHaveText("Benchmark seed: enter a number.");
+  await expect(page.getByRole("button", { name: "Run backtest" })).toBeDisabled();
+});
+
+test("a backtest the server refuses says why, with the server's words", async ({ page }) => {
+  await page.route("**/api/v1/forecasts/backtest", r =>
+    r.fulfill({ status: 422, contentType: "application/json", body: JSON.stringify({ detail: "the history has 90 days; need 91" }) }));
+  await page.goto("/forecasts.html", { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "Run backtest" }).click();
+  await expect(page.locator(".notice.bad")).toHaveText("The backtest did not run. the history has 90 days; need 91");
+});

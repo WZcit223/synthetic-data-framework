@@ -7,7 +7,6 @@ import { readParam } from "./synthesis.js";
 export const LEVELS = [0.5, 0.8, 0.9, 0.95]; // the central interval's probability, as the page offers it
 export const STEP = 7; // days between origins: the backtest's default, not offered on the page
 export const REFERENCE = "true-distribution"; // the benchmark's own row: the exact distribution it drew from
-export const FORECAST_TABLES = ["scores", "by_horizon", "forecasts"];
 const PREFERRED = ["seasonal-naive", "moving-average", "seasonal-linear"]; // fast: a first backtest answers in a second
 
 // Each forecaster's colour follows its place in the catalogue, never its place on screen; past eight, grey.
@@ -70,6 +69,7 @@ export function fitForecastRequest(raw, catalog) {
   if (isObject(raw.benchmark)) {
     for (const p of catalog.benchmark.params) if (raw.benchmark[p.name] !== undefined) benchmark[p.name] = raw.benchmark[p.name];
   }
+  if (raw.level !== undefined && !LEVELS.includes(raw.level)) dropped.push(`level ${JSON.stringify(raw.level)}`);
   return {
     request: {
       forecasters,
@@ -87,6 +87,10 @@ export function fitForecastRequest(raw, catalog) {
 const whole = (name, v, lo, hi) =>
   Number.isInteger(v) && v >= lo && v <= hi ? null : `${name} must be a whole number from ${lo} to ${hi}.`;
 
+// A field whose text is not a number (the browser reads it as "") travels as NaN, so the check below
+// refuses it; "" would read as "none" and pass a nullable parameter.
+const text = v => (typeof v === "number" && Number.isNaN(v) ? "not a number" : v === null ? "" : typeof v === "boolean" ? v : String(v));
+
 // Why a request cannot be sent, or null: the checks the endpoint makes, from the published bounds.
 export function forecastRequestError(request, catalog) {
   if (!request.forecasters.length) return "Choose at least one forecaster.";
@@ -97,7 +101,7 @@ export function forecastRequestError(request, catalog) {
     for (const p of byName.get(name)?.params ?? []) {
       const given = request.params[name]?.[p.name];
       if (given === undefined) continue; // left out: the forecaster's own default
-      const read = readParam(p, given === null ? "" : typeof given === "boolean" ? given : String(given));
+      const read = readParam(p, text(given));
       if (read.error) return `${name} ${read.error.replaceAll("_", " ")}.`;
     }
   }
@@ -106,12 +110,20 @@ export function forecastRequestError(request, catalog) {
   if (request.source === "benchmark") {
     for (const p of catalog.benchmark.params) {
       const v = request.benchmark[p.name];
-      const read = readParam(p, v == null ? "" : String(v));
+      const read = readParam(p, v === undefined ? "" : text(v));
       if (read.error) return `Benchmark ${read.error.replaceAll("_", " ")}.`;
     }
+    const days = request.benchmark.days;
+    const need = historyNeeded(request, catalog);
+    if (typeof days === "number" && days < need) return `The benchmark's ${days} days are too few: ${historyText(request, catalog)} need ${need}.`;
   }
   return null;
 }
+
+// The days of history a backtest needs: every origin's horizon, the origins a week apart, and the history before the first.
+export const historyNeeded = (request, catalog) => request.horizon + (request.origins - 1) * STEP + catalog.limits.min_history;
+export const historyText = (request, catalog) =>
+  `${request.horizon} days ahead, ${request.origins} origins ${STEP} days apart and ${catalog.limits.min_history} days before the first`;
 
 // The POST /forecasts/backtest body for a request.
 export function backtestBody(request) {
@@ -149,9 +161,13 @@ export function tableRecords({ fields, rows }) {
   return rows.map(r => Object.fromEntries(fields.map((f, i) => [f.name, r[i]])));
 }
 
-// How a score row reads: an error, a forecaster not run in time, the reference, or scored.
+// How a score row reads: not started, or stopped, within the time budget; an error; the reference; or scored.
 export function scoreReading(row) {
-  if (row.error) return row.wape == null && row.seconds == null ? "not run" : "error";
+  if (row.error) {
+    if (row.error.startsWith("not run")) return "not run";
+    if (row.error.startsWith("not finished")) return "not finished";
+    return "error";
+  }
   if (row.forecaster === REFERENCE) return "reference";
   return "scored";
 }

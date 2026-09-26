@@ -23,6 +23,11 @@
 >   on the whole scale from below a coin toss to 1 (frontend contract §2.2).
 > - **The dashboard keeps the demand anomalies of the whole series,** and adds
 >   each SKU's anomalies from the chosen detector below them.
+> - **The page has no `pages/forecasts/` folder.** Its parts fit in
+>   `Forecasts.svelte`, with the logic in `lib/forecasts-model.js`, which
+>   also checks what the server would refuse before sending: the history a
+>   benchmark needs (horizon, origins a week apart and the days before the
+>   first) and a number field holding text that is not a number.
 
 Contract: [`interfaces.md`](interfaces.md) §8; the components, the build and
 the tests are those of [`../frontend/interfaces.md`](../frontend/interfaces.md).
@@ -110,5 +115,5 @@ checked. No accessibility layer is added (frontend overview, Non-goals).
 
 ## Version
 
-`Version: none` — UI and documentation: `ui/` is not part of the package's
-versioned interface.
+`Version: none, UI and documentation only; ui/ is not part of the package's
+versioned interface, and no shipped Python code changes.`

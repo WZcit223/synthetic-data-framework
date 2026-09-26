@@ -130,3 +130,12 @@ test("the anomaly panel lists each SKU's anomalies from the detector chosen", as
   await expect(panel.getByText(`${forest.rows.length} SKU-days flagged`)).toBeVisible();
   await expect(panel.getByText("reads demand, on_hand, receipts")).toBeVisible();
 });
+
+test("a detector that fails says so in its panel", async ({ page }) => {
+  await page.route("**/api/v1/anomalies?detector=isolation-forest", r =>
+    r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ detail: "detector isolation-forest failed: RuntimeError: boom" }) }));
+  await page.goto("/index.html", { waitUntil: "networkidle" });
+  const panel = card(page, "Demand anomalies");
+  await panel.locator("#detector").selectOption("isolation-forest");
+  await expect(panel.locator(".note.bad")).toHaveText("isolation-forest did not run: detector isolation-forest failed: RuntimeError: boom");
+});

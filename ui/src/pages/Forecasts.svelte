@@ -14,8 +14,8 @@
   import { look, theme } from "../components/theme.svelte.js";
   import { api } from "../lib/api.js";
   import {
-    LEVELS, REFERENCE, backtestBody, fitForecastRequest, forecastHash, forecastRequestError, forecastSkus,
-    forecastsLink, levelQuantiles, readForecastHash, scoreReading, skuForecasts, tableRecords, wapeByHorizon,
+    LEVELS, REFERENCE, backtestBody, fitForecastRequest, forecastHash, forecastRequestError, forecastSkus, forecasterColors,
+    forecastsLink, historyNeeded, historyText, levelQuantiles, readForecastHash, scoreReading, skuForecasts, tableRecords, wapeByHorizon,
   } from "../lib/forecasts-model.js";
   import { boundsText, readParam } from "../lib/synthesis.js";
   import ParamControl from "./synthesizers/ParamControl.svelte";
@@ -39,7 +39,7 @@
   // The benchmark's reference is a neutral series.
   const colors = $derived.by(() => {
     const l = look(theme.scheme);
-    const m = new Map((catalog?.forecasters ?? []).map((f, i) => [f.name, i < l.series.length ? l.series[i] : l.other]));
+    const m = forecasterColors((catalog?.forecasters ?? []).map(f => f.name), l.series, l.other);
     m.set(REFERENCE, l.muted);
     return m;
   });
@@ -63,7 +63,7 @@
     };
   }
 
-  const count = t => (String(t).trim() !== "" && Number.isFinite(Number(t)) ? Number(t) : t); // a bad text stays, so the check names it
+  const count = t => (t != null && String(t).trim() !== "" && Number.isFinite(Number(t)) ? Number(t) : NaN); // not a number: the check names it
 
   // The request the form holds; a parameter equal to its default is left out, so the link stays short.
   function readForm() {
@@ -73,7 +73,7 @@
       for (const p of f.params) {
         const e = form.params[f.name][p.name];
         const read = e.bad ? { error: "" } : readParam(p, rawOf(p, e));
-        const value = read.error == null ? read.value : rawOf(p, e);
+        const value = e.bad ? NaN : read.error == null ? read.value : rawOf(p, e); // NaN: text that is not a number
         if (value !== p.default) (params[f.name] ??= {})[p.name] = value;
       }
     }
@@ -81,7 +81,7 @@
     for (const p of catalog.benchmark.params) {
       const f = form.benchmark[p.name];
       const read = f.bad ? { error: "" } : readParam(p, f.text);
-      benchmark[p.name] = read.error == null ? read.value : f.text;
+      benchmark[p.name] = f.bad ? NaN : read.error == null ? read.value : f.text; // NaN: text that is not a number
     }
     return {
       forecasters: catalog.forecasters.map(f => f.name).filter(n => form.forecasters.includes(n)),
@@ -95,6 +95,12 @@
   }
 
   const problem = $derived(form && catalog ? forecastRequestError(readForm(), catalog) : null);
+  // the days of history the backtest needs, once the horizon and the origins are numbers
+  const needed = $derived.by(() => {
+    if (!form || !catalog) return null;
+    const r = readForm();
+    return Number.isInteger(r.horizon) && Number.isInteger(r.origins) ? { text: historyText(r, catalog), need: historyNeeded(r, catalog) } : null;
+  });
 
   function loadFromAddress() {
     seq++;
@@ -176,17 +182,19 @@
   const scores = $derived.by(() => {
     if (!result) return null;
     const t = result.response.scores;
+    // the cells say the unit ("89.9 %", "0.09 s"), so the headers do not; the forecaster column fits the reference's label
     const shown = SHOWN.map(n => t.fields.find(f => f.name === n)).filter(Boolean)
-      .map(f => ({ ...f, label: f.label.replace(/ \([^)]*\)$/, "") })); // the cells say the unit: "89.9 %", "0.09 s"
+      .map(f => ({ ...f, unit: null, ...(f.name === "forecaster" ? { minWidth: 230 } : {}) }));
     const fields = [...shown, { name: "reading", label: "Reading", kind: "dimension" }];
     const records = tableRecords(t);
     const failed = records.filter(r => r.error);
     const rows = records.map(r => fields.map(f =>
       f.name === "reading" ? scoreReading(r) : f.name === "forecaster" && r.forecaster === REFERENCE ? `${REFERENCE} (reference)` : r[f.name]));
     const format = Object.fromEntries(t.fields.map(f => [f.name, f.unit === "share" ? pct : f.unit === "s" ? secs : f.unit ? num : v => v ?? ""]));
+    format.relative_wape = v => (v == null ? "–" : v.toFixed(2)); // a ratio to seasonal naive: below 1 beats it
     return { fields, rows, format, failed };
   });
-  const scoreTone = { reading: v => (v === "error" || v === "not run" ? "bad" : null) };
+  const scoreTone = { reading: v => (v === "error" || v === "not run" || v === "not finished" ? "bad" : null) };
 
   const byHorizon = $derived(result ? wapeByHorizon(result.response) : null);
   const skus = $derived(result ? forecastSkus(result.response) : []);
@@ -257,8 +265,9 @@
                   {#each LEVELS as l (l)}<option value={l}>{l * 100} %</option>{/each}
                 </select></div>
             </div>
-            <div class="hint">At most {catalog.limits.max_forecasters} forecasters and {catalog.limits.max_skus} SKUs; a forecaster
-              not started within {catalog.limits.max_seconds} s is reported as not run.</div>
+            <div class="hint">{#if needed}The history needs {needed.text} ({needed.need} days; the world has as many
+              as it was generated with, 90 by default).{" "}{/if}At most {catalog.limits.max_forecasters} forecasters and {catalog.limits.max_skus} SKUs; after
+              {catalog.limits.max_seconds} s, a forecaster not started is reported as not run, one still running as not finished.</div>
           </fieldset>
         </div>
         {#if catalog.forecasters.some(f => form.forecasters.includes(f.name) && f.params.length)}
@@ -285,7 +294,7 @@
 
   <section class="result" class:busy={running} aria-busy={running} aria-live="polite">
     {#if message}
-      <div class="notice" class:bad={message.bad}>{#if message.lead}<b>{message.lead}</b> {/if}{message.text}</div>
+      <div class="notice" class:bad={message.bad}>{#if message.lead}<b>{message.lead}</b>{" "}{/if}{message.text}</div>
     {/if}
     {#if result}
       {@const r = result.response}

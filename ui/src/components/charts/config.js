@@ -59,7 +59,7 @@ export function lineConfig({ series, labels, yLabel, format, tickFormat = format
     const edge = { type: "line", borderWidth: 0, pointRadius: 0, spanGaps: false };
     datasets.unshift(
       { ...edge, label: `${band.name} (low)`, data: [...band.low], fill: false, borderColor: color },
-      { ...edge, label: band.name, data: [...band.high], fill: "-1", borderColor: color, backgroundColor: color + "33" },
+      { ...edge, label: band.name, data: [...band.high], fill: "-1", borderColor: color, backgroundColor: color + "4d" }, // 30 %: visible on the dark surface too
     );
   }
   const options = base(look, format);

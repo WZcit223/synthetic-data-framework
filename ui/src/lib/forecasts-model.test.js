@@ -10,7 +10,7 @@ import {
 
 const param = (name, type, def, min = null, max = null, nullable = false) => ({ name, type, default: def, min, max, exclusive: false, nullable });
 
-const CATALOG = {
+const CATALOG_BASE = {
   forecasters: [
     { name: "gradient-boosting", params: [param("max_iter", "int", 200, 10, 1000), param("seed", "int", null, 0, null, true)] },
     { name: "mean", params: [] },
@@ -18,9 +18,10 @@ const CATALOG = {
     { name: "seasonal-linear", params: [param("period", "int", 7, 2, 28)] },
     { name: "seasonal-naive", params: [param("period", "int", 7, 1, 28)] },
   ],
-  limits: { max_forecasters: 3, max_horizon: 56, max_origins: 12 },
+  limits: { max_forecasters: 3, max_horizon: 56, max_origins: 12, min_history: 28 },
   benchmark: { params: [param("n_skus", "int", 200, 10, 400), param("seed", "int", null, 0, null, true)] },
 };
+const CATALOG = CATALOG_BASE;
 
 test("the default request is the fast built-ins on the world, 14 days, 4 origins, 80 %", () => {
   assert.deepEqual(defaultForecastRequest(CATALOG), {
@@ -60,6 +61,7 @@ test("a request from a link keeps what the catalogue offers and names what it dr
     level: 0.9,
   });
   assert.equal(fitForecastRequest({ level: 0.42, source: "elsewhere" }, CATALOG).request.level, 0.8);
+  assert.deepEqual(fitForecastRequest({ level: "0.9" }, CATALOG).dropped, ['level "0.9"']); // named, not changed silently
   assert.equal(fitForecastRequest({ source: "elsewhere" }, CATALOG).request.source, "world");
   assert.deepEqual(fitForecastRequest([], CATALOG), { request: defaultForecastRequest(CATALOG), dropped: [] });
   assert.deepEqual(fitForecastRequest({ forecasters: ["prophet"] }, CATALOG).request.forecasters, defaultForecastRequest(CATALOG).forecasters);
@@ -77,6 +79,12 @@ test("a request is checked against the published limits and bounds before it is 
   assert.equal(forecastRequestError({ ...ok, origins: 1.5 }, CATALOG), "Origins must be a whole number from 1 to 12.");
   assert.equal(forecastRequestError({ ...ok, source: "benchmark", benchmark: { n_skus: 5, seed: null } }, CATALOG), "Benchmark n skus: from 10 to 400.");
   assert.equal(forecastRequestError({ ...ok, benchmark: { n_skus: 5, seed: null } }, CATALOG), null); // the world ignores it
+  // a number field holding text that is not a number: refused, even where the parameter may be none
+  const bench = { ...ok, source: "benchmark", benchmark: { n_skus: 200, seed: NaN } };
+  assert.equal(forecastRequestError(bench, CATALOG), "Benchmark seed: enter a number.");
+  assert.equal(forecastRequestError({ ...ok, forecasters: ["gradient-boosting"], params: { "gradient-boosting": { seed: NaN } } }, CATALOG),
+    "gradient-boosting seed: enter a number.");
+  assert.equal(forecastRequestError({ ...ok, params: { "moving-average": { window: NaN } } }, CATALOG), "moving-average window: enter a number.");
 });
 
 test("the backtest body carries the chosen forecasters' parameters, the source and the interval's quantiles", () => {
@@ -111,7 +119,10 @@ test("the address holds the request, and a bad one says why", () => {
 const RESPONSE = {
   scores: {
     fields: [{ name: "forecaster" }, { name: "wape" }, { name: "seconds" }, { name: "error" }],
-    rows: [["mean", 0.9, 0.01, null], ["broken", null, 0.2, "boom"], ["late", null, null, "not run: the time budget ran out"], [REFERENCE, 0.8, null, null]],
+    rows: [
+      ["mean", 0.9, 0.01, null], ["broken", null, 0.2, "boom"], ["late", null, null, "not run: the time budget ran out"],
+      ["slow", null, 31.2, "not finished: the time budget ran out"], [REFERENCE, 0.8, null, null],
+    ],
   },
   by_horizon: {
     fields: [{ name: "forecaster" }, { name: "days_ahead" }, { name: "wape" }],
@@ -130,7 +141,7 @@ const RESPONSE = {
 
 test("the tables are read as the server wrote them, the page computes no score", () => {
   assert.deepEqual(tableRecords(RESPONSE.scores)[0], { forecaster: "mean", wape: 0.9, seconds: 0.01, error: null });
-  assert.deepEqual(tableRecords(RESPONSE.scores).map(scoreReading), ["scored", "error", "not run", "reference"]);
+  assert.deepEqual(tableRecords(RESPONSE.scores).map(scoreReading), ["scored", "error", "not run", "not finished", "reference"]);
   assert.deepEqual(wapeByHorizon(RESPONSE), {
     days: [1, 2],
     series: [{ name: "mean", values: [0.85, 0.95] }, { name: REFERENCE, values: [0.8, null] }],
@@ -149,4 +160,13 @@ test("colours follow the catalogue order, and Explore repeats the backtest body"
   const link = forecastsLink(request, "by_horizon");
   const view = JSON.parse(decodeURIComponent(link.replace("explore.html#view=", "")));
   assert.deepEqual(view, { source: { forecasts: { request: backtestBody(request), table: "by_horizon" } } });
+});
+
+test("a benchmark too short for the backtest is refused before it is sent, as the server would", () => {
+  const catalog = { ...CATALOG, benchmark: { params: [...CATALOG.benchmark.params, param("days", "int", 365, 84, 730)] } };
+  const request = { ...defaultForecastRequest(catalog), source: "benchmark", horizon: 56, origins: 4 };
+  // the server's rule (analytics/forecasters/backtest.py): horizon + (origins - 1) × 7 + min_history days
+  assert.equal(forecastRequestError({ ...request, benchmark: { ...request.benchmark, days: 104 } }, catalog),
+    "The benchmark's 104 days are too few: 56 days ahead, 4 origins 7 days apart and 28 days before the first need 105.");
+  assert.equal(forecastRequestError({ ...request, benchmark: { ...request.benchmark, days: 105 } }, catalog), null);
 });

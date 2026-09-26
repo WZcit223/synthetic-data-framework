@@ -31,7 +31,12 @@
     if (!names.includes(detector)) detector = names.includes("seasonal-residual") ? "seasonal-residual" : names[0] ?? "";
     if (!detector) return;
     const asked = detector;
-    const found = await api("/anomalies?detector=" + encodeURIComponent(asked));
+    let found;
+    try {
+      found = await api("/anomalies?detector=" + encodeURIComponent(asked));
+    } catch (err) {
+      found = { detector: asked, error: err.detail ?? err.message }; // shown in the panel, not left "running"
+    }
     if (asked === detector) d.detections = found; // a later choice wins
   };
   const loadImpact = async () => { d.impact = await api("/economics"); };
@@ -66,7 +71,7 @@
   function chooseDetector(next) {
     detector = next;
     d.detections = null;
-    loadDetections().catch(err => controls?.report("✗ could not load the detections: " + (err.detail ?? err.message)));
+    loadDetections().catch(err => controls?.report("✗ could not load the detectors: " + (err.detail ?? err.message)));
   }
 
   function chooseServiceLevel(next) {
