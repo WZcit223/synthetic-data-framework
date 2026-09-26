@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 from importlib.metadata import EntryPoint
 from typing import ClassVar
 
@@ -10,11 +11,12 @@ import pytest
 from sdf.application import datasets as datasets_module
 from sdf.application.kpi import kpis
 from sdf.foundation import plugins as plugins_module
+from sdf.foundation.sources import SourceStore
 from sdf.foundation.tables import DatasetInfo, Field
 from sdf.simulation.world import World
 from sdf.synthesis.registry import DISTRIBUTION
 from sdf.synthesis.spec import GenerationSpec
-from .datasets import DatasetCatalog, ReadDeadline, default_datasets
+from .datasets import DatasetCatalog, Datasets, ReadDeadline, default_datasets
 
 
 @pytest.fixture(scope="module")
@@ -266,3 +268,31 @@ def test_read_keeps_the_limit_and_asks_for_one_probe_row_only(world):
         small.read("skus", world, limit=10_000, deadline=0.0)
     with pytest.raises(ValueError, match="limit must be at least 1"):
         small.read("skus", world, limit=0)
+
+
+def test_the_source_prefix_is_reserved_for_data_sources():
+    class Clash(ChannelMix):
+        info: ClassVar[DatasetInfo] = DatasetInfo("source-sales", "Clash", "", ChannelMix.info.fields)
+
+    with pytest.raises(ValueError, match="'source-' is reserved"):
+        DatasetCatalog().register(Clash)
+
+
+def test_datasets_merge_the_catalogue_and_the_ready_sources(tmp_path, world):
+    store = SourceStore(tmp_path / "sources")
+    store.add(io.BytesIO(b"Day,Units\n2024-01-01,3\n2024-01-02,4\n"), name="sales")
+    store.add(io.BytesIO(b"Day,Units\n03/04/2024,1\n05/06/2024,2\n"), name="ambiguous")
+    cat = DatasetCatalog()
+    cat.register(ChannelMix)
+    view = Datasets(cat, store)
+    assert view.names() == ["channel-mix", "source-sales"]  # the ambiguous source waits to be settled
+    assert (view.origin("channel-mix"), view.origin("source-sales")) == ("runtime", "source")
+    with pytest.raises(KeyError, match="cannot be read yet"):
+        view.info("source-ambiguous")
+    table, total, sampled = view.head("source-sales", world, 1)
+    assert (len(table.rows), total, sampled) == (1, 2, True)
+    assert view.head("source-sales", world, 5)[1:] == (2, False)
+    table, more = view.read("source-sales", world, limit=1)
+    assert table.rows == [("2024-01-01", 3)] and more
+    cat.register(BadValues)  # registered later: served by the same view
+    assert "bad-values" in view.names()

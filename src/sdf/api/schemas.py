@@ -355,7 +355,7 @@ class DatasetEntry(Model):
     name: str
     label: str
     description: str
-    origin: Literal["builtin", "plugin", "runtime"]
+    origin: Literal["builtin", "plugin", "runtime", "source"]  # source: a data source, ``source-<name>``
     fields: list[FieldModel]
 
 
@@ -369,11 +369,99 @@ class DatasetTable(Model):
 
     name: str
     label: str
-    world: str
+    world: str  # the world the rows were built from; "" for a data source, whose rows are its file's
     fields: list[FieldModel]
     rows: list[list[Any]]
     total_rows: int
     truncated: bool
+    sampled: bool = False  # a data source larger than the answer: a uniform sample, not its first rows
+
+
+# -- data sources ----------------------------------------------------------------------------
+
+
+class SourceColumnModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    kind: Literal["id", "category", "integer", "real", "time", "text"]
+    formats: list[str] = Field(default_factory=list)  # time only: strptime formats; [] reads ISO 8601
+    ambiguous: bool = False  # time only: day-first and month-first both fit; the user must pick one
+
+
+class SourceRolesModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    time: str | None = None
+    item: str | None = None
+    quantity: str | None = None
+    price: str | None = None
+    cost: str | None = None
+
+
+class SourceSchemaModel(BaseModel):
+    """How to read a source's CSV: its columns in header order, their kinds and roles."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    label: str
+    columns: list[SourceColumnModel]
+    roles: SourceRolesModel = Field(default_factory=SourceRolesModel)
+    provenance: dict[str, str] = Field(default_factory=dict)
+    delimiter: Literal[",", ";"] = ","
+    decimal: Literal[".", ","] = "."
+
+
+class SourceLimitsModel(Model):
+    max_bytes: int
+    max_rows: int
+    max_columns: int
+    max_sources: int
+
+
+class SourceReportModel(Model):
+    rows_read: int
+    rows_kept: int
+    skipped: dict[str, int]
+    unreadable: dict[str, int]
+    examples: dict[str, list[str]]
+    blank: dict[str, int]
+    first_date: str | None
+    last_date: str | None
+    times_of_day: list[str]
+
+
+class SourceEntryModel(Model):
+    name: str
+    label: str
+    origin: Literal["bundled", "user"]
+    rows: int
+    columns: int
+    size_bytes: int
+    first_date: str | None
+    last_date: str | None
+    demand: bool  # the time and quantity roles are declared
+    ready: bool  # no problem left to settle; only a ready source is a dataset
+    problems: list[str]
+    schema_: SourceSchemaModel = Field(alias="schema")
+    report: SourceReportModel
+    summary: str
+
+
+class SourceList(Model):
+    sources: list[SourceEntryModel]
+    limits: SourceLimitsModel
+    unavailable: dict[str, str]  # user source folders that cannot be read, with the reason
+
+
+class SourcePreview(Model):
+    header: list[str]
+    rows: list[list[str]]  # the first rows as the file holds them
+
+
+class SourceDetail(SourceEntryModel):
+    preview: SourcePreview
 
 
 # -- experiments ------------------------------------------------------------------------------

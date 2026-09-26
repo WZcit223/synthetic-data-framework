@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Literal
 
 from sdf.foundation.adapters.retail_csv import LoadReport, load_online_retail_csv
+from sdf.foundation.sources import BUNDLED, DATA_DIR_ENV, data_dir
 from sdf.foundation.tables import DatasetInfo, Field, Table
 from sdf.synthesis.api import TableData
 from sdf.synthesis.fit import FittedHourlyDemand
@@ -26,9 +26,8 @@ from .fidelity import fidelity_report
 from .privacy import FEATURE_COLUMNS, FEATURE_KINDS, privacy_report, read_retail_feature_table
 
 EVALUATION_SEED = 7  # the seed of a run that leaves a synthesizer's seed out, so every run can be repeated
-DATA_DIR_ENV = "SDF_DATA_DIR"
-# The repository's sample CSVs (Online Retail II layout), by source ID. They live in data/, not in the package.
-SOURCE_FILES = {"sample": "sample_online_retail_ii.csv", "retail-10k": "online_retail_ii_2010_10k.csv"}
+# The repository's sample CSVs (Online Retail II layout), by source ID: the bundled sources. They live in data/.
+SOURCE_FILES = {name: b.file for name, b in BUNDLED.items()}
 
 SERIES_FIELDS = (
     Field("step", "Step", "dimension"),
@@ -70,11 +69,6 @@ class NoUsableRows(ValueError):
         self.path = path
         self.reason = reason
         self.load = load
-
-
-def data_dir() -> Path:
-    """Where the sample CSVs are read from: ``$SDF_DATA_DIR``, default ``./data``."""
-    return Path(os.environ.get(DATA_DIR_ENV) or "data")
 
 
 def sources() -> dict[str, str]:

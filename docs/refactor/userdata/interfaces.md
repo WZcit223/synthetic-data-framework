@@ -33,6 +33,8 @@ SourceSchema(
     ),
     roles=Roles(time="InvoiceDate", item="StockCode", quantity="Quantity", price="Price"),  # all optional
     provenance={"url": "...", "licence": "CC BY 4.0", "fetched": "2026-09-26"},  # optional, free text values
+    delimiter=",",                          # "," or ";"
+    decimal=".",                            # "." or ","; inferred as "," with ";"
 )
 ```
 
@@ -62,8 +64,8 @@ SourceSchema(
      name split at spaces, underscores and capitals) is `id`, even when its
      values look like numbers;
   3. a column whose values are whole numbers or text codes without spaces,
-     and more than 95 % distinct, is `id`. Real numbers are never `id` by
-     this rule;
+     and more than 95 % distinct, is `id`, when at least 20 values were
+     sampled. Real numbers are never `id` by this rule;
   4. a column whose values all parse as numbers is `integer` or `real`;
   5. a column whose values contain spaces and have more than 100 distinct
      values, or a median over 40 characters, is `text`;
@@ -79,9 +81,14 @@ SourceSchema(
   The guess is only a proposal; the user confirms it (U5) or passes it
   (`sdf data add --role …`).
 - **Delimiter and numbers.** A comma or a semicolon delimiter is detected
-  from the header. With a semicolon, a decimal comma (`3,5`) is read as a
-  decimal point. Thousands separators are not supported; such values do not
-  parse.
+  from the header. With a semicolon, the decimal mark is the one the sampled
+  numbers use more often: with a decimal comma (`3,5`), a dot is unreadable
+  (in those files `1.234` means one thousand two hundred and thirty-four);
+  with a dot, a comma is. A refusal for an unreadable time or quantity names
+  the decimal mark. Thousands separators, underscores and
+  non-ASCII digits are not supported; such values do not parse.
+- **Times.** ISO 8601 values may carry an offset (`Z`, `+09:00`); it is
+  dropped, and the time is read as written. Blank lines are not rows.
 - **Checks** (`SourceSchema.check(path)`). Every row is read once when a
   source is added or its schema changed. A value that does not parse as its
   column's kind is counted per column, with the first three examples. A
@@ -95,25 +102,38 @@ SourceSchema(
 ```python
 from sdf.foundation.sources import SourceStore, SourceLimits
 
-store = SourceStore(root="data/sources", bundled=BUNDLED, limits=SourceLimits())
+store = default_store()                     # $SDF_DATA_DIR/sources, and the bundled files in $SDF_DATA_DIR
+store = SourceStore(root, bundled={name: (path, schema)}, limits=SourceLimits())
 store.list() -> list[SourceEntry]          # bundled first, then the user's, by name
-store.get(name) -> SourceEntry              # schema, row count, date range, load report, origin ("bundled" | "user")
-store.add(stream, *, name, schema=None) -> SourceEntry            # schema None: inferred; ValueError with the reason
+store.scan() -> (list[SourceEntry], dict[str, str])  # the same, and the folders that cannot be read, with why
+store.get(name) -> SourceEntry              # schema, report (rows, dates, what could not be read), origin, path
+store.add(path_or_binary_file, *, name, schema=None) -> SourceEntry   # schema None: inferred
+store.begin(name) -> Upload                 # upload.write(chunk)…; upload.commit(schema=None); upload.discard()
 store.update_schema(name, schema) -> SourceEntry                  # re-checked; bundled sources are read-only
 store.remove(name)                          # user sources only
-store.rows(name, *, columns=None, limit=None, seed=None) -> Table  # typed values; limit with seed: a uniform sample
-store.orders(name) -> tuple[list[SKU], list[OutboundOrder]]         # needs time, item and quantity
+store.preview(name, rows=50) -> list[list[str]]                   # the first rows as the file holds them
+store.rows(name, *, columns=None, limit=None, seed=None) -> Table  # the dataset view (below); with seed: a uniform sample
+store.orders(name) -> tuple[list[SKU], list[OutboundOrder]]         # needs the time and quantity roles
 ```
 
-The store is in the foundation layer, so it returns only foundation types
-(tables, and the `SKU` and `OutboundOrder` entities). Demand is built one
-layer up, in `sdf.analytics.demand`:
+`ValueError` names what is wrong; `SourceTooLarge` (over a limit) and
+`SourceConflict` (a name taken or reserved, the store full, a bundled source
+changed) are its subclasses. The store is in the foundation layer, so it
+returns only foundation types (tables, and the `SKU` and `OutboundOrder`
+entities). Demand is built from the orders one layer up, where it is read:
+`DemandTable.from_orders(store.orders(name)[1])` (U3).
 
-```python
-source_demand(store, name) -> DemandTable    # DemandTable.from_orders over store.orders(name)
-```
-
-- One folder per user source: `<root>/<name>/data.csv` and `schema.json`.
+- One folder per user source: `<root>/<name>/data.csv` and `source.json`,
+  which holds the schema and the report of its last check, written together
+  in one replace, with the upload it came from. A folder that cannot be read
+  is left out of `list()` and named, with the reason, by `scan()` (and by
+  `GET /sources` and, as `source-<name>`, `GET /datasets`), so one broken
+  folder hides only itself; it can still be removed. Upload folders a crash
+  left behind are removed when the store is opened a day later. A schema
+  change is written only if the source is still the upload it was checked
+  against. The store lock holds within one process: the command line and a
+  running server share the folder but not the lock, so remove a source from
+  one of them at a time.
 - **Names.** The name is checked against `^[a-z0-9]+(-[a-z0-9]+)*$`, at most
   40 characters, so no path is ever built from user text. The names of the
   bundled sources (`sample`, `retail-10k`, and from U6 `uci-retail-daily`) are
@@ -121,32 +141,39 @@ source_demand(store, name) -> DemandTable    # DemandTable.from_orders over stor
   the page proposes one from the file name.
 - **Bundled sources** are the two sample files, with declared schemas. They
   are read-only.
-- **Limits** (`SourceLimits`, decision E2):
+- **Limits** (`SourceLimits`, decision E2; an app takes a store with its own
+  limits, `create_app(sources=SourceStore(root, limits=…))`):
   - an upload is at most 200 MB and 2,000,000 rows;
   - at most 64 columns;
   - at most 20 user sources.
 - **Adding safely.** The upload is streamed to a temporary file in `<root>`
   with a byte counter, and refused (and the file deleted) as soon as it
-  passes the limit, whether or not a length was declared. It is checked, then
+  passes the limit, whether or not a length was declared. A header wider
+  than the column limit is refused before anything else is read. It is checked, then
   moved into place with one rename. Adding and removing hold one store lock,
   so the source count and the name are checked and taken together; a second
   add of a name already present is refused.
 - **Orders and demand.** `orders` reads lines as the retail adapter does: a
   negative quantity is a return, kept as a cancelled line; a zero quantity
-  is skipped. A source without `item` gives one SKU, `all`. `source_demand`
-  sums the orders that are not cancelled by SKU and day, into the daily
-  `DemandTable` every forecaster and detector already reads.
+  is skipped; a real quantity is rounded to whole units. A source without
+  `item` gives one SKU, `all`. A SKU's unit price is the median positive price
+  of its lines (0 without a price role) and its unit cost the median positive
+  cost, else 0.6 × the price. `DemandTable.from_orders` sums the lines that
+  are not cancelled by SKU and day, into the daily table every forecaster and
+  detector already reads.
 
 ### 1.3 HTTP
 
 ```
 GET    /api/v1/sources                     → {sources: [SourceEntry], limits: SourceLimits}
-GET    /api/v1/sources/{name}              → SourceEntry + {preview: {fields, rows}} (first 50 rows)
+GET    /api/v1/sources/{name}              → SourceEntry + {preview: {header, rows}} (first 50 rows as text)
 POST   /api/v1/sources?name=my-sales       body: the CSV (text/csv), streamed
-                                           → 201 SourceEntry (schema inferred) | 409 name taken or reserved
-                                             | 413 over a limit | 422 unreadable
-PUT    /api/v1/sources/{name}/schema       body: SourceSchema → SourceEntry (re-checked) | 422 with the report
-DELETE /api/v1/sources/{name}              → 204 | 404 | 409 (bundled, or read by the current world: checked by the API, which holds the world)
+                                           → 201 SourceEntry (schema inferred) | 409 name taken or reserved,
+                                             or the store holds its most user sources
+                                             | 413 over the byte, row or column limit | 422 unreadable
+PUT    /api/v1/sources/{name}/schema       body: SourceSchema → SourceEntry (re-checked) | 422 naming the problem
+DELETE /api/v1/sources/{name}              → 204 | 404 | 409 (bundled; from U4 also: read by the current world,
+                                             checked by the API, which holds the world)
 ```
 
 - The served app's CORS setting allows `PUT` and `DELETE` as well as `GET`
@@ -159,6 +186,9 @@ DELETE /api/v1/sources/{name}              → 204 | 404 | 409 (bundled, or read
   - **Fields.** Each column's name becomes a `lower_snake_case` field name
     (`InvoiceDate` → `invoice_date`, `Customer ID` → `customer_id`); a
     collision gets `_2`, `_3`. The field's label is the column's own name.
+    Field names are ASCII: a letter outside it splits the name into words
+    (`Größe` → `gr_e`), and a name with no ASCII letter or digit becomes
+    `column` (`column_2`, …); the label always keeps the column's name.
     `id` and `category` columns become dimensions, `integer` and `real`
     columns measures; a dimension's values are written as text (`12`, not
     `12.0`). A `time` column becomes a date field, plus a dimension
@@ -169,15 +199,18 @@ DELETE /api/v1/sources/{name}              → 204 | 404 | 409 (bundled, or read
     wide source returns fewer rows; a larger source answers a seeded uniform
     sample, and the answer says so, with the source's row count.
   - **One merge.** The catalogue's datasets and the store's are merged by one
-    function in the application layer, `datasets(catalogue, store)`, which
-    the API and the command line both call.
+    class in the application layer, `Datasets(catalogue, store)` (`names`,
+    `info`, `origin`, `head`, `read`), which the API reads through and the
+    command line will (U7). A source whose schema has problems to settle is
+    not a dataset until they are settled.
   - **Causal estimation.** `POST /causal/estimates` reads the merged list,
     so a source is also an estimation dataset, within the estimators' own
     limits (at most `MAX_ESTIMATE_ROWS`, 40,000 rows, and a two-valued
     treatment). U7 uses this for the demo's effect step.
-- `GET /api/v1/synthesis/sources` is kept and lists the same sources. The API
-  is published as v1, so removing it would be a MAJOR change; the pages move
-  to `/sources` in U5.
+- `GET /api/v1/synthesis/sources` is kept. Until U2 it lists the bundled
+  files only, since only they can be evaluated; from U2 it lists every
+  source. The API is published as v1, so removing it would be a MAJOR change;
+  the pages move to `/sources` in U5.
 - **Exports.** Server-side CSV (`/export`, `sdf export`, every `--csv`
   option) prefixes a text cell that starts with `=`, `+`, `-`, `@`, a tab or
   a carriage return with `'`, the same characters the pages' `csvCell`

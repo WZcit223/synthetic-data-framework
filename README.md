@@ -52,6 +52,23 @@ replenishment plan) with their fields, and `GET /api/v1/datasets/{name}` returns
 one. Another package can add a table through the `sdf.datasets` entry-point
 group.
 
+**Your own data.** A CSV becomes a *data source*: the framework reads it as it
+is, proposes a schema (each column's kind, and which columns are the time, the
+item, the quantity, the price and the cost), checks every row, and serves it as a
+dataset (`source-<name>`) that Explore pivots and causal estimation reads:
+
+```bash
+uv run sdf data add sales.csv --name my-sales --role quantity=Units   # the schema is inferred, then corrected
+uv run sdf data list                  # the bundled files and yours
+uv run sdf data show my-sales         # schema, rows, dates, what the check found
+```
+
+The API does the same (`GET/POST /api/v1/sources`, `PUT /api/v1/sources/{name}/schema`,
+`DELETE /api/v1/sources/{name}`). Sources live in `$SDF_DATA_DIR/sources` (default
+`data/sources`, never committed); an upload is at most 200 MB, 2,000,000 rows and
+64 columns. Synthesizers, forecasters and the warehouse world follow in the next
+steps of [`docs/refactor/userdata/`](docs/refactor/userdata/00-overview.md).
+
 The synthesis algorithms are served the same way: `GET /api/v1/synthesizers`
 lists them with the parameters each takes, `GET /api/v1/synthesis/sources` the
 sample data they can be fitted on, and `POST /api/v1/synthesis/runs` fits one and

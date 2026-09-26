@@ -7,7 +7,7 @@ from datetime import date
 
 import pytest
 
-from .tables import DatasetInfo, Field, Table
+from .tables import DatasetInfo, Field, Table, csv_cell
 
 
 def _info(*fields: Field) -> DatasetInfo:
@@ -79,3 +79,13 @@ def test_table_names_the_dataset_row_and_field_of_a_bad_value(row, message):
     info = _info(Field("day", "Day", "time"), Field("channel", "Channel", "dimension"), Field("qty", "Qty", "measure"))
     with pytest.raises(ValueError, match=rf"^dataset demo: row 0.*{message}"):
         Table(info, [row])
+
+
+@pytest.mark.parametrize("text", ["=SUM(A1)", "+1", "-2+3", "@x", "\tx", "\rx"])
+def test_csv_cell_guards_text_a_spreadsheet_would_run(text):
+    assert csv_cell(text) == "'" + text
+
+
+@pytest.mark.parametrize("value", ["plain", "", "2025-01-02", -3, 2.5, None, True])
+def test_csv_cell_leaves_everything_else(value):
+    assert csv_cell(value) == value

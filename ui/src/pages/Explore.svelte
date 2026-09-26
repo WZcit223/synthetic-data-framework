@@ -38,7 +38,7 @@
   /** @type {any} */
   let table = $state.raw(null); // toTable(payload)
   /** @type {any} */
-  let meta = $state.raw(null); // {title, description, world, total, truncated}
+  let meta = $state.raw(null); // {title, description, world, total, truncated, sampled}
   /** @type {any} */
   let view = $state.raw(emptyView());
   /** @type {any} */
@@ -407,7 +407,7 @@
           <span>{s.groups.toLocaleString()} groups</span><span>{s.ms} ms</span>
         {/if}
         {#if meta?.truncated && table && !failure}
-          <span class="warn">⚠ the server sent the first {table.rows.length.toLocaleString()} of {meta.total.toLocaleString()} rows; totals cover those rows only</span>
+          <span class="warn">⚠ the server sent {meta.sampled ? "a uniform sample of" : "the first"} {table.rows.length.toLocaleString()} of {meta.total.toLocaleString()} rows; totals cover those rows only</span>
         {/if}
       </div>
     </section>

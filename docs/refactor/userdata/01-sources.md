@@ -1,6 +1,21 @@
 # U1 — Sources
 
-> Status: planned.
+> Status: implemented. As built, where it differs from the plan below (the
+> contract, `interfaces.md` §1, is updated to match):
+> - No `source_demand` function: nothing in U1 reads demand, and
+>   `DemandTable.from_orders(store.orders(name)[1])` is the whole of it; U3
+>   calls that where it reads demand.
+> - The merge is a class, `Datasets(catalogue, store)`, since the API asks it
+>   for names, fields, origin and rows; the API reads through it, and the
+>   command line will from U7, the first command that reads a dataset.
+> - An app takes a store with its own limits, `create_app(sources=…)`,
+>   instead of `source_limits=…`, so tests and deployments choose both the
+>   folder and the limits.
+> - A full store answers 409 (a conflict with what is stored), not 413.
+> - Refusing to delete a source the current world reads comes with the world
+>   from data (U4): until then no world reads a source.
+> - `GET /synthesis/sources` still lists only the bundled files, the only
+>   ones a run can use until U2.
 
 Contract: [`interfaces.md`](interfaces.md) §1.
 

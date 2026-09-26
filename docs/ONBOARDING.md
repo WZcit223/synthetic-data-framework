@@ -43,7 +43,15 @@ uv run sdf estimate --confounding 1   # estimators scored on the promotion bench
 uv run sdf forecast [--benchmark]     # forecasters backtested per SKU, with intervals
 uv run sdf privacy [csv]        # DCR / NNDR / clone-risk
 uv run sdf hooks                # where each checklist item plugs into the code
+uv run sdf data add FILE --name NAME [--role time=COL] [--kind COL=KIND] [--time-format COL=FMT]
+uv run sdf data list | show NAME | remove NAME   # your own data sources
 ```
+
+`sdf data add` infers the schema of a CSV (comma or semicolon, UTF-8, a header
+row) and checks every row. A date column whose day and month order cannot be
+told apart (every sampled day is at most 12) is refused with the two
+`--time-format` choices to add it again with. Sources are kept in
+`$SDF_DATA_DIR/sources` (default `data/sources`, gitignored).
 
 `[csv]` defaults to `data/sample_online_retail_ii.csv`. `agent` and `pipeline`
 take `--audit-log PATH`, which appends the run's full log to a JSONL file: every
@@ -104,6 +112,19 @@ another runs). `create_app(limits=GenerateLimits(...))` builds an app with other
 limits. `POST /api/v1/experiments` runs built-in interventions × policies ×
 outcomes on the current world and returns tidy rows. The HTTP contract tests in
 `src/sdf/api/app_test.py` need `uv sync --extra api`.
+
+Data sources (`docs/refactor/userdata/interfaces.md` §1): `GET /api/v1/sources`
+lists them with the upload limits; `POST /api/v1/sources?name=NAME` with a CSV
+body (`text/csv`) adds one (201; 409 when the name is taken or reserved, or
+the store holds 20 user sources; 413 over 200 MB, refused as the body
+arrives, or over 2,000,000 rows or 64 columns, refused when the file is read;
+422 when it cannot be read);
+`PUT /api/v1/sources/{name}/schema` corrects kinds, formats and roles and
+re-checks every row; `DELETE` removes a user source (the bundled ones are
+read-only). A ready source is also the dataset `source-<name>`: a source larger
+than one answer (250,000 rows or 2,000,000 cells) answers a uniform sample
+with `sampled: true`. `create_app(sources=SourceStore(root, limits=...))`
+builds an app on another store or with other limits.
 
 ## 5. Tests and linting
 

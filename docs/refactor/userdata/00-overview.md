@@ -112,8 +112,8 @@ demo.
   a service and changes nothing a user sees.
 - **E2. Limits.** One upload at most 200 MB and 2,000,000 rows, 64 columns,
   and at most 20 user sources. A source over a limit is refused with the
-  limits named. They are published by `GET /sources` and set by
-  `create_app(source_limits=…)`. **Recommended as stated.** The full UCI
+  limits named. They are published by `GET /sources` and set by the store
+  an app is built with, `create_app(sources=SourceStore(root, limits=…))`. **Recommended as stated.** The full UCI
   Online Retail II (1,067,371 rows, about 100 MB as CSV) fits; M5 fits after
   the conversion E3 describes.
 - **E3. Which real data, from where.** This environment's network policy

@@ -528,6 +528,11 @@ def test_cors_origins():
     assert res.headers["access-control-allow-origin"] == "http://ui.example"
     other = client.get(V1 + "/health", headers={"Origin": "http://evil.example"})
     assert "access-control-allow-origin" not in other.headers
+    for method in ("PUT", "DELETE"):  # the sources' schema and removal
+        pre = client.options(
+            V1 + "/sources/x", headers={"Origin": "http://ui.example", "Access-Control-Request-Method": method}
+        )
+        assert pre.status_code == 200 and method in pre.headers["access-control-allow-methods"]
 
 
 # -- POST /experiments ------------------------------------------------------------------------------
@@ -712,7 +717,8 @@ def test_effects_refuse_a_generator_whose_first_world_differs_from_its_later_one
 
 def test_datasets_are_listed_with_their_fields(client):
     body = get(client, "/datasets")
-    assert [d["name"] for d in body["datasets"]] == ["inventory", "order-lines", "replenishment-plan", "skus"]
+    names = [d["name"] for d in body["datasets"]]  # the catalogue's, then the data sources' (a local one too)
+    assert names[:6] == ["inventory", "order-lines", "replenishment-plan", "skus", "source-retail-10k", "source-sample"]
     assert body["unavailable"] == {}
     lines = next(d for d in body["datasets"] if d["name"] == "order-lines")
     assert lines["origin"] == "builtin" and lines["label"] == "Outbound order lines"

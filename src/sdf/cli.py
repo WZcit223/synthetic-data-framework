@@ -22,6 +22,17 @@ from .application.intelligence import WarehouseIntelligence
 from .application.scenarios import run_scenarios
 from .application.snapshot import render_markdown, replace_doc_block, snapshot
 from .foundation.adapters.retail_csv import load_online_retail_csv
+from .foundation.sources import (
+    ROLE_KINDS,
+    ROLES,
+    ColumnSpec,
+    Roles,
+    SourceEntry,
+    SourceSchema,
+    default_store,
+    infer_schema,
+)
+from .foundation.tables import csv_cell
 from .simulation import catalog
 from .simulation.benchmark import AnomalyBenchmark, DemandBenchmark, PromotionBenchmark
 from .simulation.effects import EffectStudy
@@ -81,7 +92,7 @@ def _write_csv(path: str, rows: list) -> None:
         w = csv.DictWriter(fh, fieldnames=keys)
         w.writeheader()
         for r in rows:
-            w.writerow({k: _flat(v) for k, v in r.to_dict().items()})
+            w.writerow({k: csv_cell(_flat(v)) for k, v in r.to_dict().items()})
 
 
 def _flat(v):
@@ -357,7 +368,7 @@ def cmd_effects(
         with open(csv_path, "w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
             writer.writerow([f.name for f in result.effects.info.fields])
-            writer.writerows(result.effects.rows)
+            writer.writerows([[csv_cell(v) for v in r] for r in result.effects.rows])
         print(f"\nwrote {csv_path}")
     return 0
 
@@ -419,7 +430,7 @@ def cmd_estimate(
         with open(csv_path, "w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
             writer.writerow([f.name for f in table.info.fields])
-            writer.writerows(table.rows)
+            writer.writerows([[csv_cell(v) for v in r] for r in table.rows])
         print(f"\nwrote {csv_path}")
     return 0
 
@@ -485,7 +496,7 @@ def cmd_forecast(
         with open(csv_path, "w", newline="", encoding="utf-8") as fh:
             writer = csv.writer(fh)
             writer.writerow([f.name for f in result.scores.info.fields])
-            writer.writerows(rows)
+            writer.writerows([[csv_cell(v) for v in r] for r in rows])
         print(f"\nwrote {csv_path}")
     return 0
 
@@ -533,7 +544,7 @@ def cmd_anomalies(detectors: list[str], *, benchmark: bool = False, csv_path: st
             with open(csv_path, "w", newline="", encoding="utf-8") as fh:
                 writer = csv.writer(fh)
                 writer.writerow([f.name for f in table.info.fields])
-                writer.writerows(table.rows)
+                writer.writerows([[csv_cell(v) for v in r] for r in table.rows])
             print(f"\nwrote {csv_path}")
         return 0
     for name, detections in found.items():
@@ -547,7 +558,12 @@ def cmd_anomalies(detectors: list[str], *, benchmark: bool = False, csv_path: st
             writer.writerow(["detector", "sku_id", "date", "score", "direction", "signals"])
             for name, detections in found.items():
                 for d in sorted(detections, key=lambda d: (-d.score, d.sku_id, d.day)):
-                    writer.writerow([name, d.sku_id, d.day.isoformat(), d.score, d.direction, " ".join(d.signals)])
+                    writer.writerow(
+                        [
+                            csv_cell(v)
+                            for v in (name, d.sku_id, d.day.isoformat(), d.score, d.direction, " ".join(d.signals))
+                        ]
+                    )
         print(f"\nwrote {csv_path}")
     return 0
 
@@ -1024,6 +1040,140 @@ def hooks_command(checklist: str, doc_path: str | None) -> None:
         click.echo(f"{doc_path}: {'updated' if updated != text else 'already up to date'}")
         return
     click.echo(index, nl=False)
+
+
+@main.group()
+def data() -> None:
+    """Your own data: add a CSV as a source; list, show and remove sources.
+
+    User sources live in $SDF_DATA_DIR/sources (default data/sources); the bundled files are
+    listed too, read-only.
+    """
+
+
+def _pairs(values: tuple[str, ...], what: str) -> dict[str, str]:
+    out = {}
+    for text in values:
+        key, sep, value = text.partition("=")
+        if not sep or not key.strip() or not value.strip():
+            raise click.BadParameter(f"{text!r}: write {what}")
+        out[key.strip()] = value.strip()
+    return out
+
+
+def _print_source(entry: SourceEntry) -> None:
+    schema = entry.schema
+    roles = {column: role for role, column in schema.roles.items()}
+    click.echo(f"{entry.name}  ({entry.origin}) {schema.label}")
+    dates = f", {entry.report.first_date} to {entry.report.last_date}" if entry.report.first_date else ""
+    click.echo(f"  {entry.report.rows_kept:,} rows, {len(schema.columns)} columns{dates}")
+    click.echo(f"  demand: {'yes' if schema.has_demand else 'no (declare its time and quantity columns)'}")
+    for c in schema.columns:
+        fmt = f" {' or '.join(c.formats)}" if c.formats else ""
+        role = f"  <- {roles[c.name]}" if c.name in roles else ""
+        click.echo(f"    {c.name:<24} {c.kind}{fmt}{role}")
+    click.echo(f"  check: {entry.report.summary()}")
+    for problem in schema.problems:
+        click.echo(f"  to settle: {problem}")
+
+
+@data.command("add")
+@click.argument("path", type=click.Path(exists=True, dir_okay=False))
+@click.option("--name", required=True, help="The source's name: lower-case words joined by dashes.")
+@click.option("--label", help="A label for people; default: the name.")
+@click.option("--role", "roles", multiple=True, metavar="ROLE=COLUMN", help=f"One of {', '.join(ROLES)}; repeatable.")
+@click.option("--kind", "kinds", multiple=True, metavar="COLUMN=KIND", help="Override an inferred kind; repeatable.")
+@click.option(
+    "--time-format", "formats", multiple=True, metavar="COLUMN=FORMAT", help="A strptime format, e.g. %d/%m/%Y."
+)
+def data_add(
+    path: str, name: str, label: str | None, roles: tuple[str, ...], kinds: tuple[str, ...], formats: tuple[str, ...]
+) -> None:
+    """Add the CSV at PATH as a source: its schema is inferred, then corrected by the options."""
+    role_of = _pairs(roles, "ROLE=COLUMN")
+    kind_of = _pairs(kinds, "COLUMN=KIND")
+    format_of = _pairs(formats, "COLUMN=FORMAT")
+    try:
+        inferred = infer_schema(path, name=name, label=label)
+        known = {c.name for c in inferred.columns}
+        unknown = sorted((set(kind_of) | set(format_of) | set(role_of.values())) - known)
+        if unknown:
+            raise ValueError(f"no column {unknown[0]!r}; the file's columns: {[c.name for c in inferred.columns]}")
+        if set(role_of) - set(ROLES):
+            raise ValueError(f"roles are {', '.join(ROLES)}; got {sorted(set(role_of) - set(ROLES))[0]!r}")
+        columns = []
+        for c in inferred.columns:
+            kind = kind_of.get(c.name, "time" if c.name in format_of else c.kind)
+            if c.name in format_of:
+                columns.append(ColumnSpec(c.name, kind, formats=(format_of[c.name],)))
+            else:
+                columns.append(c if kind == c.kind else ColumnSpec(c.name, kind))
+        kinds_now = {c.name: c.kind for c in columns}
+        guessed = {r: col for r, col in inferred.roles.items() if r not in role_of and col not in role_of.values()}
+        guessed = {r: col for r, col in guessed.items() if kinds_now[col] in ROLE_KINDS[r]}
+        schema = SourceSchema(
+            name=name,
+            label=inferred.label,
+            columns=tuple(columns),
+            roles=Roles(**guessed, **role_of),
+            delimiter=inferred.delimiter,
+            decimal=inferred.decimal,
+        )
+        if schema.problems:
+            fixes = "; ".join(
+                f"--time-format {c.name}={c.formats[0]!r} (month first) or {c.name}={c.formats[1]!r} (day first)"
+                for c in schema.columns
+                if c.ambiguous
+            )
+            raise ValueError(f"the day and month order is ambiguous; add it again with {fixes}")
+        entry = default_store().add(path, name=name, schema=schema)
+    except ValueError as exc:  # SourceConflict and SourceTooLarge included
+        raise click.ClickException(str(exc)) from exc
+    click.echo("added:")
+    _print_source(entry)
+
+
+@data.command("list")
+def data_list() -> None:
+    """Every source, bundled first."""
+    entries, broken = default_store().scan()
+    click.echo(f"{'name':<28}{'origin':<9}{'rows':>11}  {'dates':<25}demand")
+    for e in entries:
+        dates = f"{e.report.first_date} to {e.report.last_date}" if e.report.first_date else "-"
+        ready = "" if not e.schema.problems else "  (to settle: sdf data show " + e.name + ")"
+        demand = "yes" if e.schema.has_demand else "no"
+        click.echo(f"{e.name:<28}{e.origin:<9}{e.report.rows_kept:>11,}  {dates:<25}{demand}{ready}")
+    for name, reason in broken.items():
+        click.echo(f"{name:<28}cannot be read: {reason}")
+
+
+@data.command("show")
+@click.argument("name")
+@click.option("--rows", "n", default=5, show_default=True, type=click.IntRange(0, 50), help="First rows to print.")
+def data_show(name: str, n: int) -> None:
+    """A source's schema, row count, dates, check report and first rows."""
+    store = default_store()
+    try:
+        entry = store.get(name)
+    except KeyError as exc:
+        raise click.ClickException(exc.args[0]) from exc
+    _print_source(entry)
+    if n:
+        click.echo("  first rows:")
+        click.echo("    " + ",".join(c.name for c in entry.schema.columns))
+        for row in store.preview(name, n):
+            click.echo("    " + ",".join(row))
+
+
+@data.command("remove")
+@click.argument("name")
+def data_remove(name: str) -> None:
+    """Delete a user source and its file."""
+    try:
+        default_store().remove(name)
+    except (KeyError, ValueError) as exc:
+        raise click.ClickException(exc.args[0] if isinstance(exc, KeyError) else str(exc)) from exc
+    click.echo(f"removed {name}")
 
 
 if __name__ == "__main__":

@@ -8,11 +8,12 @@ from typing import ClassVar
 import pytest
 
 from sdf.foundation.adapters.retail_csv import load_online_retail_csv
+from sdf.foundation.sources import data_dir
 from sdf.synthesis.api import SynthesizerInfo, TableData
 from sdf.synthesis.fit import FittedHourlyDemand
 from sdf.synthesis.registry import default_registry
 from .detection import detection_metrics
-from .evaluation import EVALUATION_SEED, NoUsableRows, RunFailed, data_dir, evaluate, sources
+from .evaluation import EVALUATION_SEED, NoUsableRows, RunFailed, evaluate, sources
 from .fidelity import fidelity_report
 from .privacy import FEATURE_COLUMNS, FEATURE_KINDS, privacy_report, read_retail_feature_table
 
