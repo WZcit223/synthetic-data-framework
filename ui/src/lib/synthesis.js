@@ -101,6 +101,8 @@ const short = v => (Math.abs(v) >= 100 ? Math.round(v).toLocaleString("en-US") :
 // The link that reopens a run's table in the Explore page (interfaces.md §3), or null when the run cannot be repeated.
 export function exploreLink(run) {
   if (!run.repeatable) return null;
-  const source = { synthesis: { synthesizer: run.synthesizer, source: run.source, params: run.params } };
+  // a run on a source's chosen columns repeats that choice
+  const choice = run.columns ? { columns: run.columns, rows: run.row_choice } : {};
+  const source = { synthesis: { synthesizer: run.synthesizer, source: run.source, params: run.params, ...choice } };
   return "explore.html#view=" + encodeURIComponent(JSON.stringify({ source }));
 }

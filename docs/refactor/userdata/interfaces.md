@@ -104,7 +104,7 @@ from sdf.foundation.sources import SourceStore, SourceLimits
 
 store = default_store()                     # $SDF_DATA_DIR/sources, and the bundled files in $SDF_DATA_DIR
 store = SourceStore(root, bundled={name: (path, schema)}, limits=SourceLimits())
-store.list() -> list[SourceEntry]          # bundled first, then the user's, by name
+store.list() -> list[SourceEntry]          # bundled first in their declared order, then the user's by name
 store.scan() -> (list[SourceEntry], dict[str, str])  # the same, and the folders that cannot be read, with why
 store.get(name) -> SourceEntry              # schema, report (rows, dates, what could not be read), origin, path
 store.add(path_or_binary_file, *, name, schema=None) -> SourceEntry   # schema None: inferred
@@ -255,13 +255,22 @@ POST /api/v1/synthesis/runs
   the reason, and so is one whose `time` column holds dates without times of
   day, which cannot give an hourly series. A daily grain for series
   synthesizers is not part of this sequence.
-- **The bundled sources keep today's readers.** With no `columns` given,
-  `sample` and `retail-10k` run the retail feature table exactly as today
-  (`qty`, `price`, `hour`, `weekday`; positive quantity and price; the first
-  3,000 rows), and their series runs read the retail adapter's orders as
-  today, so their answers, and every recorded number, are unchanged. A
-  column choice on a bundled source takes the path above.
-- The run table's fields are the columns, named as in §1.3, plus `origin`.
+- **The bundled sources keep today's readers.** With no `columns` and no
+  `rows` given, `sample` and `retail-10k` run the retail feature table
+  exactly as today (`qty`, `price`, `hour`, `weekday`; positive quantity and
+  price; the first 3,000 rows), and their series runs read the retail
+  adapter's orders as today, so their answers, and every recorded number,
+  are unchanged. A column or row choice on a bundled source takes the path
+  above.
+- The run table's fields are `origin`, then the columns, named as in §1.3
+  (`<time>.hour` → `<field>_hour`, `<time>.weekday` → `<field>_weekday`): a
+  category is a dimension holding its labels, a number a measure.
+- The answer adds `columns` (the columns fitted; `null` for the retail
+  feature table or a series), `row_choice` (`"sample"` or `"first"`) and
+  `notes`. `GET /api/v1/synthesis/sources` lists every ready source with
+  `origin`, `series` (it has hourly demand) and the `columns` a table run may
+  name; a run's `source` must be one of them, never a path.
+- In Python: `evaluate(name, source=…, columns=…, rows=…, store=…)`.
 - Command line: `sdf privacy --source NAME [--columns a,b] [--rows sample|first]
   [--param k=v]`, `sdf synth --source NAME [--param k=v]`,
   `sdf tstr --source NAME`. A path is still accepted, read as today, with

@@ -80,6 +80,18 @@ export function presetKey(source, meta) {
   return null;
 }
 
+// The presets of a source that fit its table: a preset naming a field the table lacks is left out
+// (a synthesizer run on a user's source has its own columns, not the retail table's).
+export function presetsFor(source, meta, table) {
+  const names = new Set(table.fields.map(f => f.name));
+  const fieldsOf = p => {
+    const v = p.view;
+    const shelved = [...(v.rows ?? []), ...(v.columns ?? []), ...(v.values ?? [])].map(a => a.field);
+    return [...shelved, ...Object.keys(v.filters ?? {})];
+  };
+  return (PRESETS[presetKey(source, meta)] ?? []).filter(p => fieldsOf(p).every(f => names.has(f)));
+}
+
 // Whether a view and display are this preset, unchanged.
 export function isPreset(p, view, display) {
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);

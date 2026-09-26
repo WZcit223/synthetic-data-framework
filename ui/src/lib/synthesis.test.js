@@ -80,4 +80,9 @@ test("only a repeatable run links to Explore, with the parameters it used", () =
     source: { synthesis: { synthesizer: "bootstrap-table", source: "sample", params: { seed: 7, jitter: 0.05 } } },
   });
   assert.equal(exploreLink({ ...run, repeatable: false }), null);
+  // a run on a source's chosen columns repeats the choice
+  const chosen = exploreLink({ ...run, source: "my-sales", columns: ["Units", "Store"], row_choice: "first" });
+  assert.deepEqual(JSON.parse(decodeURIComponent(chosen.slice("explore.html#view=".length))).source.synthesis, {
+    synthesizer: "bootstrap-table", source: "my-sales", params: { seed: 7, jitter: 0.05 }, columns: ["Units", "Store"], rows: "first",
+  });
 });

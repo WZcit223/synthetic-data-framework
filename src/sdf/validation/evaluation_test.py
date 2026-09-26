@@ -13,20 +13,18 @@ from sdf.synthesis.api import SynthesizerInfo, TableData
 from sdf.synthesis.fit import FittedHourlyDemand
 from sdf.synthesis.registry import default_registry
 from .detection import detection_metrics
-from .evaluation import EVALUATION_SEED, NoUsableRows, RunFailed, evaluate, sources
+from .evaluation import EVALUATION_SEED, NoUsableRows, RunFailed, evaluate
 from .fidelity import fidelity_report
 from .privacy import FEATURE_COLUMNS, FEATURE_KINDS, privacy_report, read_retail_feature_table
 
 SAMPLE = "data/sample_online_retail_ii.csv"
 
 
-def test_sources_lists_the_sample_csvs_that_exist(monkeypatch, tmp_path):
-    monkeypatch.delenv("SDF_DATA_DIR", raising=False)
-    assert sources() == {"sample": SAMPLE, "retail-10k": "data/online_retail_ii_2010_10k.csv"}
+def test_a_bundled_source_missing_from_the_data_folder_is_named(monkeypatch, tmp_path):
     monkeypatch.setenv("SDF_DATA_DIR", str(tmp_path))
-    assert data_dir() == tmp_path and sources() == {}
-    (tmp_path / "sample_online_retail_ii.csv").write_text("x\n")
-    assert sources() == {"sample": str(tmp_path / "sample_online_retail_ii.csv")}
+    assert data_dir() == tmp_path
+    with pytest.raises(ValueError, match="source 'sample' is not available: .* does not exist"):
+        evaluate("bootstrap-table", source="sample")
 
 
 def test_a_series_run_scores_what_sdf_synth_prints():

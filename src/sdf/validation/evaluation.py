@@ -12,11 +12,20 @@ The scorers keep their algorithm hooks (checklist rows B1, B3 and B4).
 from __future__ import annotations
 
 import os
+import random
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from sdf.foundation.adapters.retail_csv import LoadReport, load_online_retail_csv
-from sdf.foundation.sources import BUNDLED, DATA_DIR_ENV, data_dir
+from sdf.foundation.sources import (
+    BUNDLED,
+    DATA_DIR_ENV,
+    SourceEntry,
+    SourceStore,
+    data_dir,
+    default_store,
+    field_name,
+)
 from sdf.foundation.tables import DatasetInfo, Field, Table
 from sdf.synthesis.api import TableData
 from sdf.synthesis.fit import FittedHourlyDemand
@@ -26,6 +35,11 @@ from .fidelity import fidelity_report
 from .privacy import FEATURE_COLUMNS, FEATURE_KINDS, privacy_report, read_retail_feature_table
 
 EVALUATION_SEED = 7  # the seed of a run that leaves a synthesizer's seed out, so every run can be repeated
+MAX_TABLE_ROWS = 3000  # rows a table run fits on, as the retail reader reads
+RowChoice = Literal["sample", "first"]
+DATA_KINDS = ("integer", "real", "category")  # the source column kinds a table synthesizer reads
+DERIVED = {"hour": "integer", "weekday": "category"}  # what <time>.hour and <time>.weekday are
+WEEKDAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 # The repository's sample CSVs (Online Retail II layout), by source ID: the bundled sources. They live in data/.
 SOURCE_FILES = {name: b.file for name, b in BUNDLED.items()}
 
@@ -55,6 +69,9 @@ class EvaluationRun:
     table: Table
     repeatable: bool  # True when the synthesizer has a seed: the same params give the same table
     load: LoadReport | None = field(default=None, repr=False, compare=False)  # a series run's CSV load report
+    columns: tuple[str, ...] = ()  # a table run on a source: the columns fitted; () for the retail feature table
+    rows: RowChoice | None = None  # a table run on a source: how its rows were chosen
+    notes: tuple[str, ...] = ()  # what a reader of the scores should know about this run
 
 
 class RunFailed(RuntimeError):
@@ -71,12 +88,6 @@ class NoUsableRows(ValueError):
         self.load = load
 
 
-def sources() -> dict[str, str]:
-    """The sample sources that exist, by ID: ``{'sample': 'data/sample_online_retail_ii.csv', …}``."""
-    folder = data_dir()
-    return {sid: str(folder / name) for sid, name in SOURCE_FILES.items() if (folder / name).is_file()}
-
-
 def evaluate(
     synthesizer: str,
     *,
@@ -84,12 +95,23 @@ def evaluate(
     params: dict[str, Any] | None = None,
     date_format: str | None = None,
     registry: SynthesizerRegistry | None = None,
+    store: SourceStore | None = None,
+    columns: list[str] | None = None,
+    rows: RowChoice | None = None,
 ) -> EvaluationRun:
-    """Fit ``synthesizer`` on ``source`` (a source ID or a CSV path) and score it.
+    """Fit ``synthesizer`` on ``source`` (a data source's name, or a CSV path) and score it.
+
+    A bundled source with no ``columns`` and no ``rows``, or a path, is read as it always was:
+    the retail feature table, or the retail adapter's orders. Any other source is read through
+    its schema (``docs/refactor/userdata/interfaces.md`` §2): a table synthesizer is fitted on
+    ``columns`` (default: every integer, real and category column; ``<time>.hour`` and
+    ``<time>.weekday`` may be named), at most 3,000 rows, ``rows="sample"`` (the default, a
+    uniform sample drawn with the run's seed) or ``"first"``; a series synthesizer on its demand.
+    ``store`` is the source store (default: ``default_store()``).
 
     Raises ``KeyError`` for an unknown or unavailable synthesizer, and
     ``ValueError`` for a warehouse synthesizer, a parameter it does not take or
-    whose value it refuses, an unknown source, or a source with no usable row:
+    whose value it refuses, an unknown source or column, or a source with no usable row:
     all problems of the request. ``RunFailed`` means the synthesizer's own code
     raised while it was created, fitted or sampled.
     """
@@ -114,8 +136,42 @@ def evaluate(
         problem = declared[name].check(value)
         if problem:
             raise ValueError(f"{synthesizer}: {name} {problem}")
-    path = _resolve(source)
+    store = store if store is not None else default_store()
+    if rows not in (None, "sample", "first"):
+        raise ValueError(f"rows is 'sample' or 'first', got {rows!r}")
+    path, entry = _resolve(source, store, choice=columns is not None or rows is not None)
+    if entry is not None and info.produces == "series" and (columns is not None or rows is not None):
+        raise ValueError("a series synthesizer is fitted on the source's demand; columns and rows are for tables")
+    seed = used["seed"] if repeatable else EVALUATION_SEED
+    if entry is not None and info.produces == "table":  # before the synthesizer is created: a bad column is ours
+        data, fields, decode, notes = _source_table(store, entry, columns, rows or "sample", seed)
     model = _run(synthesizer, "creating it", lambda: reg.create(synthesizer, **used))
+
+    if entry is not None and info.produces == "series":
+        orders = _source_orders(store, entry)
+        fitted = _run(synthesizer, "fitting it", lambda: FittedHourlyDemand(model).fit(orders))
+        if not fitted.real_series:
+            raise NoUsableRows(source, "no demand left after removing cancelled lines")
+        synth = _run(synthesizer, "sampling from it", fitted.generate)
+        metrics = fidelity_report(fitted.real_series, synth, fitted.ppd)
+        series_rows = [(str(i), "real", round(v, 4)) for i, v in enumerate(fitted.real_series)]
+        series_rows += [(str(i), "synthetic", round(v, 4)) for i, v in enumerate(synth)]
+        table = Table(_info(synthesizer, "series", SERIES_FIELDS), series_rows)
+        return EvaluationRun(synthesizer, source, "series", used, metrics, table, repeatable)
+
+    if entry is not None:  # a table run on a source
+        synth_rows = _run(synthesizer, "fitting and sampling it", lambda: model.fit(data).sample())
+        _check_width(synthesizer, synth_rows, data.columns)
+        metrics = privacy_report(data.rows, synth_rows)
+        if "error" in metrics:
+            raise NoUsableRows(source, metrics["error"])
+        metrics |= detection_metrics(data.rows, synth_rows, columns=data.columns)
+        table_rows = [("real", *decode(r)) for r in data.rows] + [("synthetic", *decode(r)) for r in synth_rows]
+        table = Table(_info(synthesizer, "table", fields), table_rows)
+        choice = rows or "sample"
+        return EvaluationRun(
+            synthesizer, source, "table", used, metrics, table, repeatable, None, data.columns, choice, notes
+        )
 
     if info.produces == "series":
         _skus, orders, load = load_online_retail_csv(path, date_format=date_format)
@@ -141,12 +197,7 @@ def evaluate(
         if real
         else []
     )
-    wrong = next((r for r in synth_rows if len(r) != len(FEATURE_COLUMNS)), None)
-    if wrong is not None:  # the synthesizer's fault: it was given 4 columns
-        raise RunFailed(
-            f"{synthesizer} failed while sampling from it: a row of {len(wrong)} values, "
-            f"not one per column {list(FEATURE_COLUMNS)}"
-        )
+    _check_width(synthesizer, synth_rows, FEATURE_COLUMNS)
     metrics = privacy_report(real, synth_rows)
     if "error" in metrics:
         raise NoUsableRows(path, metrics["error"])
@@ -165,18 +216,168 @@ def _run(synthesizer: str, step: str, call):
         raise RunFailed(f"{synthesizer} failed while {step}: {type(exc).__name__}: {exc}") from exc
 
 
-def _resolve(source: str) -> str:
-    listed = sources()
-    if source in listed:
-        return listed[source]
+def _check_width(synthesizer: str, synth_rows: list, columns: tuple[str, ...]) -> None:
+    wrong = next((r for r in synth_rows if len(r) != len(columns)), None)
+    if wrong is not None:  # the synthesizer's fault: it was given these columns
+        raise RunFailed(
+            f"{synthesizer} failed while sampling from it: a row of {len(wrong)} values, "
+            f"not one per column {list(columns)}"
+        )
+
+
+def _resolve(source: str, store: SourceStore, *, choice: bool) -> tuple[str | None, SourceEntry | None]:
+    """``(path, None)`` for a file read as it always was, or ``(None, entry)`` for a source read by its schema.
+
+    A bundled source is read as its file unless a column or row ``choice`` is made.
+    """
+    try:
+        entry = store.get(source)
+    except KeyError:
+        entry = None
+    if entry is not None:
+        if entry.schema.problems:
+            raise ValueError(f"source {source} cannot be read yet: " + "; ".join(entry.schema.problems))
+        return (str(entry.path), None) if entry.origin == "bundled" and not choice else (None, entry)
     if source in SOURCE_FILES:
         raise ValueError(
             f"source {source!r} is not available: {data_dir() / SOURCE_FILES[source]} does not exist "
             f"(set {DATA_DIR_ENV} to the folder that holds it)"
         )
     if os.path.isfile(source):
-        return source
-    raise ValueError(f"unknown source {source!r}; choose from {sorted(listed)} or give a CSV path")
+        if choice:
+            raise ValueError(f"{source}: a column or row choice needs a source (sdf data add), not a file path")
+        return source, None
+    names = [e.name for e in store.list() if not e.schema.problems]
+    raise ValueError(f"unknown source {source!r}; choose from {names} or give a CSV path")
+
+
+def _source_orders(store: SourceStore, entry: SourceEntry) -> list:
+    """The orders a series synthesizer is fitted on; ``ValueError`` when the source has no hourly demand."""
+    schema = entry.schema
+    if not schema.has_demand:
+        raise ValueError(f"source {entry.name} has no demand: declare its time and quantity columns")
+    if schema.roles.time not in entry.report.times_of_day:
+        raise ValueError(
+            f"source {entry.name}: its time column {schema.roles.time} holds dates without times of day; "
+            "a series synthesizer is fitted on hourly demand"
+        )
+    return store.orders(entry.name)[1]
+
+
+def _source_table(
+    store: SourceStore, entry: SourceEntry, columns: list[str] | None, choice: RowChoice, seed: int
+) -> tuple[TableData, tuple[Field, ...], Any, tuple[str, ...]]:
+    """A source's rows as a synthesizer's table: the data, the run table's fields, a decoder, and the notes.
+
+    Categories are coded 0, 1, … from the most frequent label down (ties in first-seen order); the
+    decoder turns a row of codes back into labels, a synthetic code rounded and clipped to a label.
+    """
+    schema = entry.schema
+    time = schema.roles.time
+    names = [c.name for c in schema.columns]
+    chosen = list(columns) if columns is not None else [c.name for c in schema.columns if c.kind in DATA_KINDS]
+    if not chosen:
+        raise ValueError(f"source {entry.name} has no integer, real or category column; name the columns to fit")
+    if len(set(chosen)) != len(chosen):
+        raise ValueError(f"a column is named twice in {chosen}")
+    specs = []  # (column, kind, index in the schema, derived part or None)
+    for col in chosen:
+        base, _, part = col.rpartition(".")
+        if time is not None and base == time and part in DERIVED:
+            specs.append((col, DERIVED[part], names.index(time), part))
+            continue
+        if col not in names:
+            derived = f" (and {time}.hour, {time}.weekday)" if time else ""
+            raise ValueError(f"source {entry.name} has no column {col!r}; its columns: {names}{derived}")
+        kind = schema.column(col).kind
+        if kind not in DATA_KINDS:
+            raise ValueError(f"column {col} is {kind}; a table synthesizer reads integer, real and category columns")
+        specs.append((col, kind, names.index(col), None))
+    positive = {
+        i
+        for i, (col, _, _, part) in enumerate(specs)
+        if part is None and col in (schema.roles.quantity, schema.roles.price)
+    }
+
+    def value(row: list[Any], spec: tuple) -> Any:
+        v = row[spec[2]]
+        if v is None or spec[3] is None:
+            return v
+        return v.hour if spec[3] == "hour" else WEEKDAYS[v.weekday()]
+
+    picked: list[tuple[int, list[Any]]] = []
+    rng = random.Random(seed)
+    usable = 0
+    for row in store.records(entry.name):
+        values = [value(row, spec) for spec in specs]
+        if any(v is None for v in values) or any(values[i] <= 0 for i in positive):
+            continue
+        usable += 1
+        if len(picked) < MAX_TABLE_ROWS:
+            picked.append((usable, values))
+        elif choice == "sample":  # reservoir sampling: every usable row equally likely
+            k = rng.randrange(usable)
+            if k < MAX_TABLE_ROWS:
+                picked[k] = (usable, values)
+        else:
+            break
+    if not picked:
+        raise NoUsableRows(entry.name, "no row has every chosen column, with a positive quantity and price")
+    picked.sort(key=lambda p: p[0])  # the file's order
+    rows_in = [values for _, values in picked]
+
+    labels: list[list[str] | None] = []
+    for i, (_, kind, _, _) in enumerate(specs):
+        if kind != "category":
+            labels.append(None)
+            continue
+        counts: dict[str, int] = {}
+        for r in rows_in:
+            counts[str(r[i])] = counts.get(str(r[i]), 0) + 1
+        order = list(counts)  # first seen
+        labels.append(sorted(order, key=lambda lab: (-counts[lab], order.index(lab))))
+    codes = [{lab: float(k) for k, lab in enumerate(ls)} if ls else None for ls in labels]
+    data = TableData(
+        rows=[tuple(codes[i][str(v)] if codes[i] else float(v) for i, v in enumerate(r)) for r in rows_in],
+        columns=tuple(col for col, *_ in specs),
+        kinds=tuple(kind for _, kind, *_ in specs),
+    )
+
+    def decode(row: tuple[float, ...]) -> tuple[Any, ...]:
+        out: list[Any] = []
+        for v, ls in zip(row, labels, strict=True):
+            if ls is None:
+                out.append(round(float(v), 4))
+            elif v != v:  # nan: no label
+                out.append(None)
+            else:
+                out.append(ls[min(max(round(v), 0), len(ls) - 1)])
+        return tuple(out)
+
+    roles = {column: role for role, column in schema.roles.items()}
+    taken = {"origin"}
+    fields = [Field("origin", "Origin", "dimension")]
+    for col, kind, _, part in specs:
+        base = field_name(time) + "_" + part if part else field_name(col)
+        name, n = base, 1
+        while name in taken:
+            n += 1
+            name = f"{base}_{n}"
+        taken.add(name)
+        if kind == "category":
+            fields.append(Field(name, col, "dimension"))
+        else:
+            role = roles.get(col) if part is None else None
+            unit = "units" if role == "quantity" else "currency" if role in ("price", "cost") else None
+            fields.append(Field(name, col, "measure", unit=unit, aggregate="mean"))
+    notes = tuple(
+        f"{spec[0]}: its {len(ls)} labels are coded 0 to {len(ls) - 1}, most frequent first; the privacy and "
+        "detection distances, and synthesizers that read numbers (such as the Gaussian copula), treat the "
+        "codes as ordered"
+        for spec, ls in zip(specs, labels, strict=True)
+        if ls is not None and len(ls) > 2
+    )
+    return data, tuple(fields), decode, notes
 
 
 def _info(synthesizer: str, kind: str, fields: tuple[Field, ...]) -> DatasetInfo:

@@ -585,8 +585,11 @@ class SynthesizerList(Model):
 
 
 class SynthesisSource(Model):
-    id: str
+    id: str  # a data source's name
     label: str
+    origin: Literal["bundled", "user"]
+    series: bool  # it has hourly demand, so a series synthesizer can be fitted on it
+    columns: list[str]  # what a table run may name in ``columns``
 
 
 class SynthesisSources(Model):
@@ -599,6 +602,10 @@ class SynthesisRunRequest(BaseModel):
     synthesizer: str
     source: str  # a source ID from GET /synthesis/sources; never a path
     params: dict[str, Any] = Field(default_factory=dict)
+    # a table run: the columns to fit (default: every integer, real and category column) and how rows are
+    # chosen, "sample" (default) or "first"; a bundled source with neither reads the retail feature table
+    columns: list[str] | None = Field(default=None, min_length=1, max_length=64)
+    rows: Literal["sample", "first"] | None = None
 
 
 class SynthesisRunResult(Model):
@@ -610,6 +617,9 @@ class SynthesisRunResult(Model):
     params: dict[str, Any]
     repeatable: bool  # the same params give the same table: the synthesizer has a seed
     metrics: dict[str, float | int | str | None]
+    columns: list[str] | None = None  # a table run on a source's columns; None: the retail feature table or a series
+    row_choice: Literal["sample", "first"] | None = None
+    notes: list[str] = Field(default_factory=list)  # what a reader of the scores should know
     fields: list[FieldModel]
     rows: list[list[Any]]
 

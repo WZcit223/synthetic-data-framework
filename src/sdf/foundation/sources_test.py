@@ -344,7 +344,7 @@ def test_the_dataset_view_maps_names_and_splits_the_hour(tmp_path):
 def test_the_bundled_files_are_sources_with_declared_schemas(monkeypatch):
     monkeypatch.setenv("SDF_DATA_DIR", str(REPO_DATA))
     store = default_store()
-    assert data_dir() == REPO_DATA and [e.name for e in store.list()] == ["retail-10k", "sample"]
+    assert data_dir() == REPO_DATA and [e.name for e in store.list()] == ["sample", "retail-10k"]
     entry = store.get("retail-10k")
     assert entry.origin == "bundled" and entry.report.rows_kept == 10_000
     assert (entry.report.first_date, entry.report.last_date) == ("2010-12-01", "2010-12-05")

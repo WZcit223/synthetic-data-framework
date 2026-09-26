@@ -45,6 +45,8 @@ uv run sdf privacy [csv]        # DCR / NNDR / clone-risk
 uv run sdf hooks                # where each checklist item plugs into the code
 uv run sdf data add FILE --name NAME [--role time=COL] [--kind COL=KIND] [--time-format COL=FMT]
 uv run sdf data list | show NAME | remove NAME   # your own data sources
+uv run sdf privacy --source NAME [--columns A,B] [--rows sample|first] [--param k=v]
+uv run sdf synth --source NAME [--param k=v]    # also sdf tstr --source NAME
 ```
 
 `sdf data add` infers the schema of a CSV (comma or semicolon, UTF-8, a header

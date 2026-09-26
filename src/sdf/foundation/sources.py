@@ -623,7 +623,7 @@ def infer_schema(
 # -- the dataset view of a source ---------------------------------------------------------------------
 
 
-def _field_name(column: str) -> str:
+def field_name(column: str) -> str:
     """``InvoiceDate`` → ``invoice_date``, ``Customer ID`` → ``customer_id``: a lower_snake_case field name."""
     words = _words(column) or ["column"]
     name = "_".join(words)
@@ -645,7 +645,7 @@ def _column_fields(entry: SourceEntry) -> dict[str, list[Field]]:
 
     roles = {column: role for role, column in entry.schema.roles.items()}
     for c in entry.schema.columns:
-        base = _field_name(c.name)
+        base = field_name(c.name)
         if c.kind in ("id", "category"):
             out[c.name] = [field(base, c.name, "dimension")]
         elif c.kind in ("integer", "real"):
@@ -803,7 +803,7 @@ class SourceStore:
     # -- reading -----------------------------------------------------------------------------------
 
     def list(self) -> list[SourceEntry]:
-        """Bundled sources first, then the user's, each by name; a folder that cannot be read is left out."""
+        """Bundled sources first, in their declared order, then the user's by name; unreadable folders left out."""
         return self.scan()[0]
 
     def scan(self) -> tuple[list[SourceEntry], dict[str, str]]:
@@ -811,7 +811,7 @@ class SourceStore:
 
         One broken folder so hides only itself; it can still be removed.
         """
-        entries = [self.get(n) for n in sorted(self._bundled)]
+        entries = [self.get(n) for n in self._bundled]
         broken = {}
         for name in self._user_names():
             try:
@@ -880,6 +880,12 @@ class SourceStore:
             info = DatasetInfo(info.name, info.label, info.description, tuple(fields))
             rows = [tuple(r[i] for i in idx) for r in rows]
         return Table(info, rows)
+
+    def records(self, name: str) -> Iterator[list[Any]]:
+        """Every kept row, parsed: one value per schema column (``int``, ``float``, ``datetime`` or text),
+        ``None`` for a blank or unreadable cell. ``ValueError`` while the schema has problems to settle."""
+        entry = self._ready(name)
+        return _iter_kept(entry.path, entry.schema)
 
     def orders(self, name: str) -> tuple[list[SKU], list[OutboundOrder]]:
         """The source as canonical entities: one SKU per item and one outbound line per kept row.

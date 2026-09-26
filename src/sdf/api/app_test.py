@@ -718,7 +718,7 @@ def test_effects_refuse_a_generator_whose_first_world_differs_from_its_later_one
 def test_datasets_are_listed_with_their_fields(client):
     body = get(client, "/datasets")
     names = [d["name"] for d in body["datasets"]]  # the catalogue's, then the data sources' (a local one too)
-    assert names[:6] == ["inventory", "order-lines", "replenishment-plan", "skus", "source-retail-10k", "source-sample"]
+    assert names[:6] == ["inventory", "order-lines", "replenishment-plan", "skus", "source-sample", "source-retail-10k"]
     assert body["unavailable"] == {}
     lines = next(d for d in body["datasets"] if d["name"] == "order-lines")
     assert lines["origin"] == "builtin" and lines["label"] == "Outbound order lines"
@@ -886,12 +886,15 @@ def test_the_synthesizer_catalogue_lists_parameters_and_unavailable_ones(client)
 
 
 def test_the_sources_are_ids_and_file_names(client, monkeypatch, tmp_path):
-    assert get(client, "/synthesis/sources")["sources"] == [
-        {"id": "sample", "label": "sample_online_retail_ii.csv"},
-        {"id": "retail-10k", "label": "online_retail_ii_2010_10k.csv"},
+    listed = get(client, "/synthesis/sources")["sources"]
+    assert [(s["id"], s["origin"], s["series"]) for s in listed[:2]] == [
+        ("sample", "bundled", True),
+        ("retail-10k", "bundled", True),
     ]
+    assert listed[0]["columns"] == ["Quantity", "Price", "Country", "InvoiceDate.hour", "InvoiceDate.weekday"]
+    # the store is the app's own: its folder is read when the app is built, not on each request
     monkeypatch.setenv("SDF_DATA_DIR", str(tmp_path))
-    assert get(client, "/synthesis/sources")["sources"] == []
+    assert get(client, "/synthesis/sources")["sources"] == listed
 
 
 def test_a_series_run_returns_its_params_scores_and_table(client):
